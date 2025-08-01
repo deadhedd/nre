@@ -43,8 +43,8 @@ else
 fi
 
 weekly_goal_text=""
-if [ -x "./utils/get_weekly_goal_block.sh" ]; then
-  weekly_goal_text=$(./utils/get_weekly_goal_block.sh)
+if [ -x "./utils/extract-weekly-goal.sh" ]; then
+  weekly_goal_text=$(./utils/extract-weekly-goal.sh)
 else
   weekly_goal_text="<!-- Weekly goal goes here -->"
 fi
