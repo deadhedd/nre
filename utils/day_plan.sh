@@ -26,7 +26,8 @@ if [ ! -f "$file" ]; then
 fi
 
 today_name=$(date +%A)
-tomorrow_name=$(date -d 'tomorrow' +%A)
+# Use TZ trick instead of GNU's -d flag for portability.
+tomorrow_name=$(TZ=UTC-24 date +%A)
 
 echo "# Daily Note - $today_name ($(date +%m/%d/%Y))"
 echo
