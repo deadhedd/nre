@@ -1,15 +1,19 @@
 #!/bin/sh
 # Generate a daily note markdown file in the Obsidian vault.
-# Reimplements generate_daily_note.js using POSIX sh and existing utilities.
+# Example/template for end users to customize.
+# Uses optional helper scripts from ./utils if present.
 
 set -e
 
-vault_path="/home/chris/automation/obsidian/vaults/Main"
-daily_note_dir="$vault_path/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Daily Notes"
+# Customize this path to point to your Obsidian vault. The VAULT_PATH
+# environment variable takes precedence if set.
+vault_path="${VAULT_PATH:-/path/to/your/obsidian/vault}"
+daily_note_dir="${vault_path}/Daily Notes"
 
 # Ensure the output directory exists
 if [ ! -d "$daily_note_dir" ]; then
   echo "❌ Daily notes folder does not exist: $daily_note_dir" >&2
+  echo "Edit generate_daily_note.sh to match your vault structure." >&2
   exit 1
 fi
 
@@ -26,90 +30,51 @@ tomorrow=$(date -d 'tomorrow' +%Y-%m-%d)
 
 file_path="$daily_note_dir/$today.md"
 
-# Load dynamic sections using helper scripts
-day_plan_text=$(./utils/day_plan.sh)
-f1_text=$(./utils/f1_schedule.sh)
-weekly_goal_text=$(./utils/get_weekly_goal_block.sh)
+# Optional dynamic sections
+day_plan_text=""
+if [ -x "./utils/day_plan.sh" ]; then
+  day_plan_text=$(./utils/day_plan.sh)
+else
+  day_plan_text="# 🗓️ Day Plan\n<!-- Add your plan for the day here -->"
+fi
 
-# Compose note content
+weekly_goal_text=""
+if [ -x "./utils/get_weekly_goal_block.sh" ]; then
+  weekly_goal_text=$(./utils/get_weekly_goal_block.sh)
+else
+  weekly_goal_text="<!-- Weekly goal goes here -->"
+fi
+
+# Compose note content. Customize the sections below to suit your workflow.
 cat <<EOF_NOTE > "$file_path"
 ---
 tags:
-  - matter/daily-notes
+  - daily-note
 ---
+
 << [[${yesterday}]] | [[${tomorrow}]] >>
 
 ${day_plan_text}
 
-## 🌤️ Yard Work Suitability
-<!-- yard-work-check -->
-
----
-${f1_text}
-
----
-# Themes and Goals
-
-## [[Yearly theme]] (${year})
-The year of standing on business
-[[Stand on Business List]]
-
-## [[Season Theme]] (${year} Spring)
-Yard work and home repairs
-
 ## 🎯 Weekly Goal
 ${weekly_goal_text}
 
----
-
-# ☑️ Pending Tasks
-### Stand on Business
-```tasks
+## ☑️ Tasks
+\`\`\`tasks
 not done
-tags include #stand-on-business
-```
+\`\`\`
 
-### Comms Queue
-```tasks
-not done
-tags include #comms-queue
-```
+## 📓 Notes
+<!-- Write your notes here -->
 
-### Device Config
-```tasks
-not done
-tags include #device-config
-```
-
-### Quick Wins
-```tasks
-not done
-tags include #quick-wins
-```
-
-### Someday/Maybe
-```tasks
-not done
-tags include #someday-maybe
-```
-
----
-
-# Periodic Notes
-
+## 📅 Periodic Notes
 [[${year}-W${week_number}|This Week]]
 [[${month_name} ${year}|This Month]]
 [[${year}-Q${quarter}|This Quarter]]
 [[${year}|This Year]]
 
----
-
-# Links
-[[Weekly Routine]]
-[[Consider Johnie]]
-[[Daily Note Template]]
-[[Daily Plan]]
-[[Workout Schedule]]
+## 🔗 Links
+<!-- Example: [[Resources]] -->
 EOF_NOTE
 
 printf '✅ Daily note created at %s\n' "$file_path"
