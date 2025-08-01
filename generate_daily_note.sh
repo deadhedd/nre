@@ -32,8 +32,8 @@ file_path="$daily_note_dir/$today.md"
 
 # Optional dynamic sections
 day_plan_text=""
-if [ -x "./utils/day_plan.sh" ]; then
-  day_plan_text=$(./utils/day_plan.sh)
+if [ -x "./utils/generate-day-plan.sh" ]; then
+  day_plan_text=$(./utils/generate-day-plan.sh)
 else
   day_plan_text="# 🗓️ Day Plan\n<!-- Add your plan for the day here -->"
 fi
