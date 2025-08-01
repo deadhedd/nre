@@ -1,0 +1,61 @@
+#!/bin/sh
+set -eu
+
+sleepFolder="$HOME/automation/obsidian/vaults/Main/Sleep Data"
+backlogPath="$sleepFolder/backfill-raw.txt"
+
+if [ ! -f "$backlogPath" ]; then
+  echo "❌ backlog file not found: $backlogPath" >&2
+  exit 1
+fi
+
+data=$(curl -fsSL "file://$backlogPath")
+
+parse_entries() {
+  jq -R '
+    (split("\n") | map(select(length>0))) as $l |
+    (length / 4) as $q |
+    [range(0;$q)|{stage:$l[.],duration:$l[.+$q],start:$l[.+2*$q],end:$l[.+3*$q]}]
+  '
+}
+
+entries=$(printf '%s' "$data" | parse_entries)
+
+tmpdir=$(mktemp -d)
+
+printf '%s' "$entries" | jq -c '.[]' | while IFS= read -r obj; do
+  stage=$(printf '%s' "$obj" | jq -r '.stage')
+  duration=$(printf '%s' "$obj" | jq -r '.duration')
+  start=$(printf '%s' "$obj" | jq -r '.start')
+  end=$(printf '%s' "$obj" | jq -r '.end')
+  ts=$(printf '%s' "$start" | jq -R '
+        gsub("\u202F|\u00A0";" ") | gsub("\s+";" ") | gsub("^\s+|\s+$";"") | sub(" at ";" ") | (strptime("%B %e, %Y %I:%M %p")? // strptime("%b %e, %Y %I:%M %p")?) | if . then mktime else empty end')
+  if [ -z "$ts" ]; then
+    continue
+  fi
+  key=$(jq -n --argjson t "$ts" '
+        ($t|strftime("%Y-%m-%d")) as $d |
+        (($d+" 12:00")|strptime("%Y-%m-%d %H:%M")|mktime) as $cut |
+        if $t < $cut then $d else ($t + 86400 | strftime("%Y-%m-%d")) end')
+  mkdir -p "$tmpdir/$key"
+  printf '%s\n' "$stage"   >> "$tmpdir/$key/stages"
+  printf '%s\n' "$duration" >> "$tmpdir/$key/durations"
+  printf '%s\n' "$start"   >> "$tmpdir/$key/starts"
+  printf '%s\n' "$end"     >> "$tmpdir/$key/ends"
+
+done
+
+outputs=""
+today=$(date +%Y-%m-%d)
+for offset in 0 1 2 3 4 5 6; do
+  day=$(date -d "$today -$offset day" +%Y-%m-%d)
+  if [ -d "$tmpdir/$day" ]; then
+    out="$sleepFolder/$day.txt"
+    cat "$tmpdir/$day/stages" "$tmpdir/$day/durations" "$tmpdir/$day/starts" "$tmpdir/$day/ends" > "$out"
+    outputs="$outputs\n-$out"
+  fi
+
+done
+
+echo "✅ Generated the following raw files for the past 7 days:"
+printf '%s\n' "$outputs" | sed '/^$/d'
