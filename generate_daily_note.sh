@@ -25,8 +25,12 @@ month_name=$(date +%B)
 quarter=$(( (10#$month + 2) / 3 ))
 week_number=$(date +%V)
 
-yesterday=$(date -d 'yesterday' +%Y-%m-%d)
-tomorrow=$(date -d 'tomorrow' +%Y-%m-%d)
+# Compute adjacent dates using only POSIX features so that the script
+# remains portable across BSD and GNU date implementations. Adjusting
+# the TZ variable by 24 hours effectively shifts the clock a day back
+# or forward without relying on non-standard flags.
+yesterday=$(TZ=UTC+24 date +%Y-%m-%d)
+tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
 
 file_path="$daily_note_dir/$today.md"
 
