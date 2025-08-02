@@ -19,26 +19,32 @@ async function checkYardWorkSuitability() {
     const temperatures = data.hourly.temperature_2m;
     const dewPoints = data.hourly.dew_point_2m;
 
-    let suitable = false;
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    let earlyUnsuitable = false;
+    let highTemp = -Infinity;
 
     for (let i = 0; i < times.length; i++) {
-      const hour = new Date(times[i]).getHours();
-      if (hour >= 0 && hour <= 6) {
+      const dateStr = times[i].slice(0, 10);
+      if (dateStr === today) {
+        const hour = parseInt(times[i].slice(11, 13), 10);
         const temp = temperatures[i];
         const dew = dewPoints[i];
-        if (temp < 70 && dew < temp) {
-          suitable = true;
-          break;
+        if (temp > highTemp) {
+          highTemp = temp;
+        }
+        if (hour >= 0 && hour <= 6 && temp < dew) {
+          earlyUnsuitable = true;
         }
       }
     }
 
-    const message = suitable
-      ? "✅ Good yard work conditions expected this morning."
-      : "❌ Not ideal for yard work this morning.";
+    const unsuitable = earlyUnsuitable || highTemp >= 70;
+
+    const message = unsuitable
+      ? "❌ Not ideal for yard work today."
+      : "✅ Good yard work conditions expected today.";
 
     // Build the full path to the daily note
-    const today = new Date().toISOString().slice(0, 10);
     const notePath = path.join(
       os.homedir(),
       'automation/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Daily Notes',
