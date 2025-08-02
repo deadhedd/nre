@@ -9,15 +9,18 @@ API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hou
 
 data=$(curl -fsS "$API_URL")
 
-suitable=$(echo "$data" | jq '[range(0; (.hourly.time|length)) as $i | (.hourly.time[$i] | capture("T(?<h>[0-9]{2}):").h|tonumber) as $hour | select($hour>=0 and $hour<=6) | .hourly.temperature_2m[$i] as $temp | .hourly.dew_point_2m[$i] as $dew | select($temp < 70 and $dew < $temp)] | length > 0')
+today=$(date +%Y-%m-%d)
 
-if [ "$suitable" = "true" ]; then
-  message="✅ Good yard work conditions expected this morning."
+early_unsuitable=$(echo "$data" | jq --arg today "$today" '[range(0; (.hourly.time|length)) as $i | (.hourly.time[$i] | capture("(?<date>\d{4}-\d{2}-\d{2})T(?<h>\d{2}):")) as $t | select($t.date == $today and ($t.h|tonumber) >= 0 and ($t.h|tonumber) <= 6 and .hourly.temperature_2m[$i] < .hourly.dew_point_2m[$i])] | length > 0')
+
+high_temp_unsuitable=$(echo "$data" | jq --arg today "$today" '[range(0; (.hourly.time|length)) as $i | select(.hourly.time[$i] | startswith($today)) | .hourly.temperature_2m[$i]] | max >= 70')
+
+if [ "$early_unsuitable" = "true" ] || [ "$high_temp_unsuitable" = "true" ]; then
+  message="❌ Not ideal for yard work today."
 else
-  message="❌ Not ideal for yard work this morning."
+  message="✅ Good yard work conditions expected today."
 fi
 
-today=$(date +%Y-%m-%d)
 note_path="$HOME/automation/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Daily Notes/$today.md"
 
 if [ -f "$note_path" ]; then
