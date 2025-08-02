@@ -100,6 +100,7 @@ while :; do
           SELECTED_SCRIPTS="$SELECTED_SCRIPTS\n$manual"
         fi
       fi
+
       ;;
     *)
       idx=1
