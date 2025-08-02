@@ -25,7 +25,12 @@ mkdir -p "$CONFIG_DIR"
 
 # Load existing config if present
 if [ -f "$CONFIG_FILE" ]; then
-  EXISTING_CONFIG=$(cat "$CONFIG_FILE")
+  if jq empty "$CONFIG_FILE" >/dev/null 2>&1; then
+    EXISTING_CONFIG=$(cat "$CONFIG_FILE")
+  else
+    echo "Warning: ignoring invalid config file at $CONFIG_FILE" >&2
+    EXISTING_CONFIG='[]'
+  fi
 else
   EXISTING_CONFIG='[]'
 fi
@@ -88,7 +93,14 @@ while :; do
     m|M)
       printf 'Enter full path: ' >&2
       read manual || exit 1
-      [ -n "$manual" ] && SELECTED_SCRIPTS="$SELECTED_SCRIPTS\n$manual"
+      if [ -n "$manual" ]; then
+        if [ -z "$SELECTED_SCRIPTS" ]; then
+          SELECTED_SCRIPTS="$manual"
+        else
+          SELECTED_SCRIPTS="$SELECTED_SCRIPTS\n$manual"
+        fi
+      fi
+
       ;;
     *)
       idx=1
@@ -101,7 +113,11 @@ while :; do
         idx=$((idx+1))
       done
       if [ -n "$chosen" ]; then
-        SELECTED_SCRIPTS="$SELECTED_SCRIPTS\n$chosen"
+        if [ -z "$SELECTED_SCRIPTS" ]; then
+          SELECTED_SCRIPTS="$chosen"
+        else
+          SELECTED_SCRIPTS="$SELECTED_SCRIPTS\n$chosen"
+        fi
       else
         echo "Invalid selection." >&2
       fi
@@ -117,7 +133,7 @@ JOB_SCRIPTS=""
 JOB_SCHEDULES=""
 JOB_ENABLED=""
 
-for script in $SELECTED_SCRIPTS; do
+for script in $(printf '%s' "$SELECTED_SCRIPTS" | sed '/^$/d'); do
   if [ ! -f "$script" ]; then
     echo "Skipping missing script: $script" >&2
     continue
@@ -200,25 +216,32 @@ for script in $SELECTED_SCRIPTS; do
     fi
   fi
 
-  JOB_SCRIPTS="$JOB_SCRIPTS\n$script"
-  JOB_SCHEDULES="$JOB_SCHEDULES\n$schedule"
-  JOB_ENABLED="$JOB_ENABLED\n$enabled"
+  if [ -z "$JOB_SCRIPTS" ]; then
+    JOB_SCRIPTS="$script"
+    JOB_SCHEDULES="$schedule"
+    JOB_ENABLED="$enabled"
+  else
+    JOB_SCRIPTS="$JOB_SCRIPTS\n$script"
+    JOB_SCHEDULES="$JOB_SCHEDULES\n$schedule"
+    JOB_ENABLED="$JOB_ENABLED\n$enabled"
+  fi
 done
 
 # Build preview and config
 printf '\nProposed cron jobs:\n'
 i=1
-config_json="["
+config_json=""
 
 for script in $(printf '%s' "$JOB_SCRIPTS" | sed '/^$/d'); do
   schedule=$(printf '%s' "$JOB_SCHEDULES" | sed -n "${i}p")
   enabled=$(printf '%s' "$JOB_ENABLED" | sed -n "${i}p")
   printf '  %s %s -> %s\n' "$schedule" "$script" "$enabled"
-  config_json="$config_json{"script":"$script","schedule":"$schedule","enabled":$enabled},"
+  entry=$(jq -nc --arg s "$script" --arg sch "$schedule" --argjson en "$enabled" '{script:$s,schedule:$sch,enabled:$en}')
+  config_json="$config_json$entry,"
   i=$((i+1))
 done
 
-config_json=$(printf '%s' "$config_json" | sed 's/,$//')"]"
+config_json="[$(printf '%s' "$config_json" | sed 's/,$//')]"
 
 # Save config
 printf '%s\n' "$config_json" > "$CONFIG_FILE"
