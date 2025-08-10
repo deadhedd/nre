@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 function getTaggedChecklist() {
-  const vaultPath = '/home/chris/automation/obsidian/vaults/Main';
+  const vaultPath = '/home/obsidian/vaults/Main';
   const filePath = path.join(vaultPath, 'Inbox/Combined Task List.md');
 
   if (!fs.existsSync(filePath)) {

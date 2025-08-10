@@ -3,7 +3,7 @@
 
 set -e
 
-vault_path='/home/chris/automation/obsidian/vaults/Main'
+vault_path='/home/obsidian/vaults/Main'
 file="$vault_path/Inbox/Combined Task List.md"
 
 if [ ! -f "$file" ]; then

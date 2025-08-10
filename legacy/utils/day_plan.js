@@ -8,7 +8,7 @@ module.exports = async () => {
   const tomorrowName = dayNames[(today.getDay() + 1) % 7];
 
   // This path is specific to your vault layout — adjust if needed
-  const vaultBase = '/home/chris/automation/obsidian/vaults/Main';
+  const vaultBase = '/home/obsidian/vaults/Main';
   const relativePath = "000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Templates/Daily Plan.md";
   const filePath = path.join(vaultBase, relativePath);
 
