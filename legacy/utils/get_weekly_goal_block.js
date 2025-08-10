@@ -13,7 +13,7 @@ function getCurrentWeekTag() {
 
 function getWeeklyGoalBlock() {
   const weekTag = getCurrentWeekTag();
-  const vaultPath = '/home/chris/automation/obsidian/vaults/Main';
+  const vaultPath = '/home/obsidian/vaults/Main';
   const relativePath = `000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Weekly Notes/${weekTag}.md`;
   const fullPath = path.join(vaultPath, relativePath);
 

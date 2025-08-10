@@ -8,7 +8,7 @@ const getWeeklyGoal = require("./utils/get_weekly_goal_block");
 
 (async () => {
   try {
-    const vaultPath = "/home/chris/automation/obsidian/vaults/Main";
+    const vaultPath = "/home/obsidian/vaults/Main";
     const dailyNoteDir = path.join(
       vaultPath,
       "000 - General Knowledge, Information Science, and Computing",

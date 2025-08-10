@@ -2,7 +2,7 @@
 # Generate a daily note by extracting today's and tomorrow's sections
 # from a template markdown file.
 
-vault_base='/home/chris/automation/obsidian/vaults/Main'
+vault_base='/home/obsidian/vaults/Main'
 relative_path='000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Templates/Daily Plan.md'
 file="$vault_base/$relative_path"
 
