@@ -1,10 +1,16 @@
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("node:child_process");
 
 // Load helper modules
 const dayPlan = require("./utils/day_plan");
 const f1Schedule = require("./utils/f1_schedule");
 const getWeeklyGoal = require("./utils/get_weekly_goal_block");
+
+// Run a shell snippet as the current user
+function sh(cmd) {
+  execSync(cmd, { stdio: "inherit" });
+}
 
 (async () => {
   try {
@@ -122,9 +128,24 @@ tags include #someday-maybe
       throw new Error(`❌ Daily notes folder does not exist: ${dailyNoteDir}`);
     }
 
-    // Write to file
+    // Write to file (overwrite if it exists; change to {flag:'wx'} to prevent overwrite)
     fs.writeFileSync(filePath, content);
     console.log(`✅ Daily note created at ${filePath}`);
+
+    // --- Commit only (post-commit hook will auto-push) ---
+    try {
+      // Stage just the file we created, relative to the repo root
+      const rel = path.relative(vaultPath, filePath);
+      sh(`git -C "${vaultPath}" add -- "${rel}"`);
+      // Allow "nothing to commit" without throwing
+      try {
+        sh(`git -C "${vaultPath}" commit -m "daily note: ${dateStr}"`);
+      } catch (_) {
+        // no-op if there were no changes
+      }
+    } catch (e) {
+      console.error("⚠️ Commit step failed:", e?.message || e);
+    }
   } catch (err) {
     console.error("❌ Error creating daily note:", err);
   }
