@@ -1,11 +1,17 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('node:child_process');
+
+function sh(cmd) {
+  execSync(cmd, { stdio: 'inherit' });
+}
 
 // === CONFIG ===
-const sleepFolder = path.resolve(
+const vaultRoot = path.resolve(
   process.env.HOME,
-  'automation/obsidian/vaults/Main/Sleep Data'
+  'automation/obsidian/vaults/Main'
 );
+const sleepFolder = path.join(vaultRoot, 'Sleep Data');
 // Build today's date string in local YYYY-MM-DD
 const today = new Date();
 const year = today.getFullYear();
@@ -181,3 +187,16 @@ entriesToday.forEach(e => {
 // write file
 fs.writeFileSync(outputPath, md);
 console.log(`✅ Wrote ${path.basename(outputPath)}`);
+
+// Commit generated sleep summary
+try {
+  const rel = path.relative(vaultRoot, outputPath);
+  sh(`git -C "${vaultRoot}" add -- "${rel}"`);
+  try {
+    sh(`git -C "${vaultRoot}" commit -m "sleep summary: ${dateToProcess}"`);
+  } catch (_) {
+    // ignore if nothing to commit
+  }
+} catch (e) {
+  console.error('⚠️ Commit step failed:', e?.message || e);
+}

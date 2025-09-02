@@ -1,11 +1,17 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('node:child_process');
+
+function sh(cmd) {
+  execSync(cmd, { stdio: 'inherit' });
+}
 
 // === CONFIG ===
-const sleepFolder = path.resolve(
+const vaultRoot = path.resolve(
   process.env.HOME,
-  'automation/obsidian/vaults/Main/Sleep Data'
+  'automation/obsidian/vaults/Main'
 );
+const sleepFolder = path.join(vaultRoot, 'Sleep Data');
 const inputPath = path.join(sleepFolder, 'backfill-raw.txt');
 
 // === HELPERS ===
@@ -158,4 +164,17 @@ for (let i = 0; i < sortedDates.length; i++) {
   const outPath = path.join(sleepFolder, `${dateKey} Sleep Summary.md`);
   fs.writeFileSync(outPath, md);
   console.log(`✅ Wrote: ${path.basename(outPath)}`);
+
+  // Commit each generated sleep summary
+  try {
+    const rel = path.relative(vaultRoot, outPath);
+    sh(`git -C "${vaultRoot}" add -- "${rel}"`);
+    try {
+      sh(`git -C "${vaultRoot}" commit -m "sleep summary: ${dateKey}"`);
+    } catch (_) {
+      // ignore if nothing to commit
+    }
+  } catch (e) {
+    console.error('⚠️ Commit step failed:', e?.message || e);
+  }
 }

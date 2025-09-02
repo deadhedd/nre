@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 const fs   = require('fs');
 const path = require('path');
+const { execSync } = require('node:child_process');
+
+function sh(cmd) {
+  execSync(cmd, { stdio: 'inherit' });
+}
 
 (async()=>{
   // 1) read all of stdin
@@ -51,4 +56,18 @@ const path = require('path');
   const outPath = path.join(outDir, `${date}-workout.md`);
   fs.writeFileSync(outPath, md);
   console.log('✅ Workout note generated:', outPath);
+
+  // Commit raw and markdown workout files
+  try {
+    const relRaw = path.relative(vaultRoot, rawPath);
+    const relOut = path.relative(vaultRoot, outPath);
+    sh(`git -C "${vaultRoot}" add -- "${relRaw}" "${relOut}"`);
+    try {
+      sh(`git -C "${vaultRoot}" commit -m "workout: ${date}"`);
+    } catch (_) {
+      // ignore if nothing to commit
+    }
+  } catch (e) {
+    console.error('⚠️ Commit step failed:', e?.message || e);
+  }
 })();

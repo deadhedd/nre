@@ -1,11 +1,17 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('node:child_process');
+
+function sh(cmd) {
+  execSync(cmd, { stdio: 'inherit' });
+}
 
 // === CONFIG ===
-const sleepFolder = path.resolve(
+const vaultRoot = path.resolve(
   process.env.HOME,
-  'automation/obsidian/vaults/Main/Sleep Data'
+  'automation/obsidian/vaults/Main'
 );
+const sleepFolder = path.join(vaultRoot, 'Sleep Data');
 const backlogPath = path.join(sleepFolder, 'backfill-raw.txt');
 
 // === UTILS ===
@@ -92,6 +98,18 @@ for (let offset=0; offset<7; offset++) {
     ].join('\n') + '\n';
     fs.writeFileSync(outPath, content);
     outputs.push(outPath);
+    // Commit each generated raw file
+    try {
+      const rel = path.relative(vaultRoot, outPath);
+      sh(`git -C "${vaultRoot}" add -- "${rel}"`);
+      try {
+        sh(`git -C "${vaultRoot}" commit -m "sleep raw: ${key}"`);
+      } catch (_) {
+        // ignore if nothing to commit
+      }
+    } catch (e) {
+      console.error('⚠️ Commit step failed:', e?.message || e);
+    }
   }
 }
 
