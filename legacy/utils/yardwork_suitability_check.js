@@ -1,7 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execSync } = require('node:child_process');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
+function sh(cmd) {
+  execSync(cmd, { stdio: 'inherit' });
+}
 
 // Coordinates for your location
 const LAT = 47.7423;
@@ -59,6 +64,20 @@ async function checkYardWorkSuitability() {
 
     // Write the updated content back to the file
     fs.writeFileSync(notePath, noteContent, 'utf8');
+
+    // --- Commit only (post-commit hook will auto-push) ---
+    try {
+      const vaultRoot = path.join(os.homedir(), 'automation/obsidian/vaults/Main');
+      const rel = path.relative(vaultRoot, notePath);
+      sh(`git -C "${vaultRoot}" add -- "${rel}"`);
+      try {
+        sh(`git -C "${vaultRoot}" commit -m "yard work suitability: ${today}"`);
+      } catch (_) {
+        // no-op if there were no changes
+      }
+    } catch (e) {
+      console.error('⚠️ Commit step failed:', e?.message || e);
+    }
 
     console.log("Yard work suitability check completed.");
   } catch (error) {
