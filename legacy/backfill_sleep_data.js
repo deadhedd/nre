@@ -1,10 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('node:child_process');
-
-function sh(cmd) {
-  execSync(cmd, { stdio: 'inherit' });
-}
+const commit = require('./utils/commit');
 
 // === CONFIG ===
 const vaultRoot = path.resolve(
@@ -166,15 +162,5 @@ for (let i = 0; i < sortedDates.length; i++) {
   console.log(`✅ Wrote: ${path.basename(outPath)}`);
 
   // Commit each generated sleep summary
-  try {
-    const rel = path.relative(vaultRoot, outPath);
-    sh(`git -C "${vaultRoot}" add -- "${rel}"`);
-    try {
-      sh(`git -C "${vaultRoot}" commit -m "sleep summary: ${dateKey}"`);
-    } catch (_) {
-      // ignore if nothing to commit
-    }
-  } catch (e) {
-    console.error('⚠️ Commit step failed:', e?.message || e);
-  }
+  commit(vaultRoot, outPath, `sleep summary: ${dateKey}`);
 }

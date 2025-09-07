@@ -1,16 +1,12 @@
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("node:child_process");
+const commit = require("./utils/commit");
 
 // Load helper modules
 const dayPlan = require("./utils/day_plan");
 const f1Schedule = require("./utils/f1_schedule");
 const getWeeklyGoal = require("./utils/get_weekly_goal_block");
 
-// Run a shell snippet as the current user
-function sh(cmd) {
-  execSync(cmd, { stdio: "inherit" });
-}
 
 (async () => {
   try {
@@ -133,19 +129,7 @@ tags include #someday-maybe
     console.log(`✅ Daily note created at ${filePath}`);
 
     // --- Commit only (post-commit hook will auto-push) ---
-    try {
-      // Stage just the file we created, relative to the repo root
-      const rel = path.relative(vaultPath, filePath);
-      sh(`git -C "${vaultPath}" add -- "${rel}"`);
-      // Allow "nothing to commit" without throwing
-      try {
-        sh(`git -C "${vaultPath}" commit -m "daily note: ${dateStr}"`);
-      } catch (_) {
-        // no-op if there were no changes
-      }
-    } catch (e) {
-      console.error("⚠️ Commit step failed:", e?.message || e);
-    }
+    commit(vaultPath, filePath, `daily note: ${dateStr}`);
   } catch (err) {
     console.error("❌ Error creating daily note:", err);
   }

@@ -1,12 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('node:child_process');
+const commit = require('./commit');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-
-function sh(cmd) {
-  execSync(cmd, { stdio: 'inherit' });
-}
 
 // Coordinates for your location
 const LAT = 47.7423;
@@ -14,6 +10,8 @@ const LON = -121.9857;
 
 // Define the Open-Meteo API endpoint
 const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,dew_point_2m&temperature_unit=fahrenheit&timezone=America/Los_Angeles`;
+
+const vaultRoot = path.join(os.homedir(), 'automation/obsidian/vaults/Main');
 
 async function checkYardWorkSuitability() {
   try {
@@ -51,8 +49,8 @@ async function checkYardWorkSuitability() {
 
     // Build the full path to the daily note
     const notePath = path.join(
-      os.homedir(),
-      'automation/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Daily Notes',
+      vaultRoot,
+      '000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Daily Notes',
       `${today}.md`
     );
 
@@ -66,18 +64,7 @@ async function checkYardWorkSuitability() {
     fs.writeFileSync(notePath, noteContent, 'utf8');
 
     // --- Commit only (post-commit hook will auto-push) ---
-    try {
-      const vaultRoot = path.join(os.homedir(), 'automation/obsidian/vaults/Main');
-      const rel = path.relative(vaultRoot, notePath);
-      sh(`git -C "${vaultRoot}" add -- "${rel}"`);
-      try {
-        sh(`git -C "${vaultRoot}" commit -m "yard work suitability: ${today}"`);
-      } catch (_) {
-        // no-op if there were no changes
-      }
-    } catch (e) {
-      console.error('⚠️ Commit step failed:', e?.message || e);
-    }
+    commit(vaultRoot, notePath, `yard work suitability: ${today}`);
 
     console.log("Yard work suitability check completed.");
   } catch (error) {

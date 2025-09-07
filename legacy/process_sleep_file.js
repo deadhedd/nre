@@ -1,10 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('node:child_process');
-
-function sh(cmd) {
-  execSync(cmd, { stdio: 'inherit' });
-}
+const commit = require('./utils/commit');
 
 // === CONFIG ===
 const vaultRoot = path.resolve(
@@ -189,14 +185,4 @@ fs.writeFileSync(outputPath, md);
 console.log(`✅ Wrote ${path.basename(outputPath)}`);
 
 // Commit generated sleep summary
-try {
-  const rel = path.relative(vaultRoot, outputPath);
-  sh(`git -C "${vaultRoot}" add -- "${rel}"`);
-  try {
-    sh(`git -C "${vaultRoot}" commit -m "sleep summary: ${dateToProcess}"`);
-  } catch (_) {
-    // ignore if nothing to commit
-  }
-} catch (e) {
-  console.error('⚠️ Commit step failed:', e?.message || e);
-}
+commit(vaultRoot, outputPath, `sleep summary: ${dateToProcess}`);
