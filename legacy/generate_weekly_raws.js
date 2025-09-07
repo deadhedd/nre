@@ -1,10 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('node:child_process');
-
-function sh(cmd) {
-  execSync(cmd, { stdio: 'inherit' });
-}
+const commit = require('./utils/commit');
 
 // === CONFIG ===
 const vaultRoot = path.resolve(
@@ -99,17 +95,7 @@ for (let offset=0; offset<7; offset++) {
     fs.writeFileSync(outPath, content);
     outputs.push(outPath);
     // Commit each generated raw file
-    try {
-      const rel = path.relative(vaultRoot, outPath);
-      sh(`git -C "${vaultRoot}" add -- "${rel}"`);
-      try {
-        sh(`git -C "${vaultRoot}" commit -m "sleep raw: ${key}"`);
-      } catch (_) {
-        // ignore if nothing to commit
-      }
-    } catch (e) {
-      console.error('⚠️ Commit step failed:', e?.message || e);
-    }
+    commit(vaultRoot, outPath, `sleep raw: ${key}`);
   }
 }
 
