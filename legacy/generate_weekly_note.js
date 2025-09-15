@@ -1,50 +1,107 @@
+#!/usr/bin/env node
+
 const fs = require("fs");
 const path = require("path");
 
-// 🛠️ Set your paths
-const templatePath = "C:/Users/Chris/Documents/Obsidian Vault/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Templates/Weekly Note Template.md";
-const outputDir = "C:/Users/Chris/Documents/Obsidian Vault/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Weekly Notes";
+// Customize this path to point to your Obsidian vault. The VAULT_PATH
+// environment variable takes precedence if set.
+const vaultPath = process.env.VAULT_PATH || "/path/to/your/obsidian/vault";
+const weeklyNotesDir = path.join(vaultPath, "Weekly Notes");
 
-// 📅 Get today's ISO week
 const today = new Date();
-const isoWeek = getISOWeek(today);
-const outputPath = path.join(outputDir, `${isoWeek}.md`);
+const currentWeekTag = getISOWeek(today);
+const prevWeekTag = getISOWeek(shiftDate(today, -7));
+const nextWeekTag = getISOWeek(shiftDate(today, 7));
+const currentMonthTag = getMonthTag(today);
+const currentQuarterTag = getQuarterTag(today);
+const currentYear = String(today.getFullYear());
 
-// ✅ Read template and inject values
+const outputPath = path.join(weeklyNotesDir, `${currentWeekTag}.md`);
+
+const noteLines = [
+  `# Week ${currentWeekTag}`,
+  "",
+  `<<[[${prevWeekTag}]] || [[${nextWeekTag}]]>>`,
+  "",
+  "## 🎯 Weekly Goal",
+  "",
+  "**Goal:**  ",
+  "`weekly_goal:: `",
+  "",
+  "**Why it matters:**  ",
+  "> One or two sentences at most.",
+  "",
+  "**Definition of Done:**  ",
+  "- [ ] Clear outcome  ",
+  "- [ ] Observable result  ",
+  "",
+  "---",
+  "",
+  "## 📋 Weekly Checklist",
+  "(These need to be incorporated into the cascading tasks system)",
+  "- [ ] Weekly Review",
+  "- [ ] Plan Weekly Goal",
+  "- [ ] Review Calendar",
+  "- [ ] Prep Meals / Ingredients",
+  "",
+  "---",
+  "",
+  "## 🧩 Cascading Tasks",
+  "",
+  "```dataview",
+  "task",
+  'from ""',
+  `where contains(tags, "due/${currentWeekTag}")`,
+  `   OR contains(tags, "due/${currentMonthTag}")`,
+  `   OR contains(tags, "due/${currentQuarterTag}")`,
+  `   OR contains(tags, "due/${currentYear}")`,
+  "```",
+  "",
+  "## Links",
+  "",
+  "[[Weekly Routine]]",
+  "[[Weekly Goal Queue]]",
+  "[[Weekly Note Template]]",
+  "",
+];
+
+const noteContent = noteLines.join("\n");
+
 try {
-  const template = fs.readFileSync(templatePath, "utf-8");
-
-  const rendered = template
-    .replace(/<% tp\.date\.now\("YYYY-\[W\]WW"\) %>/g, isoWeek)
-    .replace(/<% tp\.date\.now\("YYYY-MM-DD"\) %>/g, getDate(today));
-
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
-  fs.writeFileSync(outputPath, rendered);
+  fs.mkdirSync(weeklyNotesDir, { recursive: true });
+  fs.writeFileSync(outputPath, noteContent);
   console.log(`✅ Weekly note created: ${outputPath}`);
 } catch (err) {
   console.error("❌ Error generating weekly note:", err.message);
+  process.exit(1);
 }
 
-// === Helpers ===
-function getISOWeek(d) {
-  const target = new Date(d.valueOf());
-  const dayNr = (d.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  const firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) {
-    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-  }
-  const week = 1 + Math.ceil((firstThursday - target) / 604800000);
-  return `${d.getFullYear()}-W${String(week).padStart(2, "0")}`;
+function shiftDate(date, days) {
+  const copy = new Date(date.getTime());
+  copy.setDate(copy.getDate() + days);
+  return copy;
 }
 
-function getDate(d) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+function getISOWeek(date) {
+  const tempDate = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+  );
+  const dayNumber = tempDate.getUTCDay() || 7;
+  tempDate.setUTCDate(tempDate.getUTCDate() + 4 - dayNumber);
+  const yearStart = new Date(Date.UTC(tempDate.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil(((tempDate - yearStart) / 86400000 + 1) / 7);
+  const isoYear = tempDate.getUTCFullYear();
+  return `${isoYear}-W${String(weekNumber).padStart(2, "0")}`;
+}
+
+function getMonthTag(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function getQuarterTag(date) {
+  const year = date.getFullYear();
+  const quarter = Math.floor(date.getMonth() / 3) + 1;
+  return `Q${quarter}-${year}`;
 }
