@@ -3,10 +3,14 @@
 const fs = require("fs");
 const path = require("path");
 
-// Customize this path to point to your Obsidian vault. The VAULT_PATH
-// environment variable takes precedence if set.
-const vaultPath = process.env.VAULT_PATH || "/home/chris/Documents/vault";
-const weeklyNotesDir = path.join(vaultPath, "000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Weekly Notes");
+const vaultPath = "/home/obsidian/vaults/Main";
+const weeklyNotesDir = path.join(
+  vaultPath,
+  "000 - General Knowledge, Information Science, and Computing",
+  "005 - Computer Programming, Information, and Security",
+  "005.7 - Data",
+  "Weekly Notes"
+);
 
 const today = new Date();
 const currentWeekTag = getISOWeek(today);

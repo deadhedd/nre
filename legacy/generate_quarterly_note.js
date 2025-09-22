@@ -4,14 +4,14 @@
  * Create a quarterly note directly (no Templater). Dependency-free Node.
  *
  * Default behavior:
- *   - Writes to: ./Quarterly Notes/<YYYY-QN>.md (creates folder if missing)
+ *   - Writes to: /home/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Quarterly Notes/<YYYY-QN>.md (creates folder if missing)
  *   - Title: "# <YYYY-QN>" (e.g., "# 2025-Q3")
  *   - Prev/Next links use "Qn YYYY" format (e.g., [[Q2 2025]])
  *   - Dataview task filter for due/<YYYY-QN> and due/<YYYY>
  *
  * CLI options:
- *   --vault "<path>"        Root folder to write into (default: current working directory)
- *   --outdir "<name>"       Subfolder for quarterly notes (default: "Quarterly Notes")
+ *   --vault "<path>"        Root folder to write into (default: /home/obsidian/vaults/Main)
+ *   --outdir "<name>"       Subfolder for quarterly notes (default: 000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Quarterly Notes)
  *   --date "YYYY-QN"        Quarter to generate (e.g., 2025-Q3). If omitted, uses current quarter.
  *   --force                 Overwrite if file exists (default: false)
  *
@@ -25,6 +25,17 @@
 
 const fs = require("fs");
 const path = require("path");
+
+const DEFAULT_VAULT_PATH = "/home/obsidian/vaults/Main";
+const BASE_NOTE_PATH_SEGMENTS = [
+  "000 - General Knowledge, Information Science, and Computing",
+  "005 - Computer Programming, Information, and Security",
+  "005.7 - Data",
+];
+const DEFAULT_QUARTERLY_NOTES_DIR = path.join(
+  ...BASE_NOTE_PATH_SEGMENTS,
+  "Quarterly Notes"
+);
 
 /** ---------------- CLI + FS helpers ---------------- */
 function parseArgs(argv) {
@@ -137,8 +148,10 @@ function main() {
   const args = parseArgs(process.argv);
   const cwd = process.cwd();
 
-  const vault = args.vault ? path.resolve(cwd, args.vault) : cwd;
-  const outdir = args.outdir ? args.outdir : "Quarterly Notes";
+  const vault = args.vault
+    ? path.resolve(cwd, args.vault)
+    : DEFAULT_VAULT_PATH;
+  const outdir = args.outdir ? args.outdir : DEFAULT_QUARTERLY_NOTES_DIR;
   const force = !!args.force;
 
   // Determine target quarter
