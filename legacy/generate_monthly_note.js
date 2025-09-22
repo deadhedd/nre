@@ -4,14 +4,14 @@
  * Create a monthly note directly (no Templater). Safe, dependency‑free Node.
  *
  * Default behavior:
- *   - Writes to: ./Monthly Notes/<YYYY-MM>.md (creates folder if missing)
+ *   - Writes to: /home/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Monthly Notes/<YYYY-MM>.md (creates folder if missing)
  *   - Generates title: "# <Month Name> <YYYY>"
  *   - Adds prev/next month wiki links using YYYY-MM tags
  *   - Inserts a Dataview block that filters by due/<YYYY-MM>, due/<YYYY-QN>, and due/<YYYY>
  *
  * CLI options:
- *   --vault "<path>"        Root folder to write into (default: current working directory)
- *   --outdir "<name>"       Subfolder for monthly notes (default: "Monthly Notes")
+ *   --vault "<path>"        Root folder to write into (default: /home/obsidian/vaults/Main)
+ *   --outdir "<name>"       Subfolder for monthly notes (default: 000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Monthly Notes)
  *   --date "YYYY-MM"        Month to generate (default: current month in your timezone)
  *   --locale "en-US"        Month name locale (default: en-US)
  *   --force                 Overwrite if file exists (default: false)
@@ -26,6 +26,17 @@
 
 const fs = require("fs");
 const path = require("path");
+
+const DEFAULT_VAULT_PATH = "/home/obsidian/vaults/Main";
+const BASE_NOTE_PATH_SEGMENTS = [
+  "000 - General Knowledge, Information Science, and Computing",
+  "005 - Computer Programming, Information, and Security",
+  "005.7 - Data",
+];
+const DEFAULT_MONTHLY_NOTES_DIR = path.join(
+  ...BASE_NOTE_PATH_SEGMENTS,
+  "Monthly Notes"
+);
 
 /** Parse CLI args (simple, no deps) */
 function parseArgs(argv) {
@@ -163,8 +174,10 @@ function main() {
   const args = parseArgs(process.argv);
   const cwd = process.cwd();
 
-  const vault = args.vault ? path.resolve(cwd, args.vault) : cwd;
-  const outdir = args.outdir ? args.outdir : "Monthly Notes";
+  const vault = args.vault
+    ? path.resolve(cwd, args.vault)
+    : DEFAULT_VAULT_PATH;
+  const outdir = args.outdir ? args.outdir : DEFAULT_MONTHLY_NOTES_DIR;
   const locale = args.locale ? args.locale : "en-US";
   const force = !!args.force;
 

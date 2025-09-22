@@ -4,14 +4,14 @@
  * Create a yearly note directly (no Templater). Dependency-free Node.
  *
  * Default behavior:
- *   - Writes to: ./Yearly Notes/<YYYY>.md (creates folder if missing)
+ *   - Writes to: /home/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Yearly Notes/<YYYY>.md (creates folder if missing)
  *   - Title: "# <YYYY>"
  *   - Prev/Next links: [[YYYY-1]] and [[YYYY+1]]
  *   - Dataview task filter for due/<YYYY>
  *
  * CLI options:
- *   --vault "<path>"   Root folder to write into (default: current working directory)
- *   --outdir "<name>"  Subfolder for yearly notes (default: "Yearly Notes")
+ *   --vault "<path>"   Root folder to write into (default: /home/obsidian/vaults/Main)
+ *   --outdir "<name>"  Subfolder for yearly notes (default: 000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Yearly Notes)
  *   --year "YYYY"      Year to generate (default: current UTC year)
  *   --force            Overwrite if file exists
  *
@@ -25,6 +25,17 @@
 
 const fs = require("fs");
 const path = require("path");
+
+const DEFAULT_VAULT_PATH = "/home/obsidian/vaults/Main";
+const BASE_NOTE_PATH_SEGMENTS = [
+  "000 - General Knowledge, Information Science, and Computing",
+  "005 - Computer Programming, Information, and Security",
+  "005.7 - Data",
+];
+const DEFAULT_YEARLY_NOTES_DIR = path.join(
+  ...BASE_NOTE_PATH_SEGMENTS,
+  "Yearly Notes"
+);
 
 /* ---------------- CLI helpers ---------------- */
 function parseArgs(argv) {
@@ -97,8 +108,10 @@ function main() {
   const args = parseArgs(process.argv);
   const cwd = process.cwd();
 
-  const vault = args.vault ? path.resolve(cwd, args.vault) : cwd;
-  const outdir = args.outdir ? args.outdir : "Yearly Notes";
+  const vault = args.vault
+    ? path.resolve(cwd, args.vault)
+    : DEFAULT_VAULT_PATH;
+  const outdir = args.outdir ? args.outdir : DEFAULT_YEARLY_NOTES_DIR;
   const force = !!args.force;
 
   // Determine target year
