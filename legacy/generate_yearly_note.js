@@ -59,8 +59,8 @@ function buildContent(year) {
 
   return `# ${year}
 
-- [[${prevYear}]]
-- [[${nextYear}]]
+- [[Periodic Notes/Yearly Notes/${prevYear}|${prevYear}]]
+- [[Periodic Notes/Yearly Notes/${nextYear}|${nextYear}]]
 
 ## Cascading Tasks
 

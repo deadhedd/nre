@@ -42,7 +42,7 @@ const getWeeklyGoal = require("./utils/get_weekly_goal_block");
 tags:
   - matter/daily-notes
 ---
-<< [[${formatDate(yesterday)}]] | [[${formatDate(tomorrow)}]] >>
+<< [[Periodic Notes/Daily Notes/${formatDate(yesterday)}|${formatDate(yesterday)}]] | [[Periodic Notes/Daily Notes/${formatDate(tomorrow)}|${formatDate(tomorrow)}]] >>
 
 ${dayPlanText}
 
@@ -102,10 +102,10 @@ tags include #someday-maybe
 
 # Periodic Notes
 
-[[${dateStr.slice(0, 4)}-W${String(getWeekNumber(today)).padStart(2, "0")}|This Week]]  
-[[${today.toLocaleString("default", { month: "long" })} ${year}|This Month]]  
-[[${year}-Q${Math.ceil((today.getMonth() + 1) / 3)}|This Quarter]]  
-[[${year}|This Year]]
+[[Periodic Notes/Weekly Notes/${dateStr.slice(0, 4)}-W${String(getWeekNumber(today)).padStart(2, "0")}|This Week]]
+[[Periodic Notes/Monthly Notes/${year}-${month}|This Month]]
+[[Periodic Notes/Quarterly Notes/${year}-Q${Math.ceil((today.getMonth() + 1) / 3)}|This Quarter]]
+[[Periodic Notes/Yearly Notes/${year}|This Year]]
 
 ---
 

@@ -98,11 +98,13 @@ function buildContent({ year, quarter }) {
   // Link text format required: "Qn YYYY"
   const prevLink = `Q${prevQ} ${prevY}`;
   const nextLink = `Q${nextQ} ${nextY}`;
+  const prevTag = quarterTag(prevY, prevQ);
+  const nextTag = quarterTag(nextY, nextQ);
 
   return `# ${tag}
 
-- [[${prevLink}]]
-- [[${nextLink}]]
+- [[Periodic Notes/Quarterly Notes/${prevTag}|${prevLink}]]
+- [[Periodic Notes/Quarterly Notes/${nextTag}|${nextLink}]]
 
 ## Cascading Tasks
 

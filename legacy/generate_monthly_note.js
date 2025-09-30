@@ -99,8 +99,8 @@ function computePeriod(dateUTC) {
 function buildContent(p) {
   return `# ${p.titleMonthName} ${p.year}
 
-- [[${p.prevTag}]]
-- [[${p.nextTag}]]
+- [[Periodic Notes/Monthly Notes/${p.prevTag}|${p.prevTag}]]
+- [[Periodic Notes/Monthly Notes/${p.nextTag}|${p.nextTag}]]
 
 ## Cascading Tasks
 
