@@ -4,21 +4,21 @@
  * Create a quarterly note directly (no Templater). Dependency-free Node.
  *
  * Default behavior:
- *   - Writes to: /home/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Quarterly Notes/<YYYY-QN>.md (creates folder if missing)
+ *   - Writes to: /home/obsidian/vaults/Main/Periodic Notes/Quarterly Notes/<YYYY-QN>.md (creates folder if missing)
  *   - Title: "# <YYYY-QN>" (e.g., "# 2025-Q3")
  *   - Prev/Next links use "Qn YYYY" format (e.g., [[Q2 2025]])
  *   - Dataview task filter for due/<YYYY-QN> and due/<YYYY>
  *
  * CLI options:
  *   --vault "<path>"        Root folder to write into (default: /home/obsidian/vaults/Main)
- *   --outdir "<name>"       Subfolder for quarterly notes (default: 000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Quarterly Notes)
+ *   --outdir "<name>"       Subfolder for quarterly notes (default: Periodic Notes/Quarterly Notes)
  *   --date "YYYY-QN"        Quarter to generate (e.g., 2025-Q3). If omitted, uses current quarter.
  *   --force                 Overwrite if file exists (default: false)
  *
  * Examples:
  *   node generateQuarterlyNote.js
  *   node generateQuarterlyNote.js --vault "/path/to/vaults/Main" --date 2025-Q3
- *   node generateQuarterlyNote.js --outdir "000 - Data/Quarterly Notes" --force
+ *   node generateQuarterlyNote.js --outdir "Periodic Notes/Quarterly Notes" --force
  *
  * Author: deadhedd
  */
@@ -27,13 +27,8 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_VAULT_PATH = "/home/obsidian/vaults/Main";
-const BASE_NOTE_PATH_SEGMENTS = [
-  "000 - General Knowledge, Information Science, and Computing",
-  "005 - Computer Programming, Information, and Security",
-  "005.7 - Data",
-];
 const DEFAULT_QUARTERLY_NOTES_DIR = path.join(
-  ...BASE_NOTE_PATH_SEGMENTS,
+  "Periodic Notes",
   "Quarterly Notes"
 );
 

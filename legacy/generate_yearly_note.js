@@ -4,21 +4,21 @@
  * Create a yearly note directly (no Templater). Dependency-free Node.
  *
  * Default behavior:
- *   - Writes to: /home/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Yearly Notes/<YYYY>.md (creates folder if missing)
+ *   - Writes to: /home/obsidian/vaults/Main/Periodic Notes/Yearly Notes/<YYYY>.md (creates folder if missing)
  *   - Title: "# <YYYY>"
  *   - Prev/Next links: [[YYYY-1]] and [[YYYY+1]]
  *   - Dataview task filter for due/<YYYY>
  *
  * CLI options:
  *   --vault "<path>"   Root folder to write into (default: /home/obsidian/vaults/Main)
- *   --outdir "<name>"  Subfolder for yearly notes (default: 000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Yearly Notes)
+ *   --outdir "<name>"  Subfolder for yearly notes (default: Periodic Notes/Yearly Notes)
  *   --year "YYYY"      Year to generate (default: current UTC year)
  *   --force            Overwrite if file exists
  *
  * Examples:
  *   node generateYearlyNote.js
  *   node generateYearlyNote.js --vault "/path/to/vaults/Main" --year 2026
- *   node generateYearlyNote.js --outdir "000 - Data/Yearly Notes" --force
+ *   node generateYearlyNote.js --outdir "Periodic Notes/Yearly Notes" --force
  *
  * Author: deadhedd
  */
@@ -27,13 +27,8 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_VAULT_PATH = "/home/obsidian/vaults/Main";
-const BASE_NOTE_PATH_SEGMENTS = [
-  "000 - General Knowledge, Information Science, and Computing",
-  "005 - Computer Programming, Information, and Security",
-  "005.7 - Data",
-];
 const DEFAULT_YEARLY_NOTES_DIR = path.join(
-  ...BASE_NOTE_PATH_SEGMENTS,
+  "Periodic Notes",
   "Yearly Notes"
 );
 
