@@ -23,7 +23,7 @@ const outputPath = path.join(weeklyNotesDir, `${currentWeekTag}.md`);
 const noteLines = [
   `# Week ${currentWeekTag}`,
   "",
-  `<<[[${prevWeekTag}]] || [[${nextWeekTag}]]>>`,
+  `<<[[Periodic Notes/Weekly Notes/${prevWeekTag}|${prevWeekTag}]] || [[Periodic Notes/Weekly Notes/${nextWeekTag}|${nextWeekTag}]]>>`,
   "",
   "## 🎯 Weekly Goal",
   "",
