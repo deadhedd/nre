@@ -13,9 +13,7 @@ const getWeeklyGoal = require("./utils/get_weekly_goal_block");
     const vaultPath = "/home/obsidian/vaults/Main";
     const dailyNoteDir = path.join(
       vaultPath,
-      "000 - General Knowledge, Information Science, and Computing",
-      "005 - Computer Programming, Information, and Security",
-      "005.7 - Data",
+      "Periodic Notes",
       "Daily Notes"
     );
 

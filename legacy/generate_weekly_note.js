@@ -6,9 +6,7 @@ const path = require("path");
 const vaultPath = "/home/obsidian/vaults/Main";
 const weeklyNotesDir = path.join(
   vaultPath,
-  "000 - General Knowledge, Information Science, and Computing",
-  "005 - Computer Programming, Information, and Security",
-  "005.7 - Data",
+  "Periodic Notes",
   "Weekly Notes"
 );
 

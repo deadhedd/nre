@@ -4,14 +4,14 @@
  * Create a monthly note directly (no Templater). Safe, dependency‑free Node.
  *
  * Default behavior:
- *   - Writes to: /home/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Monthly Notes/<YYYY-MM>.md (creates folder if missing)
+ *   - Writes to: /home/obsidian/vaults/Main/Periodic Notes/Monthly Notes/<YYYY-MM>.md (creates folder if missing)
  *   - Generates title: "# <Month Name> <YYYY>"
  *   - Adds prev/next month wiki links using YYYY-MM tags
  *   - Inserts a Dataview block that filters by due/<YYYY-MM>, due/<YYYY-QN>, and due/<YYYY>
  *
  * CLI options:
  *   --vault "<path>"        Root folder to write into (default: /home/obsidian/vaults/Main)
- *   --outdir "<name>"       Subfolder for monthly notes (default: 000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Monthly Notes)
+ *   --outdir "<name>"       Subfolder for monthly notes (default: Periodic Notes/Monthly Notes)
  *   --date "YYYY-MM"        Month to generate (default: current month in your timezone)
  *   --locale "en-US"        Month name locale (default: en-US)
  *   --force                 Overwrite if file exists (default: false)
@@ -19,7 +19,7 @@
  * Examples:
  *   node generateMonthlyNote.js
  *   node generateMonthlyNote.js --vault "/path/to/vault" --date 2025-09
- *   node generateMonthlyNote.js --outdir "000 - Data/Monthly Notes" --force
+ *   node generateMonthlyNote.js --outdir "Periodic Notes/Monthly Notes" --force
  *
  * Author: deadhedd
  */
@@ -28,13 +28,8 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_VAULT_PATH = "/home/obsidian/vaults/Main";
-const BASE_NOTE_PATH_SEGMENTS = [
-  "000 - General Knowledge, Information Science, and Computing",
-  "005 - Computer Programming, Information, and Security",
-  "005.7 - Data",
-];
 const DEFAULT_MONTHLY_NOTES_DIR = path.join(
-  ...BASE_NOTE_PATH_SEGMENTS,
+  "Periodic Notes",
   "Monthly Notes"
 );
 
