@@ -10,8 +10,16 @@ function sh(cmd) {
  * @param {string} repoRoot - Root directory of the git repository.
  * @param {string|string[]} files - Absolute path or array of paths to commit.
  * @param {string} message - Commit message.
+ * @param {{context?: string}} [options] - Optional logging context.
  */
-module.exports = function commit(repoRoot, files, message) {
+module.exports = function commit(repoRoot, files, message, options = {}) {
+  const context =
+    typeof options === 'string'
+      ? options
+      : options && typeof options === 'object' && options.context
+        ? options.context
+        : 'changes';
+
   try {
     const arr = Array.isArray(files) ? files : [files];
     const relPaths = arr.map((f) => path.relative(repoRoot, f));
@@ -19,10 +27,11 @@ module.exports = function commit(repoRoot, files, message) {
     sh(`git -C ${JSON.stringify(repoRoot)} add -- ${quoted}`);
     try {
       sh(`git -C ${JSON.stringify(repoRoot)} commit -m ${JSON.stringify(message)}`);
-    } catch (_) {
-      // no-op if there were no changes
+    } catch (commitErr) {
+      console.warn('⚠️ No changes to commit:', commitErr?.message || commitErr);
     }
-  } catch (e) {
-    console.error('⚠️ Commit step failed:', e?.message || e);
+  } catch (err) {
+    const prefix = context === 'changes' ? '⚠️ Failed to commit changes:' : `⚠️ Failed to commit ${context}:`;
+    console.error(prefix, err?.message || err);
   }
 };
