@@ -4,6 +4,9 @@
 
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$script_dir/utils/commit.sh"
+
 # Match the legacy default vault path unless overridden.
 vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 daily_note_dir="${vault_path}/Periodic Notes/Daily Notes"
@@ -138,3 +141,9 @@ tags include #someday-maybe
 EOF_NOTE
 
 printf '✅ Daily note created at %s\n' "$file_path"
+
+if [ -x "$commit_helper" ]; then
+  "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$file_path"
+else
+  printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+fi

@@ -1,7 +1,11 @@
 #!/bin/sh
 set -eu
 
-sleepFolder="$HOME/automation/obsidian/vaults/Main/Sleep Data"
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$script_dir/utils/commit.sh"
+
+vaultRoot="$HOME/automation/obsidian/vaults/Main"
+sleepFolder="$vaultRoot/Sleep Data"
 
 today=$(date +%Y-%m-%d)
 inputPath="$sleepFolder/$today.txt"
@@ -111,3 +115,9 @@ EOF
 
 printf '%s' "$md" > "$outputPath"
 echo "✅ Wrote $(basename "$outputPath")"
+
+if [ -x "$commit_helper" ]; then
+  "$commit_helper" "$vaultRoot" "sleep summary: $today" "$outputPath"
+else
+  printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+fi
