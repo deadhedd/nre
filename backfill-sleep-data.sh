@@ -2,7 +2,11 @@
 # POSIX sh reimplementation of backfill_sleep_data.js
 set -eu
 
-sleep_folder="${HOME}/automation/obsidian/vaults/Main/Sleep Data"
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$script_dir/utils/commit.sh"
+
+vault_root="${HOME}/automation/obsidian/vaults/Main"
+sleep_folder="${vault_root}/Sleep Data"
 input_path="${sleep_folder}/backfill-raw.txt"
 
 # Ensure dependencies
@@ -111,5 +115,10 @@ while [ "$i" -lt "$len" ]; do
   mkdir -p "$sleep_folder"
   cat "$TMPDIR/out.md" > "$out"
   echo "✅ Wrote: $(basename "$out")"
+  if [ -x "$commit_helper" ]; then
+    "$commit_helper" "$vault_root" "sleep summary: $date" "$out"
+  else
+    printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+  fi
   i=$((i+1))
 done

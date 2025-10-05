@@ -1,7 +1,11 @@
 #!/bin/sh
 set -eu
 
-sleepFolder="$HOME/automation/obsidian/vaults/Main/Sleep Data"
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$script_dir/utils/commit.sh"
+
+vaultRoot="$HOME/automation/obsidian/vaults/Main"
+sleepFolder="$vaultRoot/Sleep Data"
 backlogPath="$sleepFolder/backfill-raw.txt"
 
 if [ ! -f "$backlogPath" ]; then
@@ -53,6 +57,11 @@ for offset in 0 1 2 3 4 5 6; do
     out="$sleepFolder/$day.txt"
     cat "$tmpdir/$day/stages" "$tmpdir/$day/durations" "$tmpdir/$day/starts" "$tmpdir/$day/ends" > "$out"
     outputs="$outputs\n-$out"
+    if [ -x "$commit_helper" ]; then
+      "$commit_helper" "$vaultRoot" "sleep raw: $day" "$out"
+    else
+      printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+    fi
   fi
 
 done

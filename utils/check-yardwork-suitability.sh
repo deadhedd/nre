@@ -3,6 +3,11 @@
 
 set -e
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$script_dir/commit.sh"
+
+vault_root="$HOME/automation/obsidian/vaults/Main"
+
 LAT=47.7423
 LON=-121.9857
 API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hourly=temperature_2m,dew_point_2m&temperature_unit=fahrenheit&timezone=America/Los_Angeles"
@@ -28,6 +33,11 @@ if [ -f "$note_path" ]; then
   sed "s/<!-- yard-work-check -->/$message/" "$note_path" > "$tmp"
   mv "$tmp" "$note_path"
   echo "Yard work suitability check completed."
+  if [ -x "$commit_helper" ]; then
+    "$commit_helper" "$vault_root" "yard work suitability: $today" "$note_path"
+  else
+    printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+  fi
 else
   echo "Daily note not found: $note_path" >&2
   exit 1
