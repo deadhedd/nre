@@ -9,16 +9,16 @@ usage() {
 Usage: generate-yearly-note.sh [--vault <path>] [--outdir <name>] [--year YYYY] [--force]
 
 Options:
-  --vault <path>    Vault root where the note should be created. Defaults to $PWD or $VAULT_PATH if set.
-  --outdir <name>   Subdirectory inside the vault. Defaults to "Yearly Notes".
+  --vault <path>    Vault root where the note should be created. Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
+  --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Yearly Notes".
   --year YYYY       Year to generate. Defaults to the current UTC year.
   --force           Overwrite the note if it already exists.
   --help            Show this message.
 EOF_USAGE
 }
 
-vault_path=${VAULT_PATH:-$(pwd)}
-outdir="Yearly Notes"
+vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
+outdir="Periodic Notes/Yearly Notes"
 year_arg=""
 force=0
 
@@ -98,8 +98,8 @@ fi
 cat <<EOF_NOTE >"$note_path"
 # ${target_year}
 
-- [[${prev_year}]]
-- [[${next_year}]]
+- [[Periodic Notes/Yearly Notes/${prev_year}|${prev_year}]]
+- [[Periodic Notes/Yearly Notes/${next_year}|${next_year}]]
 
 ## Cascading Tasks
 

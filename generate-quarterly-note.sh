@@ -9,16 +9,16 @@ usage() {
 Usage: generate-quarterly-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-QN] [--force]
 
 Options:
-  --vault <path>    Vault root where the note should be created. Defaults to $PWD or $VAULT_PATH if set.
-  --outdir <name>   Subdirectory inside the vault. Defaults to "Quarterly Notes".
+  --vault <path>    Vault root where the note should be created. Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
+  --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Quarterly Notes".
   --date YYYY-QN    Quarter to generate (e.g., 2025-Q3). Defaults to the current UTC quarter.
   --force           Overwrite the note if it already exists.
   --help            Show this message.
 EOF_USAGE
 }
 
-vault_path=${VAULT_PATH:-$(pwd)}
-outdir="Quarterly Notes"
+vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
+outdir="Periodic Notes/Quarterly Notes"
 date_arg=""
 force=0
 
@@ -133,8 +133,8 @@ fi
 cat <<EOF_NOTE >"$note_path"
 # ${tag}
 
-- [[${prev_link}]]
-- [[${next_link}]]
+- [[Periodic Notes/Quarterly Notes/${prev_year}-Q${prev_quarter}|${prev_link}]]
+- [[Periodic Notes/Quarterly Notes/${next_year}-Q${next_quarter}|${next_link}]]
 
 ## Cascading Tasks
 
