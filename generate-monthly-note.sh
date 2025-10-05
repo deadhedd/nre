@@ -1,5 +1,5 @@
 #!/bin/sh
-# Generate a monthly note markdown file similar to the legacy Node script.
+# Generate a monthly note markdown file equivalent to the legacy Node script.
 # The script accepts optional CLI arguments to control the vault location,
 # output directory, target month, locale, and overwrite behavior.
 
@@ -10,8 +10,8 @@ usage() {
 Usage: generate-monthly-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM] [--locale <locale>] [--force]
 
 Options:
-  --vault <path>    Vault root where the note should be created. Defaults to $PWD or $VAULT_PATH if set.
-  --outdir <name>   Subdirectory inside the vault. Defaults to "Monthly Notes".
+  --vault <path>    Vault root where the note should be created. Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
+  --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Monthly Notes".
   --date YYYY-MM    Month to generate. Defaults to the current UTC month.
   --locale <locale> Locale for the month name (e.g., en-US). Defaults to en_US.UTF-8.
   --force           Overwrite the note if it already exists.
@@ -43,8 +43,8 @@ get_month_name() {
   fi
 }
 
-vault_path=${VAULT_PATH:-$(pwd)}
-outdir="Monthly Notes"
+vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
+outdir="Periodic Notes/Monthly Notes"
 date_arg=""
 locale="en_US.UTF-8"
 force=0
@@ -152,8 +152,8 @@ fi
 cat <<EOF_NOTE >"$note_path"
 # ${month_name} ${year}
 
-- [[${prev_tag}]]
-- [[${next_tag}]]
+- [[Periodic Notes/Monthly Notes/${prev_tag}|${prev_tag}]]
+- [[Periodic Notes/Monthly Notes/${next_tag}|${next_tag}]]
 
 ## Cascading Tasks
 
