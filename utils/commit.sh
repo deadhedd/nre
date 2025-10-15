@@ -3,13 +3,7 @@
 # Usage: commit.sh [-c context] <repo_root> <message> <file> [file...]
 
 set -eu
-
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-commit_helper="$(dirname "$script_dir")/utils/commit.sh"
-
-if [ "$0" != "$commit_helper" ] && [ -x "$commit_helper" ]; then
-  exec "$commit_helper" "$@"
-fi
+PATH="/usr/local/bin:/usr/bin:/bin"
 
 context='changes'
 
@@ -65,6 +59,16 @@ else
   prefix="⚠️ Failed to commit $context:"
 fi
 
+# ---- Safety pre-sync (preserve local/uncommitted changes) ----
+git -C "$repo_root" config --global --add safe.directory "$repo_root" 2>/dev/null || true
+git -C "$repo_root" remote set-url origin /home/git/vaults/Main.git 2>/dev/null || true
+git -C "$repo_root" fetch --prune origin
+# Rebase with autostash keeps your uncommitted generator changes intact
+if ! git -C "$repo_root" rebase --autostash origin/master; then
+  git -C "$repo_root" rebase --abort 2>/dev/null || true
+  printf '⚠️ Failed to sync with origin/master before commit\n' >&2
+fi
+
 # Stage each file individually.
 for file in "$@"; do
   case $file in
@@ -101,5 +105,18 @@ fi
 
 if [ -n "$commit_output" ]; then
   printf '%s\n' "$commit_output"
+fi
+
+# ---- Push with one retry on rejection ----
+if ! git -C "$repo_root" push origin HEAD:master; then
+  git -C "$repo_root" fetch --prune origin
+  if git -C "$repo_root" rebase origin/master; then
+    git -C "$repo_root" push origin HEAD:master || {
+      printf '⚠️ push failed after rebase retry\n' >&2; exit 1; }
+  else
+    git -C "$repo_root" rebase --abort 2>/dev/null || true
+    printf '⚠️ rebase failed during push retry\n' >&2
+    exit 1
+  fi
 fi
 
