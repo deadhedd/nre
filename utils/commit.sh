@@ -4,6 +4,13 @@
 
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$(dirname "$script_dir")/utils/commit.sh"
+
+if [ "$0" != "$commit_helper" ] && [ -x "$commit_helper" ]; then
+  exec "$commit_helper" "$@"
+fi
+
 context='changes'
 
 print_usage() {
