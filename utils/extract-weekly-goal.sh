@@ -4,12 +4,15 @@
 set -e
 
 week_tag=$(date +%G-W%V)
-vault_path='/home/obsidian/vaults/Main'
-relative="Periodic Notes/Weekly Notes/$week_tag.md"
-file="$vault_path/$relative"
+vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
+vault_root="${vault_path%/}"
+periodic_dir="${vault_root}/Periodic Notes"
+weekly_note_dir="${periodic_dir%/}/Weekly Notes"
+relative_path="Periodic Notes/Weekly Notes/${week_tag}.md"
+file="${weekly_note_dir%/}/${week_tag}.md"
 
 if [ ! -f "$file" ]; then
-  echo "❌ Could not find file: $relative"
+  echo "❌ Could not find file: $relative_path"
   exit 1
 fi
 

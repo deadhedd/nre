@@ -6,7 +6,10 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/commit.sh"
 
-vault_root="$HOME/automation/obsidian/vaults/Main"
+vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
+vault_root="${vault_path%/}"
+periodic_dir="${vault_root}/Periodic Notes"
+daily_note_dir="${periodic_dir%/}/Daily Notes"
 
 # ---- Tunables ----
 LAT=47.7423
@@ -55,7 +58,7 @@ else
   message="✅ Good yard work conditions expected today."
 fi
 
-note_path="$HOME/automation/obsidian/vaults/Main/Periodic Notes/Daily Notes/$today.md"
+note_path="${daily_note_dir%/}/${today}.md"
 
 if [ -f "$note_path" ]; then
   tmp=$(mktemp)
