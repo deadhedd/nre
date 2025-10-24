@@ -119,22 +119,8 @@ fi
 prev_link="Q${prev_quarter} ${prev_year}"
 next_link="Q${next_quarter} ${next_year}"
 
-vault_root="${vault_path%/}"
-trimmed_outdir=$outdir
-while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
-  trimmed_outdir=${trimmed_outdir#/}
-done
-while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do
-  trimmed_outdir=${trimmed_outdir%/}
-done
-
-if [ -n "$trimmed_outdir" ]; then
-  note_dir="$vault_root/$trimmed_outdir"
-else
-  note_dir="$vault_root"
-fi
-
-note_path="${note_dir%/}/${tag}.md"
+note_dir="$vault_path/$outdir"
+note_path="$note_dir/${tag}.md"
 
 mkdir -p "$note_dir"
 
