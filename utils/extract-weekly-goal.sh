@@ -5,7 +5,7 @@ set -e
 
 week_tag=$(date +%G-W%V)
 vault_path='/home/obsidian/vaults/Main'
-relative="000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Weekly Notes/$week_tag.md"
+relative="Periodic Notes/Weekly Notes/$week_tag.md"
 file="$vault_path/$relative"
 
 if [ ! -f "$file" ]; then

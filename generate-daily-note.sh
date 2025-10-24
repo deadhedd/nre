@@ -13,7 +13,7 @@ daily_note_dir="${vault_path}/Periodic Notes/Daily Notes"
 
 # Ensure the output directory exists
 if [ ! -d "$daily_note_dir" ]; then
-  echo "❌ Daily notes folder does not exist: $daily_note_dir" >&2
+  echo "❌ Periodic notes folder does not exist: $daily_note_dir" >&2
   echo "Edit generate-daily-note.sh to match your vault structure." >&2
   exit 1
 fi

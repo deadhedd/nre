@@ -16,9 +16,9 @@ export VAULT_PATH=/path/to/your/obsidian/vault
 ./generate-daily-note.sh
 ```
 
-By default the note is placed inside `Daily Notes` within the specified vault.
-Optional helper scripts in the `utils/` directory will be used if present to
-populate sections such as a day plan or weekly goal.
+By default the note is placed inside `/Periodic Notes/Daily Notes/` within the
+specified vault. Optional helper scripts in the `utils/` directory will be used
+if present to populate sections such as a day plan or weekly goal.
 
 
 ## `generate-monthly-note.sh`
@@ -46,7 +46,7 @@ legacy script emitted. It defaults to the current quarter in UTC and accepts
 ### Usage
 
 ```sh
-./generate-quarterly-note.sh --outdir "Quarterly Notes" --date 2024-Q4
+./generate-quarterly-note.sh --outdir "Periodic Notes/Quarterly Notes" --date 2024-Q4
 ```
 
 ## `generate-yearly-note.sh`
@@ -61,5 +61,7 @@ checklists. Provide `--year` to generate a specific year or rely on the default 
 ./generate-yearly-note.sh --vault "$VAULT_PATH" --year 2025
 ```
 
-All three periodic note scripts overwrite existing files only when `--force` is
-supplied, matching the behavior of their legacy Node counterparts.
+Monthly, quarterly, and yearly notes default to `/Periodic Notes/Monthly Notes/`,
+`/Periodic Notes/Quarterly Notes/`, and `/Periodic Notes/Yearly Notes/`
+respectively. All three periodic note scripts overwrite existing files only when
+`--force` is supplied, matching the behavior of their legacy Node counterparts.

@@ -50,7 +50,8 @@ async function checkYardWorkSuitability() {
     // Build the full path to the daily note
     const notePath = path.join(
       vaultRoot,
-      '000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Daily Notes',
+      'Periodic Notes',
+      'Daily Notes',
       `${today}.md`
     );
 
