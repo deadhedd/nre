@@ -7,9 +7,13 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
 
-# Match the legacy default vault path unless overridden.
+# Match the legacy default vault path unless overridden and construct
+# the periodic notes directory using the same path handling as the
+# other non-legacy scripts.
 vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
-daily_note_dir="${vault_path}/Periodic Notes/Daily Notes"
+vault_root="${vault_path%/}"
+periodic_dir="${vault_root}/Periodic Notes"
+daily_note_dir="${periodic_dir%/}/Daily Notes"
 
 # Ensure the output directory exists
 if [ ! -d "$daily_note_dir" ]; then
@@ -33,7 +37,7 @@ week_tag=$(date +%G-W%V)
 yesterday=$(TZ=UTC+24 date +%Y-%m-%d)
 tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
 
-file_path="$daily_note_dir/$today.md"
+file_path="${daily_note_dir%/}/${today}.md"
 
 # Optional dynamic sections
 day_plan_text="# Daily Plan\n<!-- Daily plan unavailable -->"
