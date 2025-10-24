@@ -17,7 +17,7 @@ const commit = require('./utils/commit');
   const date = new Date().toISOString().split('T')[0]; // e.g. 2025-06-10
   const vaultRoot = path.join(process.env.HOME, 'automation/obsidian/vaults/Main');
   const rawDir    = path.join(vaultRoot, 'Workout Data');
-  const outDir    = path.join(vaultRoot, 'Daily Notes');
+  const outDir    = path.join(vaultRoot, 'Periodic Notes');
 
   for (let d of [rawDir, outDir]) {
     if (!fs.existsSync(d)) fs.mkdirSync(d, {recursive:true});

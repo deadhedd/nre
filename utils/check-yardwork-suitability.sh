@@ -55,7 +55,7 @@ else
   message="✅ Good yard work conditions expected today."
 fi
 
-note_path="$HOME/automation/obsidian/vaults/Main/000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Daily Notes/$today.md"
+note_path="$HOME/automation/obsidian/vaults/Main/Periodic Notes/Daily Notes/$today.md"
 
 if [ -f "$note_path" ]; then
   tmp=$(mktemp)

@@ -28,10 +28,7 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_VAULT_PATH = "/home/obsidian/vaults/Main";
-const DEFAULT_MONTHLY_NOTES_DIR = path.join(
-  "Periodic Notes",
-  "Monthly Notes"
-);
+const DEFAULT_MONTHLY_NOTES_DIR = "Periodic Notes/Monthly Notes";
 
 /** Parse CLI args (simple, no deps) */
 function parseArgs(argv) {
