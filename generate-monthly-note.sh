@@ -138,8 +138,22 @@ next_tag=$(date -u -d "${year}-${month}-01 +1 month" +%Y-%m)
 
 month_name=$(get_month_name "$locale" "${year}-${month}-01")
 
-note_dir="$vault_path/$outdir"
-note_path="$note_dir/${month_tag}.md"
+vault_root="${vault_path%/}"
+trimmed_outdir=$outdir
+while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
+  trimmed_outdir=${trimmed_outdir#/}
+done
+while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do
+  trimmed_outdir=${trimmed_outdir%/}
+done
+
+if [ -n "$trimmed_outdir" ]; then
+  note_dir="$vault_root/$trimmed_outdir"
+else
+  note_dir="$vault_root"
+fi
+
+note_path="${note_dir%/}/${month_tag}.md"
 
 mkdir -p "$note_dir"
 
