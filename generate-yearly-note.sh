@@ -84,22 +84,8 @@ fi
 prev_year=$((target_year - 1))
 next_year=$((target_year + 1))
 
-vault_root="${vault_path%/}"
-trimmed_outdir=$outdir
-while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
-  trimmed_outdir=${trimmed_outdir#/}
-done
-while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do
-  trimmed_outdir=${trimmed_outdir%/}
-done
-
-if [ -n "$trimmed_outdir" ]; then
-  note_dir="$vault_root/$trimmed_outdir"
-else
-  note_dir="$vault_root"
-fi
-
-note_path="${note_dir%/}/${target_year}.md"
+note_dir="$vault_path/$outdir"
+note_path="$note_dir/${target_year}.md"
 
 mkdir -p "$note_dir"
 
