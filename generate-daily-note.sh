@@ -4,8 +4,8 @@
 
 set -eu
 
-# Ensure common tools are found even under cron
-PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}"
+# Ensure common tools are found even under cron (put /usr/local/bin first)
+PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
@@ -33,32 +33,48 @@ day=$(printf '%s' "$today" | cut -d- -f3)
 quarter=$(( (10#$month + 2) / 3 ))
 week_tag=$(date +%G-W%V)
 
-# Portable yesterday/tomorrow
+# Portable yesterday/tomorrow (works on BSD/GNU date)
 yesterday=$(TZ=UTC+24 date +%Y-%m-%d)
 tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
 
 file_path="${daily_note_dir%/}/${today}.md"
 
-# Optional dynamic sections (always resolve from script_dir)
-day_plan_text="# Daily Plan\n<!-- Daily plan unavailable -->"
-if [ -x "$script_dir/utils/generate-day-plan.sh" ]; then
-  if output=$("$script_dir/utils/generate-day-plan.sh" 2>/dev/null); then
+# ----- Defaults as real multiline text (no literal \n) -----
+day_plan_text=$(cat <<'EOF'
+# Daily Plan
+<!-- Daily plan unavailable -->
+EOF
+)
+
+f1_text=$(cat <<'EOF'
+# 🏎️ Formula 1
+⚠️ Could not load race data.
+EOF
+)
+
+weekly_goal_text="⚠️ Weekly Goal section is empty."
+
+# ----- Optional dynamic sections (resolve paths from script_dir; do not require +x) -----
+if [ -r "$script_dir/utils/generate-day-plan.sh" ]; then
+  if output=$(sh "$script_dir/utils/generate-day-plan.sh"); then
     day_plan_text="$output"
   else
-    day_plan_text="# Daily Plan\n⚠️ Unable to load day plan"
+    day_plan_text=$(cat <<'EOF'
+# Daily Plan
+⚠️ Unable to load day plan
+EOF
+)
   fi
 fi
 
-f1_text="# 🏎️ Formula 1\n⚠️ Could not load race data."
-if [ -x "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
-  if output=$("$script_dir/utils/f1-schedule-and-standings.sh" 2>/dev/null); then
+if [ -r "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
+  if output=$(sh "$script_dir/utils/f1-schedule-and-standings.sh"); then
     f1_text="$output"
   fi
 fi
 
-weekly_goal_text="⚠️ Weekly Goal section is empty."
-if [ -x "$script_dir/utils/extract-weekly-goal.sh" ]; then
-  if output=$("$script_dir/utils/extract-weekly-goal.sh" 2>/dev/null); then
+if [ -r "$script_dir/utils/extract-weekly-goal.sh" ]; then
+  if output=$(sh "$script_dir/utils/extract-weekly-goal.sh"); then
     weekly_goal_text="$output"
   fi
 fi
