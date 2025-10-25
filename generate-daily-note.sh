@@ -4,6 +4,9 @@
 
 set -eu
 
+# Ensure common tools are found even under cron
+PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}"
+
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
 
@@ -30,19 +33,16 @@ day=$(printf '%s' "$today" | cut -d- -f3)
 quarter=$(( (10#$month + 2) / 3 ))
 week_tag=$(date +%G-W%V)
 
-# Compute adjacent dates using only POSIX features so that the script
-# remains portable across BSD and GNU date implementations. Adjusting
-# the TZ variable by 24 hours effectively shifts the clock a day back
-# or forward without relying on non-standard flags.
+# Portable yesterday/tomorrow
 yesterday=$(TZ=UTC+24 date +%Y-%m-%d)
 tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
 
 file_path="${daily_note_dir%/}/${today}.md"
 
-# Optional dynamic sections
+# Optional dynamic sections (always resolve from script_dir)
 day_plan_text="# Daily Plan\n<!-- Daily plan unavailable -->"
-if [ -x "./utils/generate-day-plan.sh" ]; then
-  if output=$(./utils/generate-day-plan.sh 2>/dev/null); then
+if [ -x "$script_dir/utils/generate-day-plan.sh" ]; then
+  if output=$("$script_dir/utils/generate-day-plan.sh" 2>/dev/null); then
     day_plan_text="$output"
   else
     day_plan_text="# Daily Plan\n⚠️ Unable to load day plan"
@@ -50,15 +50,15 @@ if [ -x "./utils/generate-day-plan.sh" ]; then
 fi
 
 f1_text="# 🏎️ Formula 1\n⚠️ Could not load race data."
-if [ -x "./utils/f1-schedule-and-standings.sh" ]; then
-  if output=$(./utils/f1-schedule-and-standings.sh 2>/dev/null); then
+if [ -x "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
+  if output=$("$script_dir/utils/f1-schedule-and-standings.sh" 2>/dev/null); then
     f1_text="$output"
   fi
 fi
 
 weekly_goal_text="⚠️ Weekly Goal section is empty."
-if [ -x "./utils/extract-weekly-goal.sh" ]; then
-  if output=$(./utils/extract-weekly-goal.sh 2>/dev/null); then
+if [ -x "$script_dir/utils/extract-weekly-goal.sh" ]; then
+  if output=$("$script_dir/utils/extract-weekly-goal.sh" 2>/dev/null); then
     weekly_goal_text="$output"
   fi
 fi
