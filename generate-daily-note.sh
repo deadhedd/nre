@@ -33,6 +33,24 @@ day=$(printf '%s' "$today" | cut -d- -f3)
 quarter=$(( (10#$month + 2) / 3 ))
 week_tag=$(date +%G-W%V)
 
+time_blocks_nav=$(cat <<EOF_TB
+## ⌚ Time Blocks
+- [[Periodic Notes/Daily Notes/Subnotes/${today} - Wake Up Routine|Wake Up Routine]]
+- [[Periodic Notes/Daily Notes/Subnotes/${today} - Morning|Morning]]
+- [[Periodic Notes/Daily Notes/Subnotes/${today} - Afternoon|Afternoon]]
+- [[Periodic Notes/Daily Notes/Subnotes/${today} - Evening|Evening]]
+- [[Periodic Notes/Daily Notes/Subnotes/${today} - Night|Night]]
+
+> [!tip] Power navigation
+> - [[Weekly Routine]]
+> - [[Stand on Business List]]
+> - [[Comms Queue]]
+> - [[Device Config Queue]]
+> - [[Quick Wins List]]
+> - [[Someday / Maybe]]
+EOF_TB
+)
+
 # Portable yesterday/tomorrow (works on BSD/GNU date)
 yesterday=$(TZ=UTC+24 date +%Y-%m-%d)
 tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
@@ -88,6 +106,8 @@ tags:
 << [[Periodic Notes/Daily Notes/${yesterday}|${yesterday}]] | [[Periodic Notes/Daily Notes/${tomorrow}|${tomorrow}]] >>
 
 ${day_plan_text}
+
+${time_blocks_nav}
 
 ## 🌤️ Yard Work Suitability
 <!-- yard-work-check -->
