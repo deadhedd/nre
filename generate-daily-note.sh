@@ -57,6 +57,17 @@ tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
 
 file_path="${daily_note_dir%/}/${today}.md"
 
+# Wake Up Routine subnote placeholder
+wake_up_subnotes_dir="${daily_note_dir%/}/Subnotes"
+wake_up_note_path="${wake_up_subnotes_dir%/}/${today} - Wake Up Routine.md"
+
+if [ ! -f "$wake_up_note_path" ]; then
+  mkdir -p "$wake_up_subnotes_dir"
+  cat <<'EOF_WAKE_UP' > "$wake_up_note_path"
+<!-- Wake Up Routine note placeholder -->
+EOF_WAKE_UP
+fi
+
 # ----- Defaults as real multiline text (no literal \n) -----
 day_plan_text=$(cat <<'EOF'
 # Daily Plan
