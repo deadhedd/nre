@@ -57,6 +57,8 @@ tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
 
 file_path="${daily_note_dir%/}/${today}.md"
 
+set -- "$file_path"
+
 # Wake Up Routine subnote placeholder
 wake_up_subnotes_dir="${daily_note_dir%/}/Subnotes"
 wake_up_note_path="${wake_up_subnotes_dir%/}/${today} - Wake Up Routine.md"
@@ -66,6 +68,7 @@ if [ ! -f "$wake_up_note_path" ]; then
   cat <<'EOF_WAKE_UP' > "$wake_up_note_path"
 <!-- Wake Up Routine note placeholder -->
 EOF_WAKE_UP
+  set -- "$@" "$wake_up_note_path"
 fi
 
 # ----- Defaults as real multiline text (no literal \n) -----
@@ -194,7 +197,7 @@ EOF_NOTE
 printf '✅ Daily note created at %s\n' "$file_path"
 
 if [ -x "$commit_helper" ]; then
-  "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$file_path"
+  "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$@"
 else
   printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
 fi
