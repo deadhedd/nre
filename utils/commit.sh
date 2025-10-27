@@ -59,17 +59,69 @@ else
   prefix="⚠️ Failed to commit $context:"
 fi
 
-# ---- Safety pre-sync (preserve local/uncommitted changes) ----
+# --- Repo hygiene / config ---
+# (Allow this path to be operated on even if root toggles ownership/permissions.)
 git -C "$repo_root" config --global --add safe.directory "$repo_root" 2>/dev/null || true
+# (Your setup expects origin to be the local bare repo.)
 git -C "$repo_root" remote set-url origin /home/git/vaults/Main.git 2>/dev/null || true
-git -C "$repo_root" fetch --prune origin
-# Rebase with autostash keeps your uncommitted generator changes intact
-if ! git -C "$repo_root" rebase --autostash origin/master; then
-  git -C "$repo_root" rebase --abort 2>/dev/null || true
-  printf '⚠️ Failed to sync with origin/master before commit\n' >&2
+# Prefer rebase pulls to keep history linear.
+git -C "$repo_root" config pull.rebase true 2>/dev/null || true
+
+# --- Pre-sync protection for local changes (including untracked) ---
+stashed=0
+# If anything is dirty (tracked or untracked), stash it before sync to avoid "untracked would be overwritten".
+if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then
+  git -C "$repo_root" stash push -u -m "auto: pre-sync $(date -Iseconds)"
+  stashed=1
 fi
 
-# Stage each file individually.
+# Ensure we're on a branch (prefer master) before rebasing; avoid detached-HEAD weirdness.
+current_branch=$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)
+if [ "$current_branch" = "HEAD" ]; then
+  # If repo has master, check it out; otherwise fall back to main or the default branch.
+  if git -C "$repo_root" show-ref --verify --quiet refs/heads/master; then
+    git -C "$repo_root" checkout master
+  elif git -C "$repo_root" show-ref --verify --quiet refs/heads/main; then
+    git -C "$repo_root" checkout main
+  else
+    # Try to attach to whatever HEAD points to remotely.
+    git -C "$repo_root" checkout -B master || true
+  fi
+fi
+
+# ---- Sync with remote safely ----
+git -C "$repo_root" fetch --prune origin
+
+# Choose the upstream branch name (master if it exists remotely, else main)
+upstream_branch=master
+if ! git -C "$repo_root" ls-remote --heads origin master >/dev/null 2>&1; then
+  if git -C "$repo_root" ls-remote --heads origin main >/dev/null 2>&1; then
+    upstream_branch=main
+  fi
+fi
+
+sync_ok=1
+if ! git -C "$repo_root" rebase "origin/$upstream_branch"; then
+  git -C "$repo_root" rebase --abort 2>/dev/null || true
+  sync_ok=0
+fi
+
+# Restore stashed work (if any) back into the working tree.
+if [ $stashed -eq 1 ]; then
+  if ! git -C "$repo_root" stash pop --index; then
+    printf '⚠️ Stash pop had conflicts. Resolve them (e.g., in:\n'
+    git -C "$repo_root" diff --name-only --diff-filter=U | sed 's/^/   - /'
+    printf '), then run:\n   git add -A && git rebase --continue (if rebase is in progress)\n'
+    exit 1
+  fi
+fi
+
+# If sync failed (e.g., due to conflicts unrelated to our stash), bail gracefully.
+if [ $sync_ok -ne 1 ]; then
+  printf '⚠️ Failed to sync with origin/%s before commit\n' "$upstream_branch" >&2
+fi
+
+# ---- Stage each file explicitly provided to the script ----
 for file in "$@"; do
   case $file in
     /*) abs_path=$file ;;
@@ -81,42 +133,38 @@ for file in "$@"; do
   fi
 done
 
-# Attempt to commit and provide feedback when there are no staged changes.
+# ---- Commit (if there is anything staged) ----
+commit_status=0
 commit_output=$(git -C "$repo_root" commit -m "$message" 2>&1) || commit_status=$?
 
-if [ "${commit_status-0}" -ne 0 ]; then
+if [ "$commit_status" -ne 0 ]; then
   case $commit_output in
     *'nothing to commit'*|*'no changes added to commit'*)
-      if [ -n "$commit_output" ]; then
-        printf '%s\n' "$commit_output" >&2
-      fi
-      printf '⚠️ No changes to commit: %s\n' "$commit_output" >&2
+      [ -n "$commit_output" ] && printf '%s\n' "$commit_output" >&2
+      printf '⚠️ No changes to commit.\n' >&2
       exit 0
       ;;
     *)
-      if [ -n "$commit_output" ]; then
-        printf '%s\n' "$commit_output" >&2
-      fi
+      [ -n "$commit_output" ] && printf '%s\n' "$commit_output" >&2
       printf '%s %s\n' "$prefix" "$commit_output" >&2
-      exit "${commit_status:-1}"
+      exit "$commit_status"
       ;;
   esac
-fi
-
-if [ -n "$commit_output" ]; then
-  printf '%s\n' "$commit_output"
+else
+  [ -n "$commit_output" ] && printf '%s\n' "$commit_output"
 fi
 
 # ---- Push with one retry on rejection ----
-if ! git -C "$repo_root" push origin HEAD:master; then
+if ! git -C "$repo_root" push origin HEAD:"$upstream_branch"; then
   git -C "$repo_root" fetch --prune origin
-  if git -C "$repo_root" rebase origin/master; then
-    git -C "$repo_root" push origin HEAD:master || {
-      printf '⚠️ push failed after rebase retry\n' >&2; exit 1; }
+  if git -C "$repo_root" rebase "origin/$upstream_branch"; then
+    git -C "$repo_root" push origin HEAD:"$upstream_branch" || {
+      printf '⚠️ push failed after rebase retry\n' >&2
+      exit 1
+    }
   else
     git -C "$repo_root" rebase --abort 2>/dev/null || true
     printf '⚠️ rebase failed during push retry\n' >&2
     exit 1
   fi
 fi
-
