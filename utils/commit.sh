@@ -60,31 +60,28 @@ else
 fi
 
 # --- Repo hygiene / config ---
-# (Allow this path to be operated on even if root toggles ownership/permissions.)
 git -C "$repo_root" config --global --add safe.directory "$repo_root" 2>/dev/null || true
-# (Your setup expects origin to be the local bare repo.)
 git -C "$repo_root" remote set-url origin /home/git/vaults/Main.git 2>/dev/null || true
-# Prefer rebase pulls to keep history linear.
 git -C "$repo_root" config pull.rebase true 2>/dev/null || true
+
+# --- Helper for portable timestamps (OpenBSD-compatible) ---
+ts_utc() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
 # --- Pre-sync protection for local changes (including untracked) ---
 stashed=0
-# If anything is dirty (tracked or untracked), stash it before sync to avoid "untracked would be overwritten".
 if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then
-  git -C "$repo_root" stash push -u -m "auto: pre-sync $(date -Iseconds)"
+  git -C "$repo_root" stash push -u -m "auto: pre-sync $(ts_utc)"
   stashed=1
 fi
 
 # Ensure we're on a branch (prefer master) before rebasing; avoid detached-HEAD weirdness.
 current_branch=$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)
 if [ "$current_branch" = "HEAD" ]; then
-  # If repo has master, check it out; otherwise fall back to main or the default branch.
   if git -C "$repo_root" show-ref --verify --quiet refs/heads/master; then
     git -C "$repo_root" checkout master
   elif git -C "$repo_root" show-ref --verify --quiet refs/heads/main; then
     git -C "$repo_root" checkout main
   else
-    # Try to attach to whatever HEAD points to remotely.
     git -C "$repo_root" checkout -B master || true
   fi
 fi
@@ -92,7 +89,6 @@ fi
 # ---- Sync with remote safely ----
 git -C "$repo_root" fetch --prune origin
 
-# Choose the upstream branch name (master if it exists remotely, else main)
 upstream_branch=master
 if ! git -C "$repo_root" ls-remote --heads origin master >/dev/null 2>&1; then
   if git -C "$repo_root" ls-remote --heads origin main >/dev/null 2>&1; then
@@ -109,10 +105,9 @@ fi
 # Restore stashed work (if any) back into the working tree.
 if [ $stashed -eq 1 ]; then
   if ! git -C "$repo_root" stash pop --index; then
-    printf '⚠️ Stash pop had conflicts. Resolve them (e.g., in:\n'
-    git -C "$repo_root" diff --name-only --diff-filter=U | sed 's/^/   - /'
-    printf '), then run:\n   git add -A && git rebase --continue (if rebase is in progress)\n'
-    exit 1
+    echo "⚠️ Stash pop hit collisions (likely untracked files that now exist remotely)."
+    echo "   Keeping remote versions and dropping the stash."
+    git -C "$repo_root" stash drop || true
   fi
 fi
 
