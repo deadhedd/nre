@@ -66,7 +66,7 @@ mkdir -p "$time_block_subnotes_dir"
 populate_block() {
   block_name="$1"   # e.g., "Morning"
   # Map "Wake Up Routine" special alias to Morning block content (helper handles this)
-  sh "$script_dir/utils/generate-day-plan.sh" --date "$today" --block "$block_name" 2>/dev/null || true
+  sh "$script_dir/utils/generate-day-plan.sh" --block "$block_name" 2>/dev/null || true
 }
 
 for subnote in "Wake Up Routine" "Morning" "Afternoon" "Evening" "Night"; do
