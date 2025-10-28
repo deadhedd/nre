@@ -41,8 +41,8 @@ Modes:
 Notes:
   - If --date is provided, weekday is derived from that date (requires date -d support).
   - If --day is provided, it overrides the derived weekday.
-  - Recognized blocks are the headings under "##### <BlockName>" in Daily Plan.md.
-  - Special alias: "Wake Up Routine" → Morning block, preferring the [[Morning Routine]] line if present.
+  - Recognized blocks are the headings under "###/####/##### <BlockName>" inside each day in Daily Plan.md.
+    Examples: "Wake Up Routine", "Morning", "Afternoon", "Evening", "Night".
 EOT
       exit 0 ;;
     *) die "Unknown argument: $1" ;;
@@ -72,53 +72,37 @@ if [ -n "$DAY_NAME" ]; then
 fi
 
 extract_day_section() {
-  awk -v pat="^## ${1}\$" '
-    $0 ~ pat {in_day=1; next}
-    in_day && /^## / {exit}
-    in_day {print}
+  day_pat="$1"
+  awk -v pat="^[[:space:]]*##[[:space:]]*" -v day="$day_pat" '
+    { sub(/\r$/, "") }
+    $0 ~ (pat day "[[:space:]]*$") { in_day=1; next }
+    in_day && /^[[:space:]]*##[[:space:]]*/ { exit }
+    in_day { print }
   ' "$file"
 }
 
 extract_block_for_day() {
   day="$1"; block="$2"
-  awk -v d="^## ${day}$" -v b="^##### ${block}($| )" '
-    $0 ~ d {in_day=1; next}
-    in_day && /^## / {in_day=0}
-    in_day && $0 ~ b {in_blk=1; next}
-    in_blk && (/^##### / || /^## /) {exit}
-    in_blk {print}
-  ' "$file" | awk '
-    {lines[++n]=$0}
-    END{
-      s=1; while(s<=n && lines[s] ~ /^[[:space:]]*$/) s++
-      e=n; while(e>=s && lines[e] ~ /^[[:space:]]*$/) e--
-      for(i=s;i<=e;i++) print lines[i]
+  awk -v d="^[[:space:]]*##[[:space:]]*" -v dayname="$day" \
+      -v b="^[[:space:]]*###[#]*[[:space:]]*" -v blk="$2" '
+    { sub(/\r$/, "") }
+    $0 ~ (d dayname "[[:space:]]*$") { in_day=1; next }
+    in_day && $0 ~ /^[[:space:]]*##[[:space:]]*/ { in_day=0 }
+    in_day && $0 ~ (b blk "([[:space:]]|$)") { in_blk=1; next }
+    in_blk && ($0 ~ /^[[:space:]]*###[[:space:]]*/ || $0 ~ /^[[:space:]]*##[[:space:]]*/) { exit }
+    in_blk { lines[++n]=$0 }
+    END {
+      s=1; while (s<=n && lines[s] ~ /^[[:space:]]*$/) s++
+      e=n; while (e>=s && lines[e] ~ /^[[:space:]]*$/) e--
+      for (i=s;i<=e;i++) print lines[i]
     }
-  '
+  ' "$file"
 }
 
 print_block() {
   d="$1"; b="$2"
-  case "$b" in
-    "Wake Up Routine")
-      blk="$(extract_block_for_day "$d" "Morning" || true)"
-      if [ -n "$blk" ]; then
-        if one_line="$(printf '%s\n' "$blk" | awk '/\[[[:space:]]*\][[:space:]]*\[\[Morning Routine\]\]/ {print; found=1} END{exit found?0:1}')" ; then
-          printf '%s\n' "$one_line"
-          return 0
-        fi
-        printf '%s\n' "$blk"
-        return 0
-      fi
-      ;;
-    *)
-      out="$(extract_block_for_day "$d" "$b" || true)"
-      if [ -n "$out" ]; then
-        printf '%s\n' "$out"
-        return 0
-      fi
-      ;;
-  esac
+  out="$(extract_block_for_day "$d" "$b" || true)"
+  [ -n "$out" ] && printf '%s\n' "$out"
   return 0
 }
 
