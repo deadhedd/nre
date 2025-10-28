@@ -1,37 +1,133 @@
 #!/bin/sh
-# Generate a daily note by extracting today's and tomorrow's sections
-# from a template markdown file.
+# Extract day/blocks out of "Daily Plan.md" for automation use.
+# Modes:
+#   - No --block → print today's section + tomorrow preview (legacy mode)
+#   - --block <BlockName> → print only that block for the resolved day/date (for subnotes)
+# Args:
+#   --date YYYY-MM-DD  (optional; derives weekday)
+#   --day  Monday..Sunday (optional; overrides derived weekday)
+#   --file <path to Daily Plan.md> (optional; overrides default)
+
+set -eu
 
 vault_base='/home/obsidian/vaults/Main'
 relative_path='000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Templates/Daily Plan.md'
-file="$vault_base/$relative_path"
+file="${vault_base}/${relative_path}"
 
-extract_section() {
-  day="$1"
-  section=$(awk -v pattern="## $day" '
-    $0 ~ pattern {found=1; next}
-    /^## / && found {exit}
-    found {print}
-  ' "$file")
-  if [ -z "$section" ]; then
-    echo "❓ No section found for $day"
+die(){ printf '%s\n' "$*" >&2; exit 1; }
+
+[ -f "$file" ] || die "❓ Missing template: $file"
+
+DAY_NAME=""
+DATE_IN=""
+BLOCK=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --day)   DAY_NAME="${2:-}"; shift 2 || true ;;
+    --date)  DATE_IN="${2:-}"; shift 2 || true ;;
+    --block) BLOCK="${2:-}"; shift 2 || true ;;
+    --file)  file="${2:-}";  shift 2 || true ;;
+    --help|-h)
+      cat <<'EOT'
+Usage:
+  generate-day-plan.sh [--day <Mon..Sun> | --date YYYY-MM-DD] [--block <BlockName>] [--file <Daily Plan.md>]
+
+Modes:
+  - No --block     → prints today's section + tomorrow preview (legacy)
+  - With --block   → prints only that block for the resolved day/date (for subnotes)
+
+Notes:
+  - If --date is provided, weekday is derived from that date (requires date -d support).
+  - If --day is provided, it overrides the derived weekday.
+  - Recognized blocks are the headings under "##### <BlockName>" in Daily Plan.md.
+  - Special alias: "Wake Up Routine" → Morning block, preferring the [[Morning Routine]] line if present.
+EOT
+      exit 0 ;;
+    *) die "Unknown argument: $1" ;;
+  esac
+done
+
+today_name=$(date +%A)
+tomorrow_name=$(TZ=UTC-24 date +%A)
+
+dow_from_date() {
+  d="$1"
+  if date -d "$d" +%A >/dev/null 2>&1; then
+    date -d "$d" +%A
   else
-    echo "$section"
+    die "This host cannot derive weekday from --date; omit --date or provide --day"
   fi
 }
 
-if [ ! -f "$file" ]; then
-  echo "❓ Missing template: $file" >&2
-  exit 1
+if [ -n "$DATE_IN" ]; then
+  day_resolved=$(dow_from_date "$DATE_IN")
+else
+  day_resolved="$today_name"
 fi
 
-today_name=$(date +%A)
-# Use TZ trick instead of GNU's -d flag for portability.
-tomorrow_name=$(TZ=UTC-24 date +%A)
+if [ -n "$DAY_NAME" ]; then
+  day_resolved="$DAY_NAME"
+fi
 
-echo "# Daily Note - $today_name ($(date +%m/%d/%Y))"
-echo
-extract_section "$today_name"
-echo
-echo "## Preview of Tomorrow: $tomorrow_name"
-extract_section "$tomorrow_name"
+extract_day_section() {
+  awk -v pat="^## ${1}\$" '
+    $0 ~ pat {in_day=1; next}
+    in_day && /^## / {exit}
+    in_day {print}
+  ' "$file"
+}
+
+extract_block_for_day() {
+  day="$1"; block="$2"
+  awk -v d="^## "day"$" -v b="^##### "block"($| )" '
+    $0 ~ d {in_day=1; next}
+    in_day && /^## / {in_day=0}
+    in_day && $0 ~ b {in_blk=1; next}
+    in_blk && (/^##### / || /^## /) {exit}
+    in_blk {print}
+  ' "$file" | awk '
+    {lines[++n]=$0}
+    END{
+      s=1; while(s<=n && lines[s] ~ /^[[:space:]]*$/) s++
+      e=n; while(e>=s && lines[e] ~ /^[[:space:]]*$/) e--
+      for(i=s;i<=e;i++) print lines[i]
+    }
+  '
+}
+
+print_block() {
+  d="$1"; b="$2"
+  case "$b" in
+    "Wake Up Routine")
+      blk="$(extract_block_for_day "$d" "Morning" || true)"
+      if [ -n "$blk" ]; then
+        if one_line="$(printf '%s\n' "$blk" | awk '/\[[[:space:]]*\][[:space:]]*\[\[Morning Routine\]\]/ {print; found=1} END{exit found?0:1}')" ; then
+          printf '%s\n' "$one_line"
+          return 0
+        fi
+        printf '%s\n' "$blk"
+        return 0
+      fi
+      ;;
+    *)
+      out="$(extract_block_for_day "$d" "$b" || true)"
+      if [ -n "$out" ]; then
+        printf '%s\n' "$out"
+        return 0
+      fi
+      ;;
+  esac
+  return 0
+}
+
+if [ -n "$BLOCK" ]; then
+  print_block "$day_resolved" "$BLOCK"
+  exit 0
+fi
+
+# Legacy: full today + tomorrow
+printf '# Daily Plan - %s\n\n' "$today_name"
+extract_day_section "$today_name" || true
+printf '\n## Preview of Tomorrow: %s\n' "$tomorrow_name"
+extract_day_section "$tomorrow_name" || true
