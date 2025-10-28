@@ -35,7 +35,7 @@ week_tag=$(date +%G-W%V)
 
 time_blocks_nav=$(cat <<EOF_TB
 ## ⌚ Time Blocks
-- [[Periodic Notes/Daily Notes/Subnotes/${today} - Wake Up Routine|Wake Up Routine]]
+- [[Periodic Notes/Daily Notes/Subnotes/${today} - Wake Up|Wake Up]]
 - [[Periodic Notes/Daily Notes/Subnotes/${today} - Morning|Morning]]
 - [[Periodic Notes/Daily Notes/Subnotes/${today} - Afternoon|Afternoon]]
 - [[Periodic Notes/Daily Notes/Subnotes/${today} - Evening|Evening]]
@@ -65,11 +65,10 @@ mkdir -p "$time_block_subnotes_dir"
 
 populate_block() {
   block_name="$1"   # e.g., "Morning"
-  # Map "Wake Up Routine" special alias to Morning block content (helper handles this)
   sh "$script_dir/utils/generate-day-plan.sh" --block "$block_name" 2>/dev/null || true
 }
 
-for subnote in "Wake Up Routine" "Morning" "Afternoon" "Evening" "Night"; do
+for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
   subnote_path="${time_block_subnotes_dir%/}/${today} - ${subnote}.md"
 
   # Always (over)write content so it stays in sync with the plan:

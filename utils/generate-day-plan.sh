@@ -42,7 +42,6 @@ Notes:
   - If --date is provided, weekday is derived from that date (requires date -d support).
   - If --day is provided, it overrides the derived weekday.
   - Recognized blocks are the headings under "##### <BlockName>" in Daily Plan.md.
-  - Special alias: "Wake Up Routine" → Morning block, preferring the [[Morning Routine]] line if present.
 EOT
       exit 0 ;;
     *) die "Unknown argument: $1" ;;
@@ -99,26 +98,11 @@ extract_block_for_day() {
 
 print_block() {
   d="$1"; b="$2"
-  case "$b" in
-    "Wake Up Routine")
-      blk="$(extract_block_for_day "$d" "Morning" || true)"
-      if [ -n "$blk" ]; then
-        if one_line="$(printf '%s\n' "$blk" | awk '/\[[[:space:]]*\][[:space:]]*\[\[Morning Routine\]\]/ {print; found=1} END{exit found?0:1}')" ; then
-          printf '%s\n' "$one_line"
-          return 0
-        fi
-        printf '%s\n' "$blk"
-        return 0
-      fi
-      ;;
-    *)
-      out="$(extract_block_for_day "$d" "$b" || true)"
-      if [ -n "$out" ]; then
-        printf '%s\n' "$out"
-        return 0
-      fi
-      ;;
-  esac
+  out="$(extract_block_for_day "$d" "$b" || true)"
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+    return 0
+  fi
   return 0
 }
 
