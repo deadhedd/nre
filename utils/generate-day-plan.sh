@@ -10,7 +10,8 @@
 
 set -eu
 
-vault_base='/home/obsidian/vaults/Main'
+vault_base="${VAULT_PATH:-/home/obsidian/vaults/Main}"
+vault_base="${vault_base%/}"
 relative_path='000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Templates/Daily Plan.md'
 file="${vault_base}/${relative_path}"
 
@@ -80,7 +81,7 @@ extract_day_section() {
 
 extract_block_for_day() {
   day="$1"; block="$2"
-  awk -v d="^## "day"$" -v b="^##### "block"($| )" '
+  awk -v d="^## ${day}$" -v b="^##### ${block}($| )" '
     $0 ~ d {in_day=1; next}
     in_day && /^## / {in_day=0}
     in_day && $0 ~ b {in_blk=1; next}
