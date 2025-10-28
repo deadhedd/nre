@@ -59,17 +59,21 @@ file_path="${daily_note_dir%/}/${today}.md"
 
 set -- "$file_path"
 
-# Wake Up Routine subnote placeholder
-wake_up_subnotes_dir="${daily_note_dir%/}/Subnotes"
-wake_up_note_path="${wake_up_subnotes_dir%/}/${today} - Wake Up Routine.md"
+# Time block subnote placeholders
+time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
 
-if [ ! -f "$wake_up_note_path" ]; then
-  mkdir -p "$wake_up_subnotes_dir"
-  cat <<'EOF_WAKE_UP' > "$wake_up_note_path"
-<!-- Wake Up Routine note placeholder -->
-EOF_WAKE_UP
-  set -- "$@" "$wake_up_note_path"
-fi
+mkdir -p "$time_block_subnotes_dir"
+
+for subnote in "Wake Up Routine" "Morning" "Afternoon" "Evening" "Night"; do
+  subnote_path="${time_block_subnotes_dir%/}/${today} - ${subnote}.md"
+
+  if [ ! -f "$subnote_path" ]; then
+    cat <<EOF_SUBNOTE > "$subnote_path"
+<!-- ${subnote} note placeholder -->
+EOF_SUBNOTE
+    set -- "$@" "$subnote_path"
+  fi
+done
 
 # ----- Defaults as real multiline text (no literal \n) -----
 day_plan_text=$(cat <<'EOF'
