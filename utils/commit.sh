@@ -105,9 +105,12 @@ fi
 # Restore stashed work (if any) back into the working tree.
 if [ $stashed -eq 1 ]; then
   if ! git -C "$repo_root" stash pop --index; then
-    echo "⚠️ Stash pop hit collisions (likely untracked files that now exist remotely)."
-    echo "   Keeping remote versions and dropping the stash."
-    git -C "$repo_root" stash drop || true
+    printf '%s unable to reapply stashed work cleanly.\n' "$prefix" >&2
+    printf '   The pre-sync stash is still available as stash@{0}.\n' >&2
+    printf '   Resolve the conflicts manually and re-run the automation.\n' >&2
+    git -C "$repo_root" reset --hard HEAD 2>/dev/null || true
+    git -C "$repo_root" clean -fd 2>/dev/null || true
+    exit 1
   fi
 fi
 
