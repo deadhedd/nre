@@ -198,8 +198,8 @@ next_season() {
     printf '%s\n%s\n' "$j1" "$j2" |
       jq -r '
         .data[]?
-        | {.y:.year, .m:.month, .d:.day, .t:.time,
-           .p:(.phenom // .phenomenon // empty)}
+        | {y: .year, m: .month, d: .day, t: .time,
+           p: (.phenom // .phenomenon // empty)}
         | select(.p|test("Equinox|Solstice"))
         | "\(.y) \(.m) \(.d) \(.t)|\(.p)"'
   )
