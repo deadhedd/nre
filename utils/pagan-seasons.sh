@@ -3,7 +3,8 @@
 set -eu
 
 log() {
-  printf '[pagan-seasons] %s\n' "$1"
+  [ "${PAGAN_TIMINGS_DEBUG:-0}" != "0" ] || return 0
+  printf '[pagan-seasons] %s\n' "$1" >&2
 }
 
 log "Starting pagan seasonal lookup"
