@@ -179,71 +179,118 @@ moon_info() {
 
 # ---- next seasonal turning (USNO Seasons) ----
 next_season() {
-  if [ "${OFFLINE:-0}" = "1" ]; then
+  custom_rows="${PAGAN_TIMINGS_SEASON_ROWS:-}"
+
+  if [ "${OFFLINE:-0}" = "1" ] && [ -z "$custom_rows" ]; then
     echo "Next seasonal turning: 🌀 **(offline)** in n/a"
     return 0
   fi
 
-  y=$(date -u +%Y)
-  url1="https://aa.usno.navy.mil/api/seasons?year=${y}"
-  url2="https://aa.usno.navy.mil/api/seasons?year=$(($y+1))"
+  if [ -n "$custom_rows" ]; then
+    rows="$custom_rows"
+  else
+    y=$(date -u +%Y)
+    url1="https://aa.usno.navy.mil/api/seasons?year=${y}"
+    url2="https://aa.usno.navy.mil/api/seasons?year=$(($y+1))"
 
-  # Be explicit about JSON
-  curl_json_hdr() {
-    curl -fsS --max-time 10 --retry 2 --retry-delay 0 --retry-max-time 15 \
-         -H "Accept: application/json" \
-         -H "User-Agent: pagan-timings/1.2 (+local)" "$1"
-  }
+    # Be explicit about JSON
+    curl_json_hdr() {
+      curl -fsS --max-time 10 --retry 2 --retry-delay 0 --retry-max-time 15 \
+           -H "Accept: application/json" \
+           -H "User-Agent: pagan-timings/1.2 (+local)" "$1"
+    }
 
-  if ! j1=$(curl_json_hdr "$url1"); then j1='{"data":[]}'; fi
-  if ! j2=$(curl_json_hdr "$url2"); then j2='{"data":[]}'; fi
+    if ! j1=$(curl_json_hdr "$url1"); then j1='{"data":[]}'; fi
+    if ! j2=$(curl_json_hdr "$url2"); then j2='{"data":[]}'; fi
+
+    # Build the same rows you inspected: "y m d time|phenom"
+    rows=$( 
+      printf '%s\n%s\n' "$j1" "$j2" |
+        jq -r '
+          .data[]?
+          | {y:.year, m:.month, d:.day, t:(.time // ""), p:(.phenom // .phenomenon // "")}
+          | select((.p|test("Equinox|Solstice")) and (.t != ""))
+          | "\(.y) \(.m) \(.d) \(.t)|\(.p)"'
+    )
+  fi
 
   NOW=$(now_utc_s)
 
-  # Build the same rows you inspected: "y m d time|phenom"
-  rows=$(
-    printf '%s\n%s\n' "$j1" "$j2" |
-      jq -r '
-        .data[]?
-        | {y:.year, m:.month, d:.day, t:(.time // ""), p:(.phenom // .phenomenon // "")}
-        | select((.p|test("Equinox|Solstice")) and (.t != ""))
-        | "\(.y) \(.m) \(.d) \(.t)|\(.p)"'
-  )
+  rows_list=$(printf '%s\n' "$rows" | awk 'NF>0 {print}')
+  if [ -z "$rows_list" ]; then
+    echo "Next seasonal turning: 🌀 **(unavailable)**"
+    return 0
+  fi
 
-  # Choose the nearest future event using BSD/GNU-safe epoch conversion
-  choose=$(
-    printf '%s\n' "$rows" | awk -v now="$NOW" '
-      function pad2(x){return (x<10)?"0"x:x}
-      function to_epoch(y,m,d,hm,  cmd,ep) {
-        cmd = "date -u -j -f \"%Y-%m-%d %H:%M\" \"" y "-" pad2(m) "-" pad2(d) " " hm "\" +%s 2>/dev/null"
-        cmd | getline ep; close(cmd)
-        if (ep == "") {
-          cmd = "date -u -d \"" y "-" m "-" d " " hm " UTC\" +%s 2>/dev/null"
+  ts_next=""
+  raw=""
+  phen=""
+
+  while :; do
+    choose=$( 
+      printf '%s\n' "$rows_list" | awk -v now="$NOW" '
+        function pad2(x){return (x<10)?"0"x:x}
+        function to_epoch(y,m,d,hm,  cmd,ep) {
+          cmd = "date -u -j -f \"%Y-%m-%d %H:%M\" \"" y "-" pad2(m) "-" pad2(d) " " hm "\" +%s 2>/dev/null"
           cmd | getline ep; close(cmd)
+          if (ep == "") {
+            cmd = "date -u -d \"" y "-" m "-" d " " hm " UTC\" +%s 2>/dev/null"
+            cmd | getline ep; close(cmd)
+          }
+          return ep
         }
-        return ep
-      }
-      BEGIN{best_ts=0; best_line=""}
+        BEGIN{best_ts=0; best_line=""}
+        NF==0 {next}
+        {
+          split($0,a,"|"); split(a[1],b," ");
+          y=b[1]; m=b[2]; d=b[3]; hm=b[4]; name=a[2];
+          ts=to_epoch(y,m,d,hm);
+          if (ts>now && (best_ts==0 || ts<best_ts)) {best_ts=ts; best_line=$0}
+        }
+        END{ if (best_ts==0) print "NONE"; else print best_ts "|" best_line }
+      '
+    )
+
+    if [ "$choose" = "NONE" ] || [ -z "$choose" ]; then
+      echo "Next seasonal turning: 🌀 **(unavailable)**"
+      return 0
+    fi
+
+    ts_candidate=${choose%%|*}
+    rest=${choose#*|}
+    raw_candidate="${rest%%|*}"
+    phen_candidate="${rest#*|}"
+
+    yv=""; mv=""; dv=""; tv=""
+    IFS=' ' read -r yv mv dv tv <<EOF || true
+$raw_candidate
+EOF
+
+    if [ -n "$yv" ] && [ -n "$mv" ] && [ -n "$dv" ] && [ -n "$tv" ]; then
+      ts_next="$ts_candidate"
+      raw="$raw_candidate"
+      phen="$phen_candidate"
+      break
+    fi
+
+    rows_list=$(printf '%s\n' "$rows_list" | awk -v skip="$rest" '
+      BEGIN{skipped=0}
       {
-        split($0,a,"|"); split(a[1],b," ");
-        y=b[1]; m=b[2]; d=b[3]; hm=b[4]; name=a[2];
-        ts=to_epoch(y,m,d,hm);
-        if (ts>now && (best_ts==0 || ts<best_ts)) {best_ts=ts; best_line=$0}
+        if (!skipped && $0==skip) {skipped=1; next}
+        if (NF>0) print
       }
-      END{ if (best_ts==0) print "NONE"; else print best_ts "|" best_line }
-    '
-  )
+    ')
 
-  [ "$choose" = "NONE" ] && { echo "Next seasonal turning: 🌀 **(unavailable)**"; return 0; }
+    if [ -z "$rows_list" ]; then
+      echo "Next seasonal turning: 🌀 **(unavailable)**"
+      return 0
+    fi
+  done
 
-  ts_next=${choose%%|*}
-  rest=${choose#*|}
-  raw="${rest%%|*}"   # "y m d HH:MM"
-  phen="${rest#*|}"   # "Equinox"/"Solstice"
-
-  # Parse fields
-  set -- $raw
-  yv="$1"; mv="$2"; dv="$3"; tv="$4"
+  if [ -z "$ts_next" ]; then
+    echo "Next seasonal turning: 🌀 **(unavailable)**"
+    return 0
+  fi
 
   # Expand human name for better emoji mapping
   case "$phen" in
