@@ -188,67 +188,81 @@ next_season() {
   url1="https://aa.usno.navy.mil/api/seasons?year=${y}"
   url2="https://aa.usno.navy.mil/api/seasons?year=$(($y+1))"
 
-  if ! j1=$(curl_json "$url1"); then j1='{"data":[]}'; fi
-  if ! j2=$(curl_json "$url2"); then j2='{"data":[]}'; fi
+  # Be explicit about JSON
+  curl_json_hdr() {
+    curl -fsS --max-time 10 --retry 2 --retry-delay 0 --retry-max-time 15 \
+         -H "Accept: application/json" \
+         -H "User-Agent: pagan-timings/1.2 (+local)" "$1"
+  }
 
-  now=$(now_utc_s)
+  if ! j1=$(curl_json_hdr "$url1"); then j1='{"data":[]}'; fi
+  if ! j2=$(curl_json_hdr "$url2"); then j2='{"data":[]}'; fi
 
-  # Build "y m d time|phenom" and pad month/day before parsing
-  list=$(
+  NOW=$(now_utc_s)
+
+  # Build the same rows you inspected: "y m d time|phenom"
+  rows=$(
     printf '%s\n%s\n' "$j1" "$j2" |
       jq -r '
         .data[]?
-        | {y: .year, m: .month, d: .day, t: .time,
-           p: (.phenom // .phenomenon // empty)}
-        | select(.p|test("Equinox|Solstice"))
-        | select(.t != null and .t != "")
+        | {y:.year, m:.month, d:.day, t:(.time // ""), p:(.phenom // .phenomenon // "")}
+        | select((.p|test("Equinox|Solstice")) and (.t != ""))
         | "\(.y) \(.m) \(.d) \(.t)|\(.p)"'
   )
 
-  next_iso=""
-  next_name=""
+  # Choose the nearest future event using BSD/GNU-safe epoch conversion
+  choose=$(
+    printf '%s\n' "$rows" | awk -v now="$NOW" '
+      function pad2(x){return (x<10)?"0"x:x}
+      function to_epoch(y,m,d,hm,  cmd,ep) {
+        cmd = "date -u -j -f \"%Y-%m-%d %H:%M\" \"" y "-" pad2(m) "-" pad2(d) " " hm "\" +%s 2>/dev/null"
+        cmd | getline ep; close(cmd)
+        if (ep == "") {
+          cmd = "date -u -d \"" y "-" m "-" d " " hm " UTC\" +%s 2>/dev/null"
+          cmd | getline ep; close(cmd)
+        }
+        return ep
+      }
+      BEGIN{best_ts=0; best_line=""}
+      {
+        split($0,a,"|"); split(a[1],b," ");
+        y=b[1]; m=b[2]; d=b[3]; hm=b[4]; name=a[2];
+        ts=to_epoch(y,m,d,hm);
+        if (ts>now && (best_ts==0 || ts<best_ts)) {best_ts=ts; best_line=$0}
+      }
+      END{ if (best_ts==0) print "NONE"; else print best_ts "|" best_line }
+    '
+  )
 
-  old_ifs=$IFS
-  IFS='
-'
-  for line in $list; do
-    [ -n "$line" ] || continue
-    raw="${line%%|*}"
-    name="${line#*|}"
-    IFS=' \t\n'
-    set -- $raw
-    count=$#
-    IFS='
-'
-    if [ "$count" -lt 4 ]; then
-      continue
-    fi
-    yv="$1"; mv="$2"; dv="$3"; tv="$4"
-    iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
-    iso_clean=$(printf '%s' "$iso_clean" | sed 's/[[:space:]]*UT$//; s/[[:space:]]*$//')
-    ts=$(to_epoch_utc "$iso_clean") || continue
-    if [ "$ts" -gt "$now" ]; then
-      if [ -z "${next_iso:-}" ] || [ "$ts" -lt "$(to_epoch_utc "$next_iso")" ]; then
-        next_iso="$iso_clean"
-        next_name="$name"
-      fi
-    fi
-  done
-  IFS=$old_ifs
+  [ "$choose" = "NONE" ] && { echo "Next seasonal turning: 🌀 **(unavailable)**"; return 0; }
 
-  if [ -z "$next_iso" ]; then
-    echo "Next seasonal turning: 🌀 **(unavailable)**"
-    return 0
-  fi
+  ts_next=${choose%%|*}
+  rest=${choose#*|}
+  raw="${rest%%|*}"   # "y m d HH:MM"
+  phen="${rest#*|}"   # "Equinox"/"Solstice"
 
-  ts_next=$(to_epoch_utc "$next_iso")
-  left=$((ts_next - now))
+  # Parse fields
+  set -- $raw
+  yv="$1"; mv="$2"; dv="$3"; tv="$4"
 
-  # pretty local timestamp for display (TZ already set)
-  if date -j -f "%Y-%m-%d %H:%M" "$next_iso" "+%b %e, %Y %I:%M %p %Z" >/dev/null 2>&1; then
-    pretty=$(date -j -f "%Y-%m-%d %H:%M" "$next_iso" "+%b %e, %Y %I:%M %p %Z")
+  # Expand human name for better emoji mapping
+  case "$phen" in
+    Equinox)
+      if [ "$mv" -eq 3 ]; then next_name="Vernal Equinox"; else next_name="Autumnal Equinox"; fi
+      ;;
+    Solstice)
+      if [ "$mv" -eq 6 ]; then next_name="Summer Solstice"; else next_name="Winter Solstice"; fi
+      ;;
+    *) next_name="$phen" ;;
+  esac
+
+  # Pretty local time (string is UTC; we *display* in $TZ)
+  iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
+  left=$((ts_next - NOW))
+  if date -j -f "%Y-%m-%d %H:%M" "$iso_clean" "+%b %e, %Y %I:%M %p %Z" >/dev/null 2>&1; then
+    pretty=$(date -j -f "%Y-%m-%d %H:%M" "$iso_clean" "+%b %e, %Y %I:%M %p %Z")
   else
-    pretty=$(date -d "$next_iso" "+%b %e, %Y %I:%M %p %Z")
+    pretty=$(date -d "$iso_clean" "+%b %e, %Y %I:%M %p %Z")
   fi
 
   printf "Next seasonal turning: %s **%s** in %s  \n(%s)\n" \
