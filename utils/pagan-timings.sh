@@ -207,6 +207,7 @@ next_season() {
   next_iso=""
   next_name=""
 
+  old_ifs=$IFS
   IFS='
 '
   for line in $list; do
@@ -214,7 +215,10 @@ next_season() {
     raw="${line%%|*}"
     name="${line#*|}"
     # raw fields: y m d "H:MM"
+    IFS=' \t\n'
     set -- $raw
+    IFS='
+'
     yv="$1"; mv="$2"; dv="$3"; tv="$4"
     # zero-pad month/day for BSD strptime
     iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
@@ -228,6 +232,8 @@ next_season() {
       fi
     fi
   done
+
+  IFS=$old_ifs
 
   if [ -z "$next_iso" ]; then
     echo "Next seasonal turning: 🌀 **(unavailable)**"
