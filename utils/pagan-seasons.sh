@@ -2,6 +2,12 @@
 # Print details about the next equinox or solstice.
 set -eu
 
+log() {
+  printf '[pagan-seasons] %s\n' "$1"
+}
+
+log "Starting pagan seasonal lookup"
+
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 # shellcheck source=utils/pagan-timings-common.sh
 . "$SCRIPT_DIR/pagan-timings-common.sh"
@@ -24,13 +30,16 @@ season_icon() {
 custom_rows="${PAGAN_TIMINGS_SEASON_ROWS:-}"
 
 if [ "${OFFLINE:-0}" = "1" ] && [ -z "$custom_rows" ]; then
+  log "Offline mode detected and no custom rows provided; exiting"
   echo "Next seasonal turning: 🌀 **(offline)** in n/a"
   exit 0
 fi
 
 if [ -n "$custom_rows" ]; then
+  log "Using seasonal rows from PAGAN_TIMINGS_SEASON_ROWS environment variable"
   rows="$custom_rows"
 else
+  log "Fetching seasonal data from USNO API"
   y=$(date -u +%Y)
   url1="https://aa.usno.navy.mil/api/seasons?year=${y}"
   url2="https://aa.usno.navy.mil/api/seasons?year=$(($y+1))"
@@ -41,8 +50,18 @@ else
          -H "User-Agent: pagan-timings/1.2 (+local)" "$1"
   }
 
-  if ! j1=$(curl_json_hdr "$url1"); then j1='{"data":[]}'; fi
-  if ! j2=$(curl_json_hdr "$url2"); then j2='{"data":[]}'; fi
+  if ! j1=$(curl_json_hdr "$url1"); then
+    log "Failed to fetch data for year $y; continuing with empty dataset"
+    j1='{"data":[]}'
+  else
+    log "Fetched data for year $y"
+  fi
+  if ! j2=$(curl_json_hdr "$url2"); then
+    log "Failed to fetch data for year $(($y+1)); continuing with empty dataset"
+    j2='{"data":[]}'
+  else
+    log "Fetched data for year $(($y+1))"
+  fi
 
   rows=$(printf '%s\n%s\n' "$j1" "$j2" |
     jq -r '
@@ -55,7 +74,10 @@ fi
 NOW=$(now_utc_s)
 
 rows_list=$(printf '%s\n' "$rows" | awk 'NF>0 {print}')
+rows_count=$(printf '%s\n' "$rows_list" | awk 'NF>0 {c++} END{print c+0}')
+log "Evaluating seasonal dataset ($rows_count candidate rows)"
 if [ -z "$rows_list" ]; then
+  log "No seasonal rows available after filtering"
   echo "Next seasonal turning: 🌀 **(unavailable)**"
   exit 0
 fi
@@ -88,6 +110,7 @@ while :; do
   ')
 
   if [ "$choose" = "NONE" ] || [ -z "$choose" ]; then
+    log "No future seasonal turning found in dataset"
     echo "Next seasonal turning: 🌀 **(unavailable)**"
     exit 0
   fi
@@ -106,9 +129,11 @@ EOF_ROW
     ts_next="$ts_candidate"
     raw="$raw_candidate"
     phen="$phen_candidate"
+    log "Selected seasonal turning: $phen on $raw"
     break
   fi
 
+  log "Skipping malformed row: $raw_candidate|$phen_candidate"
   rows_list=$(printf '%s\n' "$rows_list" | awk -v skip="$rest" '
     BEGIN{skipped=0}
     {
@@ -118,12 +143,14 @@ EOF_ROW
   ')
 
   if [ -z "$rows_list" ]; then
+    log "Ran out of seasonal rows while searching for valid entry"
     echo "Next seasonal turning: 🌀 **(unavailable)**"
     exit 0
   fi
 done
 
 if [ -z "$ts_next" ]; then
+  log "Failed to determine timestamp for next seasonal turning"
   echo "Next seasonal turning: 🌀 **(unavailable)**"
   exit 0
 fi
@@ -140,6 +167,7 @@ esac
 
 iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
 left=$((ts_next - NOW))
+log "Next seasonal turning is $next_name at $iso_clean (epoch $ts_next)"
 if date -j -f "%Y-%m-%d %H:%M" "$iso_clean" "+%b %e, %Y %I:%M %p %Z" >/dev/null 2>&1; then
   pretty=$(date -j -f "%Y-%m-%d %H:%M" "$iso_clean" "+%b %e, %Y %I:%M %p %Z")
 else
