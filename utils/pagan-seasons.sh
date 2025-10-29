@@ -3,7 +3,7 @@
 set -eu
 
 log() {
-  printf '[pagan-seasons] %s\n' "$1"
+  printf '[pagan-seasons] %s\n' "$1" >&2
 }
 
 log "Starting pagan seasonal lookup"
