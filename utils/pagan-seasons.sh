@@ -17,6 +17,16 @@ need jq
 need awk
 need date
 
+# Portable UTC → epoch helper (GNU/BSD date)
+date_to_epoch_utc() {
+  # Args: "YYYY-MM-DD HH:MM"
+  if date --version >/dev/null 2>&1; then
+    TZ=UTC date -d "$1 UTC" +%s
+  else
+    TZ=UTC date -j -f "%Y-%m-%d %H:%M" "$1" +%s
+  fi
+}
+
 season_icon() {
   case "$1" in
     *Vernal*|*Spring*) echo "🌸" ;;
@@ -35,9 +45,11 @@ if [ "${OFFLINE:-0}" = "1" ] && [ -z "$custom_rows" ]; then
   exit 0
 fi
 
+# 1) Build canonical rows in a robust, pipe-delimited form:
+#    |epoch|YYYY-MM-DD HH:MM|Type|
 if [ -n "$custom_rows" ]; then
   log "Using seasonal rows from PAGAN_TIMINGS_SEASON_ROWS environment variable"
-  rows="$custom_rows"
+  raw_rows="$custom_rows"
 else
   log "Fetching seasonal data from USNO API"
   y=$(date -u +%Y)
@@ -63,7 +75,8 @@ else
     log "Fetched data for year $(($y+1))"
   fi
 
-  rows=$(printf '%s\n%s\n' "$j1" "$j2" |
+  # Emit lines like: "YYYY M D HH:MM|Phenomenon"
+  raw_rows=$(printf '%s\n%s\n' "$j1" "$j2" |
     jq -r '
       .data[]?
       | {y:.year, m:.month, d:.day, t:(.time // ""), p:(.phenom // .phenomenon // "")}
@@ -71,107 +84,81 @@ else
       | "\(.y) \(.m) \(.d) \(.t)|\(.p)"')
 fi
 
-NOW=$(now_utc_s)
+# Canonicalize to: |epoch|YYYY-MM-DD HH:MM|Type|
+canon_rows=$(
+  printf '%s\n' "$raw_rows" | awk 'NF>0' | while IFS='|' read -r datepart typ; do
+    # datepart is "Y M D HH:MM" (space-separated)
+    # shellcheck disable=SC2086
+    set -- $datepart ""
+    y=$1; m=$2; d=$3; hm=$4
+    [ -n "${y:-}" ] && [ -n "${m:-}" ] && [ -n "${d:-}" ] && [ -n "${hm:-}" ] || continue
+    iso=$(printf "%04d-%02d-%02d %s" "$y" "$m" "$d" "$hm")
+    if ep=$(date_to_epoch_utc "$iso" 2>/dev/null); then
+      printf '|%s|%s|%s|\n' "$ep" "$iso" "$typ"
+    fi
+  done
+)
 
-rows_list=$(printf '%s\n' "$rows" | awk 'NF>0 {print}')
-rows_count=$(printf '%s\n' "$rows_list" | awk 'NF>0 {c++} END{print c+0}')
+rows_count=$(printf '%s\n' "$canon_rows" | awk 'NF>0 {c++} END{print c+0}')
 log "Evaluating seasonal dataset ($rows_count candidate rows)"
-if [ -z "$rows_list" ]; then
+if [ -z "$canon_rows" ]; then
   log "No seasonal rows available after filtering"
   echo "Next seasonal turning: 🌀 **(unavailable)**"
   exit 0
 fi
 
-ts_next=""
-raw=""
-phen=""
+NOW=$(now_utc_s)
 
-while :; do
-  choose=$(printf '%s\n' "$rows_list" | awk -v now="$NOW" '
-    function pad2(x){return (x<10)?"0"x:x}
-    function to_epoch(y,m,d,hm,  cmd,ep) {
-      cmd = "date -u -j -f \"%Y-%m-%d %H:%M\" \"" y "-" pad2(m) "-" pad2(d) " " hm "\" +%s 2>/dev/null"
-      cmd | getline ep; close(cmd)
-      if (ep == "") {
-        cmd = "date -u -d \"" y "-" m "-" d " " hm " UTC\" +%s 2>/dev/null"
-        cmd | getline ep; close(cmd)
-      }
-      return ep
-    }
-    BEGIN{best_ts=0; best_line=""}
-    NF==0 {next}
-    {
-      split($0,a,"|"); split(a[1],b," ");
-      y=b[1]; m=b[2]; d=b[3]; hm=b[4];
-      ts=to_epoch(y,m,d,hm);
-      if (ts>now && (best_ts==0 || ts<best_ts)) {best_ts=ts; best_line=$0}
-    }
-    END{ if (best_ts==0) print "NONE"; else print best_ts "|" best_line }
-  ')
+# 2) Pick the earliest future row using field-safe pipe splitting.
+choice=$(printf '%s\n' "$canon_rows" | awk -F'|' -v now="$NOW" '
+  NF>=5 {
+    ep=$2
+    if (ep>now && (best==0 || ep<best)) { best=ep; line=$0 }
+  }
+  END { if (best==0) print "NONE"; else print line }
+')
 
-  if [ "$choose" = "NONE" ] || [ -z "$choose" ]; then
-    log "No future seasonal turning found in dataset"
-    echo "Next seasonal turning: 🌀 **(unavailable)**"
-    exit 0
-  fi
-
-  ts_candidate=${choose%%|*}
-  rest=${choose#*|}
-  raw_candidate="${rest%%|*}"
-  phen_candidate="${rest#*|}"
-
-  yv=""; mv=""; dv=""; tv=""
-  IFS=' ' read -r yv mv dv tv <<EOF_ROW || true
-$raw_candidate
-EOF_ROW
-
-  if [ -n "$yv" ] && [ -n "$mv" ] && [ -n "$dv" ] && [ -n "$tv" ]; then
-    ts_next="$ts_candidate"
-    raw="$raw_candidate"
-    phen="$phen_candidate"
-    log "Selected seasonal turning: $phen on $raw"
-    break
-  fi
-
-  log "Skipping malformed row: $raw_candidate|$phen_candidate"
-  rows_list=$(printf '%s\n' "$rows_list" | awk -v skip="$rest" '
-    BEGIN{skipped=0}
-    {
-      if (!skipped && $0==skip) {skipped=1; next}
-      if (NF>0) print
-    }
-  ')
-
-  if [ -z "$rows_list" ]; then
-    log "Ran out of seasonal rows while searching for valid entry"
-    echo "Next seasonal turning: 🌀 **(unavailable)**"
-    exit 0
-  fi
-done
-
-if [ -z "$ts_next" ]; then
-  log "Failed to determine timestamp for next seasonal turning"
+if [ "$choice" = "NONE" ] || [ -z "$choice" ]; then
+  log "No future seasonal turning found in dataset"
   echo "Next seasonal turning: 🌀 **(unavailable)**"
   exit 0
 fi
 
+# 3) Parse the winning line safely with IFS='|'
+epoch="" iso="" phen=""
+#             1    2     3    4     5
+# Format:     |  ep |  iso | type |
+# indexes:     ^0   ^1    ^2   ^3   ^4  (leading/trailing empties)
+IFS='|' read -r _ epoch iso phen _ <<EOF_ROW
+$choice
+EOF_ROW
+
+if [ -z "${epoch:-}" ] || [ -z "${iso:-}" ] || [ -z "${phen:-}" ]; then
+  log "Failed to parse selected row: $choice"
+  echo "Next seasonal turning: 🌀 **(unavailable)**"
+  exit 0
+fi
+
+# 4) Human naming based on month + phenom
+month=$(printf "%s" "$iso" | cut -c6-7 | sed 's/^0*//')
 case "$phen" in
   Equinox)
-    if [ "$mv" -eq 3 ]; then next_name="Vernal Equinox"; else next_name="Autumnal Equinox"; fi
+    if [ "$month" -eq 3 ]; then next_name="Vernal Equinox"; else next_name="Autumnal Equinox"; fi
     ;;
   Solstice)
-    if [ "$mv" -eq 6 ]; then next_name="Summer Solstice"; else next_name="Winter Solstice"; fi
+    if [ "$month" -eq 6 ]; then next_name="Summer Solstice"; else next_name="Winter Solstice"; fi
     ;;
   *) next_name="$phen" ;;
 esac
 
-iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
-left=$((ts_next - NOW))
-log "Next seasonal turning is $next_name at $iso_clean (epoch $ts_next)"
-if date -j -f "%Y-%m-%d %H:%M" "$iso_clean" "+%b %e, %Y %I:%M %p %Z" >/dev/null 2>&1; then
-  pretty=$(date -j -f "%Y-%m-%d %H:%M" "$iso_clean" "+%b %e, %Y %I:%M %p %Z")
+left=$((epoch - NOW))
+log "Next seasonal turning is $next_name at $iso (epoch $epoch)"
+
+# Pretty timestamp in local TZ if possible (BSD/GNU)
+if date -j -f "%Y-%m-%d %H:%M" "$iso" "+%b %e, %Y %I:%M %p %Z" >/dev/null 2>&1; then
+  pretty=$(date -j -f "%Y-%m-%d %H:%M" "$iso" "+%b %e, %Y %I:%M %p %Z")
 else
-  pretty=$(date -d "$iso_clean" "+%b %e, %Y %I:%M %p %Z")
+  pretty=$(date -d "$iso" "+%b %e, %Y %I:%M %p %Z")
 fi
 
 printf "Next seasonal turning: %s **%s** in %s  \n(%s)\n" \
