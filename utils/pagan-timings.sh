@@ -201,6 +201,7 @@ next_season() {
         | {y: .year, m: .month, d: .day, t: .time,
            p: (.phenom // .phenomenon // empty)}
         | select(.p|test("Equinox|Solstice"))
+        | select(.t != null and .t != "")
         | "\(.y) \(.m) \(.d) \(.t)|\(.p)"'
   )
 
@@ -216,8 +217,12 @@ next_season() {
     name="${line#*|}"
     IFS=' \t\n'
     set -- $raw
+    count=$#
     IFS='
 '
+    if [ "$count" -lt 4 ]; then
+      continue
+    fi
     yv="$1"; mv="$2"; dv="$3"; tv="$4"
     iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
     iso_clean=$(printf '%s' "$iso_clean" | sed 's/[[:space:]]*UT$//; s/[[:space:]]*$//')
