@@ -214,17 +214,14 @@ next_season() {
     [ -n "$line" ] || continue
     raw="${line%%|*}"
     name="${line#*|}"
-    # raw fields: y m d "H:MM"
     IFS=' \t\n'
     set -- $raw
     IFS='
 '
     yv="$1"; mv="$2"; dv="$3"; tv="$4"
-    # zero-pad month/day for BSD strptime
     iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
-    # strip any trailing UT tag
     iso_clean=$(printf '%s' "$iso_clean" | sed 's/[[:space:]]*UT$//; s/[[:space:]]*$//')
-    ts=$(to_epoch_utc "$iso_clean")
+    ts=$(to_epoch_utc "$iso_clean") || continue
     if [ "$ts" -gt "$now" ]; then
       if [ -z "${next_iso:-}" ] || [ "$ts" -lt "$(to_epoch_utc "$next_iso")" ]; then
         next_iso="$iso_clean"
@@ -232,7 +229,6 @@ next_season() {
       fi
     fi
   done
-
   IFS=$old_ifs
 
   if [ -z "$next_iso" ]; then
