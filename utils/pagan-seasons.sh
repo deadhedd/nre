@@ -67,17 +67,11 @@ phen=""
 while :; do
   choose=$(printf '%s\n' "$rows_list" | awk -v now="$NOW" '
     function pad2(x){return (x<10)?"0"x:x}
-    function escape_cmd_arg(arg,  res) {
-      res = arg
-      gsub(/["\\$`]/, "\\\\&", res)
-      return res
-    }
-    function to_epoch(y,m,d,hm,  hm_clean,cmd,ep) {
-      hm_clean = escape_cmd_arg(hm)
-      cmd = "date -u -j -f \"%Y-%m-%d %H:%M\" \"" y "-" pad2(m) "-" pad2(d) " " hm_clean "\" +%s 2>/dev/null"
+    function to_epoch(y,m,d,hm,  cmd,ep) {
+      cmd = "date -u -j -f \"%Y-%m-%d %H:%M\" \"" y "-" pad2(m) "-" pad2(d) " " hm "\" +%s 2>/dev/null"
       cmd | getline ep; close(cmd)
       if (ep == "") {
-        cmd = "date -u -d \"" y "-" m "-" d " " hm_clean " UTC\" +%s 2>/dev/null"
+        cmd = "date -u -d \"" y "-" m "-" d " " hm " UTC\" +%s 2>/dev/null"
         cmd | getline ep; close(cmd)
       }
       return ep
@@ -104,17 +98,9 @@ while :; do
   phen_candidate="${rest#*|}"
 
   yv=""; mv=""; dv=""; tv=""
-  parsed_fields=$(printf '%s\n' "$raw_candidate" |
-    awk 'NF>=4 {printf "%s|%s|%s|%s", $1, $2, $3, $4}')
-
-  if [ -n "$parsed_fields" ]; then
-    yv=${parsed_fields%%|*}
-    rest_fields=${parsed_fields#*|}
-    mv=${rest_fields%%|*}
-    rest_fields=${rest_fields#*|}
-    dv=${rest_fields%%|*}
-    tv=${rest_fields#*|}
-  fi
+  IFS=' ' read -r yv mv dv tv <<EOF_ROW || true
+$raw_candidate
+EOF_ROW
 
   if [ -n "$yv" ] && [ -n "$mv" ] && [ -n "$dv" ] && [ -n "$tv" ]; then
     ts_next="$ts_candidate"
