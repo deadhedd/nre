@@ -193,17 +193,18 @@ next_season() {
 
   now=$(now_utc_s)
 
-  # Build "y m d time|phenom" and pad month/day before parsing
   list=$(
     printf '%s\n%s\n' "$j1" "$j2" |
       jq -r '
         .data[]?
-        | {y: .year, m: .month, d: .day, t: .time,
-           p: (.phenom // .phenomenon // empty)}
-        | select(.p|test("Equinox|Solstice"))
-        | select(.t != null and .t != "")
+        | {y: .year, m: .month, d: .day, t: (.time // ""), p: (.phenom // .phenomenon // "")}
+        | select((.p|test("Equinox|Solstice")) and (.t != ""))
         | "\(.y) \(.m) \(.d) \(.t)|\(.p)"'
   )
+
+  if [ "${DEBUG_SEASONS:-0}" = "1" ]; then
+    printf 'DEBUG seasons list:\n%s\n' "${list:-<empty>}" >&2
+  fi
 
   next_iso=""
   next_name=""
@@ -215,22 +216,44 @@ next_season() {
     [ -n "$line" ] || continue
     raw="${line%%|*}"
     name="${line#*|}"
+
     IFS=' \t\n'
     set -- $raw
     count=$#
     IFS='
 '
     if [ "$count" -lt 4 ]; then
+      [ "${DEBUG_SEASONS:-0}" = "1" ] && printf 'DEBUG skip (count<4): "%s"\n' "$raw" >&2
       continue
     fi
+
     yv="$1"; mv="$2"; dv="$3"; tv="$4"
-    iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
+    tv_clean=$(printf '%s' "$tv" | sed 's/[[:space:]]\([A-Z]\{2,3\}\)$//')
+    iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv_clean")
     iso_clean=$(printf '%s' "$iso_clean" | sed 's/[[:space:]]*UT$//; s/[[:space:]]*$//')
-    ts=$(to_epoch_utc "$iso_clean") || continue
+
+    ts=$(to_epoch_utc "$iso_clean") || ts=""
+
+    if [ "${DEBUG_SEASONS:-0}" = "1" ]; then
+      printf 'DEBUG cand: %-23s -> ts=%s  name=%s\n' "$iso_clean" "${ts:-<empty>}" "$name" >&2
+    fi
+
+    [ -n "$ts" ] || continue
     if [ "$ts" -gt "$now" ]; then
-      if [ -z "${next_iso:-}" ] || [ "$ts" -lt "$(to_epoch_utc "$next_iso")" ]; then
+      if [ -z "$next_iso" ]; then
+        choose=1
+      else
+        ts_curr=$(to_epoch_utc "$next_iso") || ts_curr=""
+        [ -z "$ts_curr" ] && choose=1 || { [ "$ts" -lt "$ts_curr" ] && choose=1 || choose=0; }
+      fi
+      if [ "$choose" = "1" ]; then
         next_iso="$iso_clean"
-        next_name="$name"
+        case "$name" in
+          Equinox)  if [ "$mv" -eq 3 ]; then next_name="Vernal Equinox"; else next_name="Autumnal Equinox"; fi ;;
+          Solstice) if [ "$mv" -eq 6 ]; then next_name="Summer Solstice"; else next_name="Winter Solstice"; fi ;;
+          *)        next_name="$name" ;;
+        esac
+        [ "${DEBUG_SEASONS:-0}" = "1" ] && printf 'DEBUG chosen so far: %s (%s)\n' "$next_iso" "$next_name" >&2
       fi
     fi
   done
@@ -244,7 +267,6 @@ next_season() {
   ts_next=$(to_epoch_utc "$next_iso")
   left=$((ts_next - now))
 
-  # pretty local timestamp for display (TZ already set)
   if date -j -f "%Y-%m-%d %H:%M" "$next_iso" "+%b %e, %Y %I:%M %p %Z" >/dev/null 2>&1; then
     pretty=$(date -j -f "%Y-%m-%d %H:%M" "$next_iso" "+%b %e, %Y %I:%M %p %Z")
   else
