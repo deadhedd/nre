@@ -105,6 +105,12 @@ EOF
 
 weekly_goal_text="⚠️ Weekly Goal section is empty."
 
+pagan_timings_text=$(cat <<'EOF'
+### Pagan Timings
+⚠️ Pagan timing info unavailable.
+EOF
+)
+
 # ----- Optional dynamic sections (resolve paths from script_dir; do not require +x) -----
 if [ -r "$script_dir/utils/generate-day-plan.sh" ]; then
   if output=$(sh "$script_dir/utils/generate-day-plan.sh"); then
@@ -130,6 +136,18 @@ if [ -r "$script_dir/utils/extract-weekly-goal.sh" ]; then
   fi
 fi
 
+if [ -r "$script_dir/utils/pagan-timings.sh" ]; then
+  if output=$(sh "$script_dir/utils/pagan-timings.sh"); then
+    pagan_timings_text="$output"
+  else
+    pagan_timings_text=$(cat <<'EOF'
+### Pagan Timings
+⚠️ Unable to load pagan timings
+EOF
+)
+  fi
+fi
+
 # Compose note content to match the legacy template.
 cat <<EOF_NOTE > "$file_path"
 ---
@@ -137,6 +155,8 @@ tags:
   - matter/daily-notes
 ---
 << [[Periodic Notes/Daily Notes/${yesterday}|${yesterday}]] | [[Periodic Notes/Daily Notes/${tomorrow}|${tomorrow}]] >>
+
+${pagan_timings_text}
 
 ${day_plan_text}
 
