@@ -22,7 +22,7 @@ need curl; need jq; need bc; need awk; need date
 
 curl_json() {
   curl -fsS --max-time 10 --retry 2 --retry-delay 0 --retry-max-time 15 \
-       -H "User-Agent: pagan-timings/1.1 (+local)" "$1"
+       -H "User-Agent: pagan-timings/1.2 (+local)" "$1"
 }
 
 now_utc_s() { date -u +%s; }
@@ -40,13 +40,25 @@ fmt_eta() {
   fi
 }
 
-# parse "YYYY-M-D H:MM" (UTC) -> epoch seconds
+# parse "YYYY-M-D H:MM" (UTC) -> epoch seconds (BSD/GNU safe)
 to_epoch_utc() {
   ds="$1"
-  if date -u -j -f "%Y-%m-%d %H:%M" "$ds" +%s >/dev/null 2>&1; then
-    date -u -j -f "%Y-%m-%d %H:%M" "$ds" +%s
+  # normalize "YYYY-M-D H:MM" → "YYYY-MM-DD H:MM" for BSD strptime
+  ds_norm=$(printf "%s\n" "$ds" | awk '
+    {
+      split($0,a,/[[:space:]]+/);              # a[1]=date, a[2]=time
+      split(a[1],d,/-/);                       # d[1]=Y, d[2]=M, d[3]=D
+      y=d[1]; m=d[2]; dd=d[3];
+      if (length(m)==1)  m="0" m;
+      if (length(dd)==1) dd="0" dd;
+      printf "%s-%s-%s %s\n", y, m, dd, a[2];
+    }')
+
+  if date -u -j -f "%Y-%m-%d %H:%M" "$ds_norm" +%s >/dev/null 2>&1; then
+    date -u -j -f "%Y-%m-%d %H:%M" "$ds_norm" +%s
   else
-    date -u -d "$ds UTC" +%s
+    # GNU fallback (not used on OpenBSD, harmless elsewhere)
+    date -u -d "$ds_norm UTC" +%s
   fi
 }
 
@@ -96,7 +108,8 @@ moon_info() {
     return 0
   fi
 
-  d=$(date -u +%Y-%-m-%-d)
+  # OpenBSD-safe zero-padded date for the API
+  d=$(date -u +%Y-%m-%d)
   t=$(date -u +%H:%M)
   url="https://aa.usno.navy.mil/api/celnav?date=${d}&time=${t}&coords=${LAT},${LON}"
 
@@ -180,25 +193,37 @@ next_season() {
 
   now=$(now_utc_s)
 
+  # Build "y m d time|phenom" and pad month/day before parsing
   list=$(
     printf '%s\n%s\n' "$j1" "$j2" |
       jq -r '
         .data[]?
-        | .phenom // .phenomenon // empty as $p
-        | select($p|test("Equinox|Solstice"))
-        | "\(.year)-\(.month)-\(.day) \(.time)|\($p)"'
+        | {.y:.year, .m:.month, .d:.day, .t:.time,
+           .p:(.phenom // .phenomenon // empty)}
+        | select(.p|test("Equinox|Solstice"))
+        | "\(.y) \(.m) \(.d) \(.t)|\(.p)"'
   )
 
   next_iso=""
   next_name=""
 
+  old_ifs=$IFS
   IFS='
 '
   for line in $list; do
     [ -n "$line" ] || continue
-    iso=${line%%|*}
-    name=${line#*|}
-    iso_clean=$(printf '%s' "$iso" | sed 's/[[:space:]]*UT$//; s/[[:space:]]*$//')
+    raw="${line%%|*}"
+    name="${line#*|}"
+    # raw fields: y m d "H:MM"
+    IFS=' \t\n'
+    set -- $raw
+    IFS='
+'
+    yv="$1"; mv="$2"; dv="$3"; tv="$4"
+    # zero-pad month/day for BSD strptime
+    iso_clean=$(printf "%04d-%02d-%02d %s" "$yv" "$mv" "$dv" "$tv")
+    # strip any trailing UT tag
+    iso_clean=$(printf '%s' "$iso_clean" | sed 's/[[:space:]]*UT$//; s/[[:space:]]*$//')
     ts=$(to_epoch_utc "$iso_clean")
     if [ "$ts" -gt "$now" ]; then
       if [ -z "${next_iso:-}" ] || [ "$ts" -lt "$(to_epoch_utc "$next_iso")" ]; then
@@ -208,6 +233,8 @@ next_season() {
     fi
   done
 
+  IFS=$old_ifs
+
   if [ -z "$next_iso" ]; then
     echo "Next seasonal turning: 🌀 **(unavailable)**"
     return 0
@@ -216,6 +243,7 @@ next_season() {
   ts_next=$(to_epoch_utc "$next_iso")
   left=$((ts_next - now))
 
+  # pretty local timestamp for display (TZ already set)
   if date -j -f "%Y-%m-%d %H:%M" "$next_iso" "+%b %e, %Y %I:%M %p %Z" >/dev/null 2>&1; then
     pretty=$(date -j -f "%Y-%m-%d %H:%M" "$next_iso" "+%b %e, %Y %I:%M %p %Z")
   else
