@@ -105,11 +105,9 @@ EOF
 
 weekly_goal_text="⚠️ Weekly Goal section is empty."
 
-pagan_timings_text=$(cat <<'EOF'
-### Pagan Timings
-⚠️ Pagan timing info unavailable.
-EOF
-)
+pagan_header="### Pagan Timings"
+moon_text="⚠️ Moon phase info unavailable."
+season_text="⚠️ Seasonal turning info unavailable."
 
 # ----- Optional dynamic sections (resolve paths from script_dir; do not require +x) -----
 if [ -r "$script_dir/utils/generate-day-plan.sh" ]; then
@@ -136,17 +134,21 @@ if [ -r "$script_dir/utils/extract-weekly-goal.sh" ]; then
   fi
 fi
 
-if [ -r "$script_dir/utils/pagan-timings.sh" ]; then
-  if output=$(sh "$script_dir/utils/pagan-timings.sh"); then
-    pagan_timings_text="$output"
-  else
-    pagan_timings_text=$(cat <<'EOF'
-### Pagan Timings
-⚠️ Unable to load pagan timings
-EOF
-)
+pagan_moon_script="$script_dir/utils/pagan-moon.sh"
+if [ -r "$pagan_moon_script" ]; then
+  if output=$(sh "$pagan_moon_script"); then
+    moon_text="$output"
   fi
 fi
+
+pagan_seasons_script="$script_dir/utils/pagan-seasons.sh"
+if [ -r "$pagan_seasons_script" ]; then
+  if output=$(sh "$pagan_seasons_script"); then
+    season_text="$output"
+  fi
+fi
+
+pagan_timings_text=$(printf '%s\n%s\n%s\n' "$pagan_header" "$moon_text" "$season_text")
 
 # Compose note content to match the legacy template.
 cat <<EOF_NOTE > "$file_path"
