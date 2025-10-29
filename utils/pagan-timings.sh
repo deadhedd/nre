@@ -21,7 +21,7 @@ need() { command -v "$1" >/dev/null 2>&1 || { echo "❌ missing: $1" >&2; exit 1
 need curl; need jq; need bc; need awk; need date
 
 curl_json() {
-  curl -fsS --max-time 10 --retry 2 --retry-delay 0 --retry-max-time 15 \
+  curl -fsS -L --max-time 10 --retry 2 --retry-delay 0 --retry-max-time 15 \
        -H "User-Agent: pagan-timings/1.2 (+local)" "$1"
 }
 
@@ -190,7 +190,7 @@ next_season() {
 
   # Be explicit about JSON
   curl_json_hdr() {
-    curl -fsS --max-time 10 --retry 2 --retry-delay 0 --retry-max-time 15 \
+    curl -fsS -L --max-time 10 --retry 2 --retry-delay 0 --retry-max-time 15 \
          -H "Accept: application/json" \
          -H "User-Agent: pagan-timings/1.2 (+local)" "$1"
   }
