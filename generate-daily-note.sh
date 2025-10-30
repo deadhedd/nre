@@ -91,12 +91,6 @@ for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
 done
 
 # ----- Defaults as real multiline text (no literal \n) -----
-day_plan_text=$(cat <<'EOF'
-# Daily Plan
-<!-- Daily plan unavailable -->
-EOF
-)
-
 f1_text=$(cat <<'EOF'
 # 🏎️ Formula 1
 ⚠️ Could not load race data.
@@ -110,18 +104,6 @@ moon_text="⚠️ Moon phase info unavailable."
 season_text="⚠️ Seasonal turning info unavailable."
 
 # ----- Optional dynamic sections (resolve paths from script_dir; do not require +x) -----
-if [ -r "$script_dir/utils/generate-day-plan.sh" ]; then
-  if output=$(sh "$script_dir/utils/generate-day-plan.sh"); then
-    day_plan_text="$output"
-  else
-    day_plan_text=$(cat <<'EOF'
-# Daily Plan
-⚠️ Unable to load day plan
-EOF
-)
-  fi
-fi
-
 if [ -r "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
   if output=$(sh "$script_dir/utils/f1-schedule-and-standings.sh"); then
     f1_text="$output"
@@ -159,8 +141,6 @@ tags:
 << [[Periodic Notes/Daily Notes/${yesterday}|${yesterday}]] | [[Periodic Notes/Daily Notes/${tomorrow}|${tomorrow}]] >>
 
 ${pagan_timings_text}
-
-${day_plan_text}
 
 ${time_blocks_nav}
 
