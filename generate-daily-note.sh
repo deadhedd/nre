@@ -132,6 +132,28 @@ fi
 
 pagan_timings_text=$(printf '%s\n%s\n%s\n' "$pagan_header" "$moon_text" "$season_text")
 
+# Daily Plan intro (day + purpose)
+daily_plan_intro=""
+day_plan_script="$script_dir/utils/generate-day-plan.sh"
+if [ -r "$day_plan_script" ]; then
+  if day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
+    intro_line=$(printf '%s\n' "$day_plan_output" | awk '
+      /^# Daily Plan - / {in_today=1; next}
+      /^## Preview of Tomorrow:/ {exit}
+      in_today && NF {print; exit}
+    ')
+    if [ -n "$intro_line" ]; then
+      daily_plan_intro="$intro_line"
+    fi
+  fi
+fi
+
+if [ -n "$daily_plan_intro" ]; then
+  daily_plan_intro_section=$(printf '%s\n\n' "$daily_plan_intro")
+else
+  daily_plan_intro_section=""
+fi
+
 # Compose note content to match the legacy template.
 cat <<EOF_NOTE > "$file_path"
 ---
@@ -140,7 +162,7 @@ tags:
 ---
 << [[Periodic Notes/Daily Notes/${yesterday}|${yesterday}]] | [[Periodic Notes/Daily Notes/${tomorrow}|${tomorrow}]] >>
 
-${pagan_timings_text}
+${daily_plan_intro_section}${pagan_timings_text}
 
 ${time_blocks_nav}
 
