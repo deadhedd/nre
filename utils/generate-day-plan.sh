@@ -113,6 +113,8 @@ fi
 
 # Legacy: full today + tomorrow
 printf '# Daily Plan - %s\n\n' "$today_name"
+printf '## %s\n' "$today_name"
 extract_day_section "$today_name" || true
 printf '\n## Preview of Tomorrow: %s\n' "$tomorrow_name"
+printf '## %s\n' "$tomorrow_name"
 extract_day_section "$tomorrow_name" || true
