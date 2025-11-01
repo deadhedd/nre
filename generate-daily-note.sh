@@ -137,13 +137,25 @@ daily_plan_intro=""
 day_plan_script="$script_dir/utils/generate-day-plan.sh"
 if [ -r "$day_plan_script" ]; then
   if day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
-    intro_line=$(printf '%s\n' "$day_plan_output" | awk '
+    intro_lines=$(printf '%s\n' "$day_plan_output" | awk '
       /^# Daily Plan - / {in_today=1; next}
-      /^## Preview of Tomorrow:/ {exit}
-      in_today && NF {print; exit}
+      in_today && /^## Preview of Tomorrow:/ {exit}
+      in_today {
+        if (!day && /^## /) {
+          day=$0
+          next
+        }
+        if (!focus && /^### /) {
+          focus=$0
+        }
+      }
+      END {
+        if (day) print day;
+        if (focus) print focus;
+      }
     ')
-    if [ -n "$intro_line" ]; then
-      daily_plan_intro="$intro_line"
+    if [ -n "$intro_lines" ]; then
+      daily_plan_intro="$intro_lines"
     fi
   fi
 fi
