@@ -4,8 +4,18 @@
 
 set -eu
 
+log_info() {
+  printf 'ℹ️ %s\n' "$*"
+}
+
+log_warn() {
+  printf '⚠️ %s\n' "$*"
+}
+
 # Ensure common tools are found even under cron (put /usr/local/bin first)
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+
+log_info "Starting daily note generation"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
@@ -18,8 +28,12 @@ vault_root="${vault_path%/}"
 periodic_dir="${vault_root}/Periodic Notes"
 daily_note_dir="${periodic_dir%/}/Daily Notes"
 
+log_info "Vault path: $vault_root"
+log_info "Daily note directory: $daily_note_dir"
+
 # Ensure the output directory exists
 if [ ! -d "$daily_note_dir" ]; then
+  log_warn "Periodic notes folder does not exist: $daily_note_dir"
   echo "❌ Periodic notes folder does not exist: $daily_note_dir" >&2
   echo "Edit generate-daily-note.sh to match your vault structure." >&2
   exit 1
@@ -32,6 +46,10 @@ month=$(printf '%s' "$today" | cut -d- -f2)
 day=$(printf '%s' "$today" | cut -d- -f3)
 quarter=$(( (10#$month + 2) / 3 ))
 week_tag=$(date +%G-W%V)
+
+log_info "Generating note for date: $today"
+
+log_info "Preparing time block navigation"
 
 time_blocks_nav=$(cat <<EOF_TB
 ## ⌚ Time Blocks
@@ -59,6 +77,8 @@ file_path="${daily_note_dir%/}/${today}.md"
 
 set -- "$file_path"
 
+log_info "Primary daily note path: $file_path"
+
 # Time block subnote placeholders + content
 time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
 mkdir -p "$time_block_subnotes_dir"
@@ -72,6 +92,7 @@ for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
   subnote_path="${time_block_subnotes_dir%/}/${today} - ${subnote}.md"
 
   # Always (over)write content so it stays in sync with the plan:
+  log_info "Generating subnote for block: $subnote"
   block_content="$(populate_block "$subnote")"
 
   {
@@ -88,6 +109,7 @@ for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
 
   # Add to commit list regardless of new/existing:
   set -- "$@" "$subnote_path"
+  log_info "Subnote updated: $subnote_path"
 done
 
 # ----- Defaults as real multiline text (no literal \n) -----
@@ -105,29 +127,57 @@ season_text="⚠️ Seasonal turning info unavailable."
 
 # ----- Optional dynamic sections (resolve paths from script_dir; do not require +x) -----
 if [ -r "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
+  log_info "Fetching Formula 1 data"
   if output=$(sh "$script_dir/utils/f1-schedule-and-standings.sh"); then
+    log_info "Formula 1 data retrieved"
     f1_text="$output"
+  else
+    status=$?
+    log_warn "Formula 1 script failed with exit code $status, using fallback text"
   fi
+else
+  log_warn "Formula 1 script not found at $script_dir/utils/f1-schedule-and-standings.sh, using fallback text"
 fi
 
 if [ -r "$script_dir/utils/extract-weekly-goal.sh" ]; then
+  log_info "Extracting weekly goal"
   if output=$(sh "$script_dir/utils/extract-weekly-goal.sh"); then
+    log_info "Weekly goal extracted"
     weekly_goal_text="$output"
+  else
+    status=$?
+    log_warn "Weekly goal script failed with exit code $status, using fallback text"
   fi
+else
+  log_warn "Weekly goal script not found at $script_dir/utils/extract-weekly-goal.sh, using fallback text"
 fi
 
 pagan_moon_script="$script_dir/utils/pagan-moon.sh"
 if [ -r "$pagan_moon_script" ]; then
+  log_info "Gathering pagan moon data"
   if output=$(sh "$pagan_moon_script"); then
+    log_info "Pagan moon data retrieved"
     moon_text="$output"
+  else
+    status=$?
+    log_warn "Pagan moon script failed with exit code $status, using fallback text"
   fi
+else
+  log_warn "Pagan moon script not found at $pagan_moon_script, using fallback text"
 fi
 
 pagan_seasons_script="$script_dir/utils/pagan-seasons.sh"
 if [ -r "$pagan_seasons_script" ]; then
+  log_info "Gathering pagan season data"
   if output=$(sh "$pagan_seasons_script"); then
+    log_info "Pagan season data retrieved"
     season_text="$output"
+  else
+    status=$?
+    log_warn "Pagan seasons script failed with exit code $status, using fallback text"
   fi
+else
+  log_warn "Pagan seasons script not found at $pagan_seasons_script, using fallback text"
 fi
 
 pagan_timings_text=$(printf '%s\n%s\n%s\n' "$pagan_header" "$moon_text" "$season_text")
@@ -136,6 +186,7 @@ pagan_timings_text=$(printf '%s\n%s\n%s\n' "$pagan_header" "$moon_text" "$season
 daily_plan_intro=""
 day_plan_script="$script_dir/utils/generate-day-plan.sh"
 if [ -r "$day_plan_script" ]; then
+  log_info "Loading daily plan intro"
   if day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
     intro_lines=$(printf '%s\n' "$day_plan_output" | awk '
       /^# Daily Plan - / {in_today=1; next}
@@ -155,9 +206,16 @@ if [ -r "$day_plan_script" ]; then
       }
     ')
     if [ -n "$intro_lines" ]; then
+      log_info "Daily plan intro captured"
       daily_plan_intro="$intro_lines"
+    else
+      log_warn "Daily plan intro not found in output"
     fi
+  else
+    log_warn "Daily plan script failed, skipping intro"
   fi
+else
+  log_warn "Daily plan script not found, skipping intro"
 fi
 
 if [ -n "$daily_plan_intro" ]; then
@@ -165,6 +223,8 @@ if [ -n "$daily_plan_intro" ]; then
 else
   daily_plan_intro_section=""
 fi
+
+log_info "Writing daily note content"
 
 # Compose note content to match the legacy template.
 cat <<EOF_NOTE > "$file_path"
@@ -252,7 +312,9 @@ EOF_NOTE
 printf '✅ Daily note created at %s\n' "$file_path"
 
 if [ -x "$commit_helper" ]; then
+  log_info "Invoking commit helper"
   "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$@"
 else
+  log_warn "Commit helper not found: $commit_helper"
   printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
 fi
