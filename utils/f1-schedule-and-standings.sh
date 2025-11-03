@@ -4,7 +4,7 @@
 set -e
 
 log() {
-  printf 'ℹ️  %s\n' "$1"
+  printf 'ℹ️  %s\n' "$1" >&2
 }
 
 # ---------- Portable date helpers ----------
