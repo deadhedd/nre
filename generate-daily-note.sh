@@ -116,7 +116,6 @@ done
 f1_text=$(cat <<'EOF'
 # 🏎️ Formula 1
 ⚠️ Could not load race data.
-Todo: investigate f1 script issue
 EOF
 )
 
@@ -127,19 +126,18 @@ moon_text="⚠️ Moon phase info unavailable."
 season_text="⚠️ Seasonal turning info unavailable."
 
 # ----- Optional dynamic sections (resolve paths from script_dir; do not require +x) -----
-# Formula 1 script temporarily disabled due to hanging behavior.
-# if [ -r "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
-#   log_info "Fetching Formula 1 data"
-#   if output=$(sh "$script_dir/utils/f1-schedule-and-standings.sh"); then
-#     log_info "Formula 1 data retrieved"
-#     f1_text="$output"
-#   else
-#     status=$?
-#     log_warn "Formula 1 script failed with exit code $status, using fallback text"
-#   fi
-# else
-#   log_warn "Formula 1 script not found at $script_dir/utils/f1-schedule-and-standings.sh, using fallback text"
-# fi
+if [ -r "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
+  log_info "Fetching Formula 1 data"
+  if output=$(sh "$script_dir/utils/f1-schedule-and-standings.sh"); then
+    log_info "Formula 1 data retrieved"
+    f1_text="$output"
+  else
+    status=$?
+    log_warn "Formula 1 script failed with exit code $status, using fallback text"
+  fi
+else
+  log_warn "Formula 1 script not found at $script_dir/utils/f1-schedule-and-standings.sh, using fallback text"
+fi
 
 if [ -r "$script_dir/utils/extract-weekly-goal.sh" ]; then
   log_info "Extracting weekly goal"
