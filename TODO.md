@@ -13,8 +13,6 @@ High Priority
 
     • Add recycling and filling water jug to daily notes which are a little complicated due to the interval to repeat
 
-    • color/format code wake up task priorities
-
     • set up grocery list automation
 Medium Priority
 
