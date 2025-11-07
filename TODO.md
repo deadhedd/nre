@@ -7,7 +7,7 @@ High Priority
 
     • Workout schedule implemented in daily notes
 
-    • edit deamon cron to use the daily note generator directly instead of the wrapper with the js fallback
+    • fix cron job issue
 
     • standardize and fully implement cron logging
 
