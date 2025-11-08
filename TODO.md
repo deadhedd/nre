@@ -7,8 +7,6 @@ High Priority
 
     • Workout schedule implemented in daily notes
 
-    • fix cron job issue
-
     • standardize and fully implement cron logging
 
     • Add recycling and filling water jug to daily notes which are a little complicated due to the interval to repeat
