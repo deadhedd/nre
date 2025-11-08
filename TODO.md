@@ -7,8 +7,6 @@ High Priority
 
     • Workout schedule implemented in daily notes
 
-    • standardize and fully implement cron logging
-
     • Add recycling and filling water jug to daily notes which are a little complicated due to the interval to repeat
 
     - add par payoff countdown to daily note
