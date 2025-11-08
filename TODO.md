@@ -25,6 +25,8 @@ Low Priority / Someday
 
     • use advanced uri for enhanced ios shortcuts
 
+    - Explore using AGENTS.md as a unified config for all cron jobs—design parser integration and alias workflow for easy editing and syncing.
+
 Notes
 
     • Year theme: Standing on Business (2025)
