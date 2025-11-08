@@ -47,6 +47,65 @@ day=$(printf '%s' "$today" | cut -d- -f3)
 quarter=$(( (10#$month + 2) / 3 ))
 week_tag=$(date +%G-W%V)
 
+# --- Loan payoff countdown (pay on the 20th; payoff 2027-12-20) ---
+payoff_y=2027
+payoff_m=12
+payoff_d=20
+
+# Parse today's Y-M-D into integers that won't trip on leading zeros
+ty=$year
+tm=$month
+td=$day
+
+# Helper: zero-pad to 2 digits
+pad2() { [ "$1" -lt 10 ] && printf '0%d' "$1" || printf '%d' "$1"; }
+
+# Months difference ignoring days
+months_base=$(( (payoff_y - ty)*12 + (payoff_m - tm) ))
+
+# Round up by one month if we haven't reached the 20th yet this month
+if [ "$ty$tm$td" -gt "$payoff_y$(pad2 $payoff_m)$(pad2 $payoff_d)" ]; then
+  months_left=0
+else
+  if [ "$td" -le "$payoff_d" ]; then
+    months_left=$(( months_base + 1 ))
+  else
+    months_left=$(( months_base ))
+  fi
+  [ "$months_left" -lt 0 ] && months_left=0
+fi
+
+# Next payment date (the next 20th on/after today)
+np_y=$ty; np_m=$tm; np_d=20
+if [ "$td" -gt 20 ]; then
+  # advance a month
+  if [ "$np_m" -eq 12 ]; then
+    np_m=1; np_y=$((np_y+1))
+  else
+    np_m=$((np_m+1))
+  fi
+fi
+
+# Payments left: count 20ths from next payment through payoff (inclusive)
+if [ "$np_y$(pad2 $np_m)" -gt "$payoff_y$(pad2 $payoff_m)" ]; then
+  payments_left=0
+else
+  payments_left=$(( (payoff_y - np_y)*12 + (payoff_m - np_m) + 1 ))
+  [ "$payments_left" -lt 0 ] && payments_left=0
+fi
+
+next_payment_fmt="$(printf '%04d-%02d-%02d' "$np_y" "$np_m" 20)"
+
+loan_countdown_text=$(cat <<EOF_LC
+## 💰 Loan Payoff Countdown
+- **Months left:** ${months_left}
+- **Payments left (20ths):** ${payments_left}
+- **Next payment:** ${next_payment_fmt}
+- **Target payoff:** 2027-12-20
+EOF_LC
+)
+
+
 log_info "Generating note for date: $today"
 
 log_info "Preparing time block navigation"
@@ -240,6 +299,12 @@ ${time_blocks_nav}
 
 ## 🌤️ Yard Work Suitability
 <!-- yard-work-check -->
+
+---
+
+# Finances
+
+${loan_countdown_text}
 
 ---
 ${f1_text}
