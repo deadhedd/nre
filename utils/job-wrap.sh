@@ -10,11 +10,22 @@ JOB_NAME="${1:-}"; shift || true
 
 # Where to put logs (change if you like)
 HOME_DIR="${HOME:-/home/obsidian}"
-LOGDIR="${HOME_DIR}/logs/obsidian-jobs"
-mkdir -p "$LOGDIR"
+LOG_ROOT="${HOME_DIR}/logs"
 
-# Safe file stem
+# Group logs by note cadence
 SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
+case "$SAFE_JOB_NAME" in
+  *daily-note*)
+    LOGDIR="${LOG_ROOT}/daily-notes"
+    ;;
+  *weekly-note*)
+    LOGDIR="${LOG_ROOT}/weekly-notes"
+    ;;
+  *)
+    LOGDIR="${LOG_ROOT}/periodic-notes"
+    ;;
+esac
+mkdir -p "$LOGDIR"
 
 # Timestamped logfile + "latest" symlink
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
