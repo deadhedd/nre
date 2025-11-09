@@ -1,6 +1,16 @@
 #!/bin/sh
 # Generate a daily note markdown file that mirrors the legacy Node implementation.
 # Uses helper scripts in ./utils when available to populate dynamic sections.
+#
+# Usage: generate-daily-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM-DD] [--force]
+#
+# Options:
+#   --vault <path>   Override the vault root (defaults to $VAULT_PATH or /home/obsidian/vaults/Main).
+#   --outdir <name>  Subdirectory relative to the vault for the note (defaults to "Periodic Notes/Daily Notes").
+#   --date YYYY-MM-DD
+#                    Target date for the note (defaults to the current local date).
+#   --force          Overwrite existing notes and subnotes instead of skipping them.
+#   --help           Show this message.
 
 set -eu
 
@@ -12,6 +22,89 @@ log_warn() {
   printf '⚠️ %s\n' "$*"
 }
 
+usage() {
+  cat <<'EOF_USAGE'
+Usage: generate-daily-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM-DD] [--force]
+
+Options:
+  --vault <path>   Override the vault root. Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
+  --outdir <name>  Subdirectory relative to the vault. Defaults to "Periodic Notes/Daily Notes".
+  --date YYYY-MM-DD
+                   Target date for the note. Defaults to the current local date.
+  --force          Overwrite existing notes and subnotes.
+  --help           Show this message.
+EOF_USAGE
+}
+
+normalize_date() {
+  input=$1
+  if normalized=$(date -u -d "$input" +%Y-%m-%d 2>/dev/null); then
+    printf '%s' "$normalized"
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$input" <<'PYTHON' 2>/dev/null; then
+import sys
+from datetime import datetime
+
+try:
+    normalized = datetime.strptime(sys.argv[1], "%Y-%m-%d").strftime("%Y-%m-%d")
+except ValueError:
+    sys.exit(1)
+
+print(normalized)
+PYTHON
+    then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+shift_date() {
+  base=$1
+  delta=$2
+  if result=$(date -u -d "$base $delta day" +%Y-%m-%d 2>/dev/null); then
+    printf '%s' "$result"
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$base" "$delta" <<'PYTHON' 2>/dev/null; then
+import sys
+from datetime import datetime, timedelta
+
+base = datetime.strptime(sys.argv[1], "%Y-%m-%d")
+delta = int(sys.argv[2])
+print((base + timedelta(days=delta)).strftime("%Y-%m-%d"))
+PYTHON
+    then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+format_week_tag() {
+  base=$1
+  if result=$(date -u -d "$base" +%G-W%V 2>/dev/null); then
+    printf '%s' "$result"
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$base" <<'PYTHON' 2>/dev/null; then
+import sys
+from datetime import datetime
+
+dt = datetime.strptime(sys.argv[1], "%Y-%m-%d")
+print(f"{dt.isocalendar().year}-W{dt.isocalendar().week:02d}")
+PYTHON
+    then
+      return 0
+    fi
+  fi
+  return 1
+}
+
 # Ensure common tools are found even under cron (put /usr/local/bin first)
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
@@ -20,32 +113,104 @@ log_info "Starting daily note generation"
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
 
-# Match the legacy default vault path unless overridden and construct
-# the periodic notes directory using the same path handling as the
-# other non-legacy scripts.
-vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
+vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
+outdir="Periodic Notes/Daily Notes"
+date_arg=""
+force=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --vault)
+      if [ $# -lt 2 ]; then
+        echo "❌ Missing value for --vault" >&2
+        usage
+        exit 2
+      fi
+      vault_path=$2
+      shift 2
+      ;;
+    --outdir)
+      if [ $# -lt 2 ]; then
+        echo "❌ Missing value for --outdir" >&2
+        usage
+        exit 2
+      fi
+      outdir=$2
+      shift 2
+      ;;
+    --date)
+      if [ $# -lt 2 ]; then
+        echo "❌ Missing value for --date" >&2
+        usage
+        exit 2
+      fi
+      date_arg=$2
+      shift 2
+      ;;
+    --force)
+      force=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "❌ Unknown option: $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
+
 vault_root="${vault_path%/}"
-periodic_dir="${vault_root}/Periodic Notes"
-daily_note_dir="${periodic_dir%/}/Daily Notes"
+trimmed_outdir=$outdir
+while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
+  trimmed_outdir=${trimmed_outdir#/}
+done
+while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do
+  trimmed_outdir=${trimmed_outdir%/}
+done
 
-log_info "Vault path: $vault_root"
-log_info "Daily note directory: $daily_note_dir"
-
-# Ensure the output directory exists
-if [ ! -d "$daily_note_dir" ]; then
-  log_warn "Periodic notes folder does not exist: $daily_note_dir"
-  echo "❌ Periodic notes folder does not exist: $daily_note_dir" >&2
-  echo "Edit generate-daily-note.sh to match your vault structure." >&2
-  exit 1
+if [ -n "$trimmed_outdir" ]; then
+  daily_note_dir="$vault_root/$trimmed_outdir"
+else
+  daily_note_dir="$vault_root"
 fi
 
-# Date helpers
-today=$(date +%Y-%m-%d)
-year=$(printf '%s' "$today" | cut -d- -f1)
-month=$(printf '%s' "$today" | cut -d- -f2)
-day=$(printf '%s' "$today" | cut -d- -f3)
+if [ -n "$date_arg" ]; then
+  case "$date_arg" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
+      today=$date_arg
+      ;;
+    *)
+      echo "❌ --date must be in YYYY-MM-DD format" >&2
+      exit 2
+      ;;
+  esac
+else
+  today=$(date +%Y-%m-%d)
+fi
+
+if ! normalized_today=$(normalize_date "$today"); then
+  echo "❌ Unable to parse date: $today" >&2
+  exit 2
+fi
+
+if [ "$normalized_today" != "$today" ]; then
+  echo "❌ Invalid date supplied: $today" >&2
+  exit 2
+fi
+
+year=${today%%-*}
+month=${today#*-}
+month=${month%%-*}
+day=${today##*-}
 quarter=$(( (10#$month + 2) / 3 ))
-week_tag=$(date +%G-W%V)
+if ! week_tag=$(format_week_tag "$today"); then
+  echo "❌ Unable to compute ISO week for: $today" >&2
+  exit 2
+fi
 
 # --- Loan payoff countdown (pay on the 20th; payoff 2027-12-20) ---
 payoff_y=2027
@@ -106,6 +271,15 @@ EOF_LC
 )
 
 
+log_info "Vault path: $vault_root"
+log_info "Daily note directory: $daily_note_dir"
+log_info "Force overwrite: $force"
+
+mkdir -p "$daily_note_dir"
+
+time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
+mkdir -p "$time_block_subnotes_dir"
+
 log_info "Generating note for date: $today"
 
 log_info "Preparing time block navigation"
@@ -129,18 +303,20 @@ EOF_TB
 )
 
 # Portable yesterday/tomorrow (works on BSD/GNU date)
-yesterday=$(TZ=UTC+24 date +%Y-%m-%d)
-tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
+if ! yesterday=$(shift_date "$today" -1); then
+  echo "❌ Unable to compute yesterday for: $today" >&2
+  exit 2
+fi
+if ! tomorrow=$(shift_date "$today" 1); then
+  echo "❌ Unable to compute tomorrow for: $today" >&2
+  exit 2
+fi
 
 file_path="${daily_note_dir%/}/${today}.md"
 
-set -- "$file_path"
+set --
 
 log_info "Primary daily note path: $file_path"
-
-# Time block subnote placeholders + content
-time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
-mkdir -p "$time_block_subnotes_dir"
 
 populate_block() {
   block_name="$1"   # e.g., "Morning"
@@ -150,7 +326,11 @@ populate_block() {
 for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
   subnote_path="${time_block_subnotes_dir%/}/${today} - ${subnote}.md"
 
-  # Always (over)write content so it stays in sync with the plan:
+  if [ -f "$subnote_path" ] && [ "$force" -ne 1 ]; then
+    log_warn "Subnote exists, skipping (use --force to overwrite): $subnote_path"
+    continue
+  fi
+
   log_info "Generating subnote for block: $subnote"
   block_content="$(populate_block "$subnote")"
 
@@ -166,9 +346,8 @@ for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
     fi
   } > "$subnote_path"
 
-  # Add to commit list regardless of new/existing:
   set -- "$@" "$subnote_path"
-  log_info "Subnote updated: $subnote_path"
+  log_info "Subnote written: $subnote_path"
 done
 
 # ----- Defaults as real multiline text (no literal \n) -----
@@ -283,10 +462,13 @@ else
   daily_plan_intro_section=""
 fi
 
-log_info "Writing daily note content"
+if [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
+  log_warn "Daily note already exists, skipping (use --force to overwrite): $file_path"
+else
+  log_info "Writing daily note content"
 
-# Compose note content to match the legacy template.
-cat <<EOF_NOTE > "$file_path"
+  # Compose note content to match the legacy template.
+  cat <<EOF_NOTE > "$file_path"
 ---
 tags:
   - matter/daily-notes
@@ -373,13 +555,20 @@ tags include #someday-maybe
 [[Daily Plan]]
 [[Workout Schedule]]
 EOF_NOTE
-
-printf '✅ Daily note created at %s\n' "$file_path"
+  log_info "Daily note written: $file_path"
+  printf '✅ Daily note created at %s\n' "$file_path"
+  set -- "$@" "$file_path"
+fi
 
 if [ -x "$commit_helper" ]; then
-  log_info "Invoking commit helper"
-  "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$@"
+  if [ $# -gt 0 ]; then
+    log_info "Invoking commit helper"
+    "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$@"
+  else
+    log_info "No files written; skipping commit helper"
+  fi
 else
   log_warn "Commit helper not found: $commit_helper"
   printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
 fi
+
