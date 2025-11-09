@@ -38,71 +38,251 @@ EOF_USAGE
 
 normalize_date() {
   input=$1
-  if normalized=$(date -u -d "$input" +%Y-%m-%d 2>/dev/null); then
-    printf '%s' "$normalized"
-    return 0
-  fi
-  if command -v python3 >/dev/null 2>&1; then
-    if python3 - "$input" <<'PYTHON' 2>/dev/null; then
-import sys
-from datetime import datetime
+  awk '
+  function is_leap(year) {
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+  }
 
-try:
-    normalized = datetime.strptime(sys.argv[1], "%Y-%m-%d").strftime("%Y-%m-%d")
-except ValueError:
-    sys.exit(1)
+  function days_in_month(year, month) {
+    if (month == 2) {
+      return is_leap(year) ? 29 : 28
+    }
+    if (month == 4 || month == 6 || month == 9 || month == 11) {
+      return 30
+    }
+    return 31
+  }
 
-print(normalized)
-PYTHON
-    then
-      return 0
-    fi
-  fi
-  return 1
+  BEGIN {
+    input_date = ARGV[1]
+    ARGV[1] = ""
+
+    if (split(input_date, parts, "-") != 3) {
+      exit 1
+    }
+
+    year = parts[1] + 0
+    month = parts[2] + 0
+    day = parts[3] + 0
+
+    if (sprintf("%04d-%02d-%02d", year, month, day) != input_date) {
+      exit 1
+    }
+
+    if (month < 1 || month > 12) {
+      exit 1
+    }
+
+    limit = days_in_month(year, month)
+    if (day < 1 || day > limit) {
+      exit 1
+    }
+
+    printf "%04d-%02d-%02d", year, month, day
+  }
+  ' "$input"
 }
 
 shift_date() {
   base=$1
   delta=$2
-  if result=$(date -u -d "$base $delta day" +%Y-%m-%d 2>/dev/null); then
-    printf '%s' "$result"
-    return 0
-  fi
-  if command -v python3 >/dev/null 2>&1; then
-    if python3 - "$base" "$delta" <<'PYTHON' 2>/dev/null; then
-import sys
-from datetime import datetime, timedelta
+  awk '
+  function is_leap(year) {
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+  }
 
-base = datetime.strptime(sys.argv[1], "%Y-%m-%d")
-delta = int(sys.argv[2])
-print((base + timedelta(days=delta)).strftime("%Y-%m-%d"))
-PYTHON
-    then
-      return 0
-    fi
-  fi
-  return 1
+  function days_in_month(year, month) {
+    if (month == 2) {
+      return is_leap(year) ? 29 : 28
+    }
+    if (month == 4 || month == 6 || month == 9 || month == 11) {
+      return 30
+    }
+    return 31
+  }
+
+  function days_before_year(year) {
+    y = year - 1
+    return y * 365 + int(y / 4) - int(y / 100) + int(y / 400)
+  }
+
+  function to_ordinal(date_string,    parts, year, month, day, i, ord) {
+    if (split(date_string, parts, "-") != 3) {
+      return -1
+    }
+
+    year = parts[1] + 0
+    month = parts[2] + 0
+    day = parts[3] + 0
+
+    if (sprintf("%04d-%02d-%02d", year, month, day) != date_string) {
+      return -1
+    }
+
+    if (month < 1 || month > 12) {
+      return -1
+    }
+
+    if (day < 1 || day > days_in_month(year, month)) {
+      return -1
+    }
+
+    ord = days_before_year(year)
+    for (i = 1; i < month; i++) {
+      ord += days_in_month(year, i)
+    }
+
+    ord += day - 1
+    return ord
+  }
+
+  function ordinal_to_date(ord,    low, high, mid, year, day_of_year, month, limit) {
+    if (ord < 0) {
+      exit 1
+    }
+
+    low = 1
+    high = 1000000
+
+    while (low < high) {
+      mid = int((low + high + 1) / 2)
+      if (days_before_year(mid) <= ord) {
+        low = mid
+      } else {
+        high = mid - 1
+      }
+    }
+
+    year = low
+    day_of_year = ord - days_before_year(year) + 1
+
+    for (month = 1; month <= 12; month++) {
+      limit = days_in_month(year, month)
+      if (day_of_year <= limit) {
+        printf "%04d-%02d-%02d", year, month, day_of_year
+        return
+      }
+      day_of_year -= limit
+    }
+
+    exit 1
+  }
+
+  BEGIN {
+    date = ARGV[1]
+    offset = ARGV[2]
+    ARGV[1] = ""
+    ARGV[2] = ""
+
+    ord = to_ordinal(date)
+    if (ord < 0) {
+      exit 1
+    }
+
+    target = ord + offset
+    ordinal_to_date(target)
+  }
+  ' "$base" "$delta"
 }
 
 format_week_tag() {
   base=$1
-  if result=$(date -u -d "$base" +%G-W%V 2>/dev/null); then
-    printf '%s' "$result"
-    return 0
-  fi
-  if command -v python3 >/dev/null 2>&1; then
-    if python3 - "$base" <<'PYTHON' 2>/dev/null; then
-import sys
-from datetime import datetime
+  awk '
+  function is_leap(year) {
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+  }
 
-dt = datetime.strptime(sys.argv[1], "%Y-%m-%d")
-print(f"{dt.isocalendar().year}-W{dt.isocalendar().week:02d}")
-PYTHON
-    then
+  function days_in_month(year, month) {
+    if (month == 2) {
+      return is_leap(year) ? 29 : 28
+    }
+    if (month == 4 || month == 6 || month == 9 || month == 11) {
+      return 30
+    }
+    return 31
+  }
+
+  function floor_val(x, i) {
+    i = int(x)
+    return (x >= 0 || x == i) ? i : i - 1
+  }
+
+  function weekday(year, month, day,    y, m, k, j, h) {
+    y = year
+    m = month
+    if (m <= 2) {
+      m += 12
+      y -= 1
+    }
+    k = y % 100
+    j = int(y / 100)
+    h = (day + floor_val((13 * (m + 1)) / 5) + k + floor_val(k / 4) + floor_val(j / 4) + 5 * j) % 7
+    return ((h + 5) % 7) + 1
+  }
+
+  function day_of_year(year, month, day,    i, total) {
+    total = day
+    for (i = 1; i < month; i++) {
+      total += days_in_month(year, i)
+    }
+    return total
+  }
+
+  function weeks_in_year(year,    jan1) {
+    jan1 = weekday(year, 1, 1)
+    if (jan1 == 4 || (jan1 == 3 && is_leap(year))) {
+      return 53
+    }
+    return 52
+  }
+
+  function emit_week(date_string,    parts, year, month, day, doy, wday, week, iso_year) {
+    if (split(date_string, parts, "-") != 3) {
       return 0
-    fi
-  fi
-  return 1
+    }
+
+    year = parts[1] + 0
+    month = parts[2] + 0
+    day = parts[3] + 0
+
+    if (sprintf("%04d-%02d-%02d", year, month, day) != date_string) {
+      return 0
+    }
+
+    if (month < 1 || month > 12) {
+      return 0
+    }
+
+    if (day < 1 || day > days_in_month(year, month)) {
+      return 0
+    }
+
+    doy = day_of_year(year, month, day)
+    wday = weekday(year, month, day)
+    week = floor_val((doy - wday + 10) / 7)
+    iso_year = year
+
+    if (week < 1) {
+      iso_year = year - 1
+      week = weeks_in_year(iso_year)
+    } else if (week > weeks_in_year(year)) {
+      iso_year = year + 1
+      week = 1
+    }
+
+    printf "%04d-W%02d", iso_year, week
+    return 1
+  }
+
+  BEGIN {
+    input_date = ARGV[1]
+    ARGV[1] = ""
+
+    if (!emit_week(input_date)) {
+      exit 1
+    }
+  }
+  ' "$base"
 }
 
 # Ensure common tools are found even under cron (put /usr/local/bin first)
