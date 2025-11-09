@@ -6,13 +6,14 @@ set -eu
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: generate-yearly-note.sh [--vault <path>] [--outdir <name>] [--year YYYY] [--force]
+Usage: generate-yearly-note.sh [--vault <path>] [--outdir <name>] [--year YYYY] [--force] [--dry-run]
 
 Options:
   --vault <path>    Vault root where the note should be created. Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
   --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Yearly Notes".
   --year YYYY       Year to generate. Defaults to the current UTC year.
   --force           Overwrite the note if it already exists.
+  --dry-run         Output the note contents to stdout without writing files.
   --help            Show this message.
 EOF_USAGE
 }
@@ -21,6 +22,18 @@ vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
 outdir="Periodic Notes/Yearly Notes"
 year_arg=""
 force=0
+dry_run=0
+
+write_output() {
+  dest=$1
+  if [ "$dry_run" -eq 1 ]; then
+    printf 'ℹ️ DRY RUN start: %s\n' "$dest"
+    cat
+    printf 'ℹ️ DRY RUN end: %s\n' "$dest"
+  else
+    cat >"$dest"
+  fi
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -53,6 +66,10 @@ while [ $# -gt 0 ]; do
       ;;
     --force)
       force=1
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
       shift
       ;;
     --help|-h)
@@ -101,7 +118,11 @@ fi
 
 note_path="${note_dir%/}/${target_year}.md"
 
-mkdir -p "$note_dir"
+if [ "$dry_run" -eq 1 ]; then
+  printf 'ℹ️ Dry run: would ensure directory exists: %s\n' "$note_dir"
+else
+  mkdir -p "$note_dir"
+fi
 
 if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
   echo "❌ Refusing to overwrite existing file: $note_path" >&2
@@ -109,7 +130,7 @@ if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
   exit 1
 fi
 
-cat <<EOF_NOTE >"$note_path"
+write_output "$note_path" <<EOF_NOTE
 # ${target_year}
 
 - [[Periodic Notes/Yearly Notes/${prev_year}|${prev_year}]]
@@ -149,3 +170,7 @@ where contains(tags, "due/${target_year}")
 
 ## Notes
 EOF_NOTE
+
+if [ "$dry_run" -eq 1 ]; then
+  printf 'ℹ️ Dry run: yearly note would be written to %s\n' "$note_path"
+fi

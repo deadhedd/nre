@@ -6,13 +6,14 @@ set -eu
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: generate-weekly-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM-DD] [--force]
+Usage: generate-weekly-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM-DD] [--force] [--dry-run]
 
 Options:
   --vault <path>    Vault root where the note should be created. Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
   --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Weekly Notes".
   --date YYYY-MM-DD Target date used to determine the week tag. Defaults to the current UTC date.
   --force           Overwrite the note if it already exists.
+  --dry-run         Output the note contents to stdout without writing files.
   --help            Show this message.
 EOF_USAGE
 }
@@ -24,6 +25,18 @@ vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
 outdir="Periodic Notes/Weekly Notes"
 date_arg=""
 force=0
+dry_run=0
+
+write_output() {
+  dest=$1
+  if [ "$dry_run" -eq 1 ]; then
+    log_info "DRY RUN start: $dest"
+    cat
+    log_info "DRY RUN end: $dest"
+  else
+    cat >"$dest"
+  fi
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -56,6 +69,10 @@ while [ $# -gt 0 ]; do
       ;;
     --force)
       force=1
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
       shift
       ;;
     --help|-h)
@@ -119,7 +136,11 @@ fi
 
 note_path="${note_dir%/}/${iso_week_tag}.md"
 
-mkdir -p "$note_dir"
+if [ "$dry_run" -eq 1 ]; then
+  log_info "Dry run: would ensure directory exists: $note_dir"
+else
+  mkdir -p "$note_dir"
+fi
 
 if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
   log_err "Refusing to overwrite existing file: $note_path"
@@ -127,7 +148,7 @@ if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
   exit 1
 fi
 
-cat <<EOF_NOTE >"$note_path"
+write_output "$note_path" <<EOF_NOTE
 # Week ${iso_week_tag}
 
 <<[[Periodic Notes/Weekly Notes/${prev_week_tag}|${prev_week_tag}]] || [[Periodic Notes/Weekly Notes/${next_week_tag}|${next_week_tag}]]>>
@@ -173,5 +194,9 @@ where contains(tags, "due/${iso_week_tag}")
 [[Weekly Note Template]]
 
 EOF_NOTE
+
+if [ "$dry_run" -eq 1 ]; then
+  log_info "Dry run: weekly note would be written to $note_path"
+fi
 
 log_info "Weekly note created: $note_path"
