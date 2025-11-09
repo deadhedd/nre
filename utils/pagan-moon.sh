@@ -26,6 +26,39 @@ moon_icon() {
   esac
 }
 
+# Short, practical guidance for each phase (keep it punchy + actionable)
+moon_guidance() {
+  case "$1" in
+    "New Moon")
+      echo "Reset: budget, set 1–3 goals, choose a monthly focus."
+      ;;
+    "Waxing Crescent")
+      echo "Start small: take first reps, schedule the next two actions."
+      ;;
+    "First Quarter")
+      echo "Push through friction: fix blockers, make the hard call."
+      ;;
+    "Waxing Gibbous")
+      echo "Refine: tighten your plan, prep reviews, polish in-progress work."
+      ;;
+    "Full Moon")
+      echo "Mid-month check-in: review, rebalance budget, release dead weight."
+      ;;
+    "Waning Gibbous")
+      echo "Integrate: capture lessons, simplify systems, document what worked."
+      ;;
+    "Last Quarter")
+      echo "Close out: cancel/decline low-ROI tasks, wrap lingering items."
+      ;;
+    "Waning Crescent")
+      echo "Downshift: light maintenance only, prep quietly for next reset."
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
 frac_mod() {
   num="$1"; den="$2"
   awk -v n="$num" -v d="$den" '
@@ -107,6 +140,15 @@ case "$nextf" in
   *)    nextname="Principal Phase" ;;
 esac
 
-printf "Moon: %s **%s** %s — next %s **%s** in %s\n" \
+guidance="$(moon_guidance "$phase")"
+
+# Build the message first, then append tip if available
+msg=$(printf "Moon: %s **%s** %s — next %s **%s** in %s" \
   "$(moon_icon "$phase")" "$phase" "$illum_str" \
-  "$(moon_icon "$nextname")" "$nextname" "$(fmt_eta "$left_secs")"
+  "$(moon_icon "$nextname")" "$nextname" "$(fmt_eta "$left_secs")")
+
+if [ -n "$guidance" ]; then
+  msg="$msg — tip: $guidance"
+fi
+
+printf "%s\n" "$msg"
