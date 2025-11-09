@@ -1,16 +1,6 @@
 #!/bin/sh
 # Generate a daily note markdown file that mirrors the legacy Node implementation.
 # Uses helper scripts in ./utils when available to populate dynamic sections.
-#
-# Usage: generate-daily-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM-DD] [--force]
-#
-# Options:
-#   --vault <path>   Override the vault root (defaults to $VAULT_PATH or /home/obsidian/vaults/Main).
-#   --outdir <name>  Subdirectory relative to the vault for the note (defaults to "Periodic Notes/Daily Notes").
-#   --date YYYY-MM-DD
-#                    Target date for the note (defaults to the current local date).
-#   --force          Overwrite existing notes and subnotes instead of skipping them.
-#   --help           Show this message.
 
 set -eu
 
@@ -22,269 +12,6 @@ log_warn() {
   printf '⚠️ %s\n' "$*"
 }
 
-usage() {
-  cat <<'EOF_USAGE'
-Usage: generate-daily-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM-DD] [--force]
-
-Options:
-  --vault <path>   Override the vault root. Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
-  --outdir <name>  Subdirectory relative to the vault. Defaults to "Periodic Notes/Daily Notes".
-  --date YYYY-MM-DD
-                   Target date for the note. Defaults to the current local date.
-  --force          Overwrite existing notes and subnotes.
-  --help           Show this message.
-EOF_USAGE
-}
-
-normalize_date() {
-  input=$1
-  awk '
-  function is_leap(year) {
-    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-  }
-
-  function days_in_month(year, month) {
-    if (month == 2) {
-      return is_leap(year) ? 29 : 28
-    }
-    if (month == 4 || month == 6 || month == 9 || month == 11) {
-      return 30
-    }
-    return 31
-  }
-
-  BEGIN {
-    input_date = ARGV[1]
-    ARGV[1] = ""
-
-    if (split(input_date, parts, "-") != 3) {
-      exit 1
-    }
-
-    year = parts[1] + 0
-    month = parts[2] + 0
-    day = parts[3] + 0
-
-    if (sprintf("%04d-%02d-%02d", year, month, day) != input_date) {
-      exit 1
-    }
-
-    if (month < 1 || month > 12) {
-      exit 1
-    }
-
-    limit = days_in_month(year, month)
-    if (day < 1 || day > limit) {
-      exit 1
-    }
-
-    printf "%04d-%02d-%02d", year, month, day
-  }
-  ' "$input"
-}
-
-shift_date() {
-  base=$1
-  delta=$2
-  awk '
-  function is_leap(year) {
-    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-  }
-
-  function days_in_month(year, month) {
-    if (month == 2) {
-      return is_leap(year) ? 29 : 28
-    }
-    if (month == 4 || month == 6 || month == 9 || month == 11) {
-      return 30
-    }
-    return 31
-  }
-
-  function days_before_year(year) {
-    y = year - 1
-    return y * 365 + int(y / 4) - int(y / 100) + int(y / 400)
-  }
-
-  function to_ordinal(date_string,    parts, year, month, day, i, ord) {
-    if (split(date_string, parts, "-") != 3) {
-      return -1
-    }
-
-    year = parts[1] + 0
-    month = parts[2] + 0
-    day = parts[3] + 0
-
-    if (sprintf("%04d-%02d-%02d", year, month, day) != date_string) {
-      return -1
-    }
-
-    if (month < 1 || month > 12) {
-      return -1
-    }
-
-    if (day < 1 || day > days_in_month(year, month)) {
-      return -1
-    }
-
-    ord = days_before_year(year)
-    for (i = 1; i < month; i++) {
-      ord += days_in_month(year, i)
-    }
-
-    ord += day - 1
-    return ord
-  }
-
-  function ordinal_to_date(ord,    low, high, mid, year, day_of_year, month, limit) {
-    if (ord < 0) {
-      exit 1
-    }
-
-    low = 1
-    high = 1000000
-
-    while (low < high) {
-      mid = int((low + high + 1) / 2)
-      if (days_before_year(mid) <= ord) {
-        low = mid
-      } else {
-        high = mid - 1
-      }
-    }
-
-    year = low
-    day_of_year = ord - days_before_year(year) + 1
-
-    for (month = 1; month <= 12; month++) {
-      limit = days_in_month(year, month)
-      if (day_of_year <= limit) {
-        printf "%04d-%02d-%02d", year, month, day_of_year
-        return
-      }
-      day_of_year -= limit
-    }
-
-    exit 1
-  }
-
-  BEGIN {
-    date = ARGV[1]
-    offset = ARGV[2]
-    ARGV[1] = ""
-    ARGV[2] = ""
-
-    ord = to_ordinal(date)
-    if (ord < 0) {
-      exit 1
-    }
-
-    target = ord + offset
-    ordinal_to_date(target)
-  }
-  ' "$base" "$delta"
-}
-
-format_week_tag() {
-  base=$1
-  awk '
-  function is_leap(year) {
-    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-  }
-
-  function days_in_month(year, month) {
-    if (month == 2) {
-      return is_leap(year) ? 29 : 28
-    }
-    if (month == 4 || month == 6 || month == 9 || month == 11) {
-      return 30
-    }
-    return 31
-  }
-
-  function floor_val(x, i) {
-    i = int(x)
-    return (x >= 0 || x == i) ? i : i - 1
-  }
-
-  function weekday(year, month, day,    y, m, k, j, h) {
-    y = year
-    m = month
-    if (m <= 2) {
-      m += 12
-      y -= 1
-    }
-    k = y % 100
-    j = int(y / 100)
-    h = (day + floor_val((13 * (m + 1)) / 5) + k + floor_val(k / 4) + floor_val(j / 4) + 5 * j) % 7
-    return ((h + 5) % 7) + 1
-  }
-
-  function day_of_year(year, month, day,    i, total) {
-    total = day
-    for (i = 1; i < month; i++) {
-      total += days_in_month(year, i)
-    }
-    return total
-  }
-
-  function weeks_in_year(year,    jan1) {
-    jan1 = weekday(year, 1, 1)
-    if (jan1 == 4 || (jan1 == 3 && is_leap(year))) {
-      return 53
-    }
-    return 52
-  }
-
-  function emit_week(date_string,    parts, year, month, day, doy, wday, week, iso_year) {
-    if (split(date_string, parts, "-") != 3) {
-      return 0
-    }
-
-    year = parts[1] + 0
-    month = parts[2] + 0
-    day = parts[3] + 0
-
-    if (sprintf("%04d-%02d-%02d", year, month, day) != date_string) {
-      return 0
-    }
-
-    if (month < 1 || month > 12) {
-      return 0
-    }
-
-    if (day < 1 || day > days_in_month(year, month)) {
-      return 0
-    }
-
-    doy = day_of_year(year, month, day)
-    wday = weekday(year, month, day)
-    week = floor_val((doy - wday + 10) / 7)
-    iso_year = year
-
-    if (week < 1) {
-      iso_year = year - 1
-      week = weeks_in_year(iso_year)
-    } else if (week > weeks_in_year(year)) {
-      iso_year = year + 1
-      week = 1
-    }
-
-    printf "%04d-W%02d", iso_year, week
-    return 1
-  }
-
-  BEGIN {
-    input_date = ARGV[1]
-    ARGV[1] = ""
-
-    if (!emit_week(input_date)) {
-      exit 1
-    }
-  }
-  ' "$base"
-}
-
 # Ensure common tools are found even under cron (put /usr/local/bin first)
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
@@ -293,104 +20,32 @@ log_info "Starting daily note generation"
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
 
-vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
-outdir="Periodic Notes/Daily Notes"
-date_arg=""
-force=0
-
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --vault)
-      if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --vault" >&2
-        usage
-        exit 2
-      fi
-      vault_path=$2
-      shift 2
-      ;;
-    --outdir)
-      if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --outdir" >&2
-        usage
-        exit 2
-      fi
-      outdir=$2
-      shift 2
-      ;;
-    --date)
-      if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --date" >&2
-        usage
-        exit 2
-      fi
-      date_arg=$2
-      shift 2
-      ;;
-    --force)
-      force=1
-      shift
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "❌ Unknown option: $1" >&2
-      usage
-      exit 2
-      ;;
-  esac
-done
-
+# Match the legacy default vault path unless overridden and construct
+# the periodic notes directory using the same path handling as the
+# other non-legacy scripts.
+vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 vault_root="${vault_path%/}"
-trimmed_outdir=$outdir
-while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
-  trimmed_outdir=${trimmed_outdir#/}
-done
-while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do
-  trimmed_outdir=${trimmed_outdir%/}
-done
+periodic_dir="${vault_root}/Periodic Notes"
+daily_note_dir="${periodic_dir%/}/Daily Notes"
 
-if [ -n "$trimmed_outdir" ]; then
-  daily_note_dir="$vault_root/$trimmed_outdir"
-else
-  daily_note_dir="$vault_root"
+log_info "Vault path: $vault_root"
+log_info "Daily note directory: $daily_note_dir"
+
+# Ensure the output directory exists
+if [ ! -d "$daily_note_dir" ]; then
+  log_warn "Periodic notes folder does not exist: $daily_note_dir"
+  echo "❌ Periodic notes folder does not exist: $daily_note_dir" >&2
+  echo "Edit generate-daily-note.sh to match your vault structure." >&2
+  exit 1
 fi
 
-if [ -n "$date_arg" ]; then
-  case "$date_arg" in
-    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
-      today=$date_arg
-      ;;
-    *)
-      echo "❌ --date must be in YYYY-MM-DD format" >&2
-      exit 2
-      ;;
-  esac
-else
-  today=$(date +%Y-%m-%d)
-fi
-
-if ! normalized_today=$(normalize_date "$today"); then
-  echo "❌ Unable to parse date: $today" >&2
-  exit 2
-fi
-
-if [ "$normalized_today" != "$today" ]; then
-  echo "❌ Invalid date supplied: $today" >&2
-  exit 2
-fi
-
-year=${today%%-*}
-month=${today#*-}
-month=${month%%-*}
-day=${today##*-}
+# Date helpers
+today=$(date +%Y-%m-%d)
+year=$(printf '%s' "$today" | cut -d- -f1)
+month=$(printf '%s' "$today" | cut -d- -f2)
+day=$(printf '%s' "$today" | cut -d- -f3)
 quarter=$(( (10#$month + 2) / 3 ))
-if ! week_tag=$(format_week_tag "$today"); then
-  echo "❌ Unable to compute ISO week for: $today" >&2
-  exit 2
-fi
+week_tag=$(date +%G-W%V)
 
 # --- Loan payoff countdown (pay on the 20th; payoff 2027-12-20) ---
 payoff_y=2027
@@ -451,15 +106,6 @@ EOF_LC
 )
 
 
-log_info "Vault path: $vault_root"
-log_info "Daily note directory: $daily_note_dir"
-log_info "Force overwrite: $force"
-
-mkdir -p "$daily_note_dir"
-
-time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
-mkdir -p "$time_block_subnotes_dir"
-
 log_info "Generating note for date: $today"
 
 log_info "Preparing time block navigation"
@@ -483,20 +129,18 @@ EOF_TB
 )
 
 # Portable yesterday/tomorrow (works on BSD/GNU date)
-if ! yesterday=$(shift_date "$today" -1); then
-  echo "❌ Unable to compute yesterday for: $today" >&2
-  exit 2
-fi
-if ! tomorrow=$(shift_date "$today" 1); then
-  echo "❌ Unable to compute tomorrow for: $today" >&2
-  exit 2
-fi
+yesterday=$(TZ=UTC+24 date +%Y-%m-%d)
+tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
 
 file_path="${daily_note_dir%/}/${today}.md"
 
-set --
+set -- "$file_path"
 
 log_info "Primary daily note path: $file_path"
+
+# Time block subnote placeholders + content
+time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
+mkdir -p "$time_block_subnotes_dir"
 
 populate_block() {
   block_name="$1"   # e.g., "Morning"
@@ -506,11 +150,7 @@ populate_block() {
 for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
   subnote_path="${time_block_subnotes_dir%/}/${today} - ${subnote}.md"
 
-  if [ -f "$subnote_path" ] && [ "$force" -ne 1 ]; then
-    log_warn "Subnote exists, skipping (use --force to overwrite): $subnote_path"
-    continue
-  fi
-
+  # Always (over)write content so it stays in sync with the plan:
   log_info "Generating subnote for block: $subnote"
   block_content="$(populate_block "$subnote")"
 
@@ -526,8 +166,9 @@ for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
     fi
   } > "$subnote_path"
 
+  # Add to commit list regardless of new/existing:
   set -- "$@" "$subnote_path"
-  log_info "Subnote written: $subnote_path"
+  log_info "Subnote updated: $subnote_path"
 done
 
 # ----- Defaults as real multiline text (no literal \n) -----
@@ -642,13 +283,10 @@ else
   daily_plan_intro_section=""
 fi
 
-if [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
-  log_warn "Daily note already exists, skipping (use --force to overwrite): $file_path"
-else
-  log_info "Writing daily note content"
+log_info "Writing daily note content"
 
-  # Compose note content to match the legacy template.
-  cat <<EOF_NOTE > "$file_path"
+# Compose note content to match the legacy template.
+cat <<EOF_NOTE > "$file_path"
 ---
 tags:
   - matter/daily-notes
@@ -688,34 +326,34 @@ ${weekly_goal_text}
 
 # ☑️ Pending Tasks
 ### Stand on Business
-\`\`\`tasks
+```tasks
 not done
 tags include #stand-on-business
-\`\`\`
+```
 
 ### Comms Queue
-\`\`\`tasks
+```tasks
 not done
 tags include #comms-queue
-\`\`\`
+```
 
 ### Device Config
-\`\`\`tasks
+```tasks
 not done
 tags include #device-config
-\`\`\`
+```
 
 ### Quick Wins
-\`\`\`tasks
+```tasks
 not done
 tags include #quick-wins
-\`\`\`
+```
 
 ### Someday/Maybe
-\`\`\`tasks
+```tasks
 not done
 tags include #someday-maybe
-\`\`\`
+```
 
 ---
 
@@ -735,20 +373,13 @@ tags include #someday-maybe
 [[Daily Plan]]
 [[Workout Schedule]]
 EOF_NOTE
-  log_info "Daily note written: $file_path"
-  printf '✅ Daily note created at %s\n' "$file_path"
-  set -- "$@" "$file_path"
-fi
+
+printf '✅ Daily note created at %s\n' "$file_path"
 
 if [ -x "$commit_helper" ]; then
-  if [ $# -gt 0 ]; then
-    log_info "Invoking commit helper"
-    "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$@"
-  else
-    log_info "No files written; skipping commit helper"
-  fi
+  log_info "Invoking commit helper"
+  "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$@"
 else
   log_warn "Commit helper not found: $commit_helper"
   printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
 fi
-
