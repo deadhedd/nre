@@ -72,8 +72,21 @@ frac_mod() {
     }'
 }
 
+format_utc_date() {
+  epoch="$1"
+  if d=$(date -u -r "$epoch" +%Y-%m-%d 2>/dev/null); then
+    printf "%s\n" "$d"
+    return 0
+  fi
+  if d=$(date -u -d "@$epoch" +%Y-%m-%d 2>/dev/null); then
+    printf "%s\n" "$d"
+    return 0
+  fi
+  printf "n/a\n"
+}
+
 if [ "${OFFLINE:-0}" = "1" ]; then
-  echo "Moon: 🌙 **(offline)** (illumination n/a) — next 🌙 **Principal Phase** in n/a"
+  echo "Moon: 🌙 **(offline)** (illumination n/a) — next 🌙 **Principal Phase** on n/a (in n/a; ~n/a days)"
   exit 0
 fi
 
@@ -82,7 +95,7 @@ t=$(date -u +%H:%M)
 url="https://aa.usno.navy.mil/api/celnav?date=${d}&time=${t}&coords=${LAT},${LON}"
 
 if ! json=$(curl_json "$url"); then
-  echo "Moon: 🌙 **(unavailable)** (illumination n/a) — next 🌙 **Principal Phase** in n/a"
+  echo "Moon: 🌙 **(unavailable)** (illumination n/a) — next 🌙 **Principal Phase** on n/a (in n/a; ~n/a days)"
   exit 0
 fi
 
@@ -123,29 +136,46 @@ now=$(now_utc_s)
 age_days=$(awk -v n="$now" -v r="$ref" 'BEGIN{printf "%.8f", (n-r)/86400.0}')
 frac=$(frac_mod "$age_days" "$SYN")
 
-nextf=1
-for q in 0.25 0.5 0.75 1.0; do
-  lt=$(awk -v f="$frac" -v q="$q" 'BEGIN{print (f<q)?1:0}')
-  if [ "$lt" -eq 1 ]; then nextf="$q"; break; fi
-done
+next_phase_days() {
+  target="$1"
+  awk -v f="$frac" -v syn="$SYN" -v target="$target" '
+    BEGIN {
+      t = target
+      while (t <= f + 1e-8) {
+        t += 1.0
+      }
+      printf "%.6f\n", (t - f) * syn
+    }'
+}
 
-left_days=$(awk -v nf="$nextf" -v f="$frac" -v syn="$SYN" 'BEGIN{printf "%.6f", (nf-f)*syn}')
-left_secs=$(awk -v d="$left_days" 'BEGIN{printf "%d", d*86400}')
+new_days=$(next_phase_days 0.0)
+full_days=$(next_phase_days 0.5)
 
-case "$nextf" in
-  0.25) nextname="First Quarter" ;;
-  0.5)  nextname="Full Moon" ;;
-  0.75) nextname="Last Quarter" ;;
-  1.0)  nextname="New Moon" ;;
-  *)    nextname="Principal Phase" ;;
-esac
+cmp=$(awk -v n="$new_days" -v f="$full_days" 'BEGIN{print (n <= f)?0:1}')
+if [ "$cmp" -eq 0 ]; then
+  left_days="$new_days"
+  nextname="New Moon"
+else
+  left_days="$full_days"
+  nextname="Full Moon"
+fi
+
+left_secs=$(awk -v d="$left_days" 'BEGIN{printf "%.0f", d*86400.0}')
+target_epoch=$(awk -v now="$now" -v s="$left_secs" 'BEGIN{printf "%.0f", now + s}')
+next_date=$(format_utc_date "$target_epoch")
+
+if [ "$left_secs" -gt 0 ]; then
+  days_count=$(awk -v s="$left_secs" 'BEGIN{printf "%.1f", s/86400.0}')
+else
+  days_count="0.0"
+fi
 
 guidance="$(moon_guidance "$phase")"
 
 # Build the message first, then append tip if available
-msg=$(printf "Moon: %s **%s** %s — next %s **%s** in %s" \
+msg=$(printf "Moon: %s **%s** %s — next %s **%s** on %s (in %s; ~%s days)" \
   "$(moon_icon "$phase")" "$phase" "$illum_str" \
-  "$(moon_icon "$nextname")" "$nextname" "$(fmt_eta "$left_secs")")
+  "$(moon_icon "$nextname")" "$nextname" "$next_date" "$(fmt_eta "$left_secs")" "$days_count")
 
 if [ -n "$guidance" ]; then
   msg="$msg — tip: $guidance"
