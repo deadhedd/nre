@@ -63,7 +63,7 @@ validate_cron() {
 
 # Discover scripts
 SCRIPT_CANDIDATES=""
-for dir in . ./scripts; do
+for dir in . ./scripts ./utils; do
   if [ -d "$dir" ]; then
     find "$dir" -maxdepth 1 -type f -name '*.sh' 2>/dev/null
   fi
