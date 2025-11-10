@@ -4,6 +4,11 @@
 # License: MIT
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+date_helper="$script_dir/utils/date-period-helpers.sh"
+
+. "$date_helper"
+
 usage() {
   cat <<'EOF_USAGE'
 Usage: generate-weekly-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM-DD] [--force] [--dry-run]
@@ -88,7 +93,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$date_arg" ]; then
-  date_arg=$(date -u +%Y-%m-%d)
+  date_arg=$(get_today_utc)
 fi
 
 case "$date_arg" in
@@ -101,23 +106,20 @@ case "$date_arg" in
     ;;
 esac
 
-if ! target_epoch=$(date -u -d "$date_arg" +%s 2>/dev/null); then
+if ! target_epoch=$(epoch_for_utc_date "$date_arg" 2>/dev/null); then
   log_err "Invalid --date supplied: $date_arg"
   exit 2
 fi
 
-iso_week_tag=$(date -u -d "@$target_epoch" +%G-W%V)
-prev_week_tag=$(date -u -d "@$((target_epoch - 7 * 86400))" +%G-W%V)
-next_week_tag=$(date -u -d "@$((target_epoch + 7 * 86400))" +%G-W%V)
-current_month_tag=$(date -u -d "@$target_epoch" +%Y-%m)
-current_year=$(date -u -d "@$target_epoch" +%Y)
-month_number=$(date -u -d "@$target_epoch" +%m)
-month_number=${month_number#0}
-if [ -z "$month_number" ]; then
-  month_number=0
-fi
-quarter=$(( (month_number + 2) / 3 ))
-current_quarter_tag=$(printf 'Q%d-%s' "$quarter" "$current_year")
+prev_week_epoch=$(shift_epoch_by_days "$target_epoch" -7)
+next_week_epoch=$(shift_epoch_by_days "$target_epoch" 7)
+
+iso_week_tag=$(week_tag_for_epoch "$target_epoch")
+prev_week_tag=$(week_tag_for_epoch "$prev_week_epoch")
+next_week_tag=$(week_tag_for_epoch "$next_week_epoch")
+current_month_tag=$(month_tag_for_epoch "$target_epoch")
+current_year=$(year_for_epoch "$target_epoch")
+current_quarter_tag=$(quarter_tag_for_epoch "$target_epoch")
 
 vault_root=${vault_path%/}
 trimmed_outdir=$outdir
