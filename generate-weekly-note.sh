@@ -96,30 +96,36 @@ if [ -z "$date_arg" ]; then
   date_arg=$(get_today_utc)
 fi
 
-case "$date_arg" in
-  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
-    :
-    ;;
-  *)
-    log_err "--date must be in YYYY-MM-DD format"
-    exit 2
-    ;;
-esac
+if ! is_utc_date_format "$date_arg"; then
+  log_err "--date must be in YYYY-MM-DD format"
+  exit 2
+fi
 
-if ! target_epoch=$(epoch_for_utc_date "$date_arg" 2>/dev/null); then
+if ! week_nav=$(week_nav_tags_for_utc_date "$date_arg" 2>/dev/null); then
   log_err "Invalid --date supplied: $date_arg"
   exit 2
 fi
 
-prev_week_epoch=$(shift_epoch_by_days "$target_epoch" -7)
-next_week_epoch=$(shift_epoch_by_days "$target_epoch" 7)
+set -- $week_nav
+prev_week_tag=$1
+iso_week_tag=$2
+next_week_tag=$3
+set --
 
-iso_week_tag=$(week_tag_for_epoch "$target_epoch")
-prev_week_tag=$(week_tag_for_epoch "$prev_week_epoch")
-next_week_tag=$(week_tag_for_epoch "$next_week_epoch")
-current_month_tag=$(month_tag_for_epoch "$target_epoch")
-current_year=$(year_for_epoch "$target_epoch")
-current_quarter_tag=$(quarter_tag_for_epoch "$target_epoch")
+if ! current_month_tag=$(month_tag_for_utc_date "$date_arg" 2>/dev/null); then
+  log_err "Invalid --date supplied: $date_arg"
+  exit 2
+fi
+
+if ! current_year=$(year_for_utc_date "$date_arg" 2>/dev/null); then
+  log_err "Invalid --date supplied: $date_arg"
+  exit 2
+fi
+
+if ! current_quarter_tag=$(quarter_tag_for_utc_date "$date_arg" 2>/dev/null); then
+  log_err "Invalid --date supplied: $date_arg"
+  exit 2
+fi
 
 vault_root=${vault_path%/}
 trimmed_outdir=$outdir

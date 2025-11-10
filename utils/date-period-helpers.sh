@@ -66,6 +66,33 @@ get_tomorrow() { TZ=UTC-24 date +%Y-%m-%d; }
 
 get_today_utc() { date -u +%Y-%m-%d; }
 
+is_utc_date_format() {
+  if [ -z "${1:-}" ]; then
+    return 1
+  fi
+
+  case "$1" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_valid_utc_date() {
+  if ! is_utc_date_format "${1:-}"; then
+    return 1
+  fi
+
+  if date -u -d "$1" +%Y-%m-%d >/dev/null 2>&1; then
+    return 0
+  fi
+
+  return 1
+}
+
 epoch_for_utc_date() {
   if [ -z "${1:-}" ]; then
     printf '%s\n' "epoch_for_utc_date: missing date" >&2
@@ -86,6 +113,17 @@ shift_epoch_by_days() {
   printf '%s\n' "$(( epoch + days * 86400 ))"
 }
 
+shift_utc_date_by_days() {
+  if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    printf '%s\n' "shift_utc_date_by_days: requires date and day offset" >&2
+    return 1
+  fi
+
+  epoch=$(epoch_for_utc_date "$1") || return 1
+  shifted=$(shift_epoch_by_days "$epoch" "$2") || return 1
+  date -u -d "@$shifted" +%Y-%m-%d
+}
+
 week_tag_for_epoch() {
   if [ -z "${1:-}" ]; then
     printf '%s\n' "week_tag_for_epoch: missing epoch" >&2
@@ -98,6 +136,22 @@ week_tag_for_epoch() {
 week_tag_for_utc_date() {
   epoch=$(epoch_for_utc_date "$1") || return 1
   week_tag_for_epoch "$epoch"
+}
+
+week_nav_tags_for_utc_date() {
+  if [ -z "${1:-}" ]; then
+    printf '%s\n' "week_nav_tags_for_utc_date: missing date" >&2
+    return 1
+  fi
+
+  epoch=$(epoch_for_utc_date "$1") || return 1
+  prev_epoch=$(shift_epoch_by_days "$epoch" -7) || return 1
+  next_epoch=$(shift_epoch_by_days "$epoch" 7) || return 1
+
+  printf '%s %s %s\n' \
+    "$(week_tag_for_epoch "$prev_epoch")" \
+    "$(week_tag_for_epoch "$epoch")" \
+    "$(week_tag_for_epoch "$next_epoch")"
 }
 
 month_tag_for_epoch() {
