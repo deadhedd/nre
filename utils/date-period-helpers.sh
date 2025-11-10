@@ -177,29 +177,25 @@ parse_utc_time() {
     return 1
   fi
 
-  case "$1" in
-    [0-9][0-9]:[0-9][0-9])
-      hour=${1%%:*}
-      minute=${1#*:}
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-
-  hour_val=$(expr "$hour" + 0 2>/dev/null || printf '%s' invalid)
-  minute_val=$(expr "$minute" + 0 2>/dev/null || printf '%s' invalid)
-  case "$hour_val" in invalid) return 1;; esac
-  case "$minute_val" in invalid) return 1;; esac
-
-  if [ "$hour_val" -lt 0 ] || [ "$hour_val" -gt 23 ]; then
-    return 1
-  fi
-  if [ "$minute_val" -lt 0 ] || [ "$minute_val" -gt 59 ]; then
+  if ! parsed=$(awk -v time="$1" 'BEGIN {
+    if (time !~ /^[0-9][0-9]:[0-9][0-9]$/) {
+      exit 1
+    }
+    split(time, parts, ":")
+    h = parts[1] + 0
+    m = parts[2] + 0
+    if (h < 0 || h > 23) {
+      exit 1
+    }
+    if (m < 0 || m > 59) {
+      exit 1
+    }
+    printf "%d %d\n", h, m
+  }'); then
     return 1
   fi
 
-  printf '%s %s\n' "$hour_val" "$minute_val"
+  printf '%s\n' "$parsed"
 }
 
 month_tag() {
@@ -470,6 +466,81 @@ format_epoch_local() {
   fi
 
   awk -v epoch="$epoch" -v fmt="$fmt" 'BEGIN { printf "%s\n", strftime(fmt, epoch) }'
+}
+
+epoch_for_local_datetime() {
+  if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    printf '%s\n' "epoch_for_local_datetime: requires date and time" >&2
+    return 1
+  fi
+
+  date_part=$1
+  time_part=$2
+
+  if ! date_fields=$(parse_utc_date "$date_part"); then
+    printf '%s\n' "epoch_for_local_datetime: invalid date" >&2
+    return 1
+  fi
+
+  if ! time_fields=$(parse_utc_time "$time_part"); then
+    printf '%s\n' "epoch_for_local_datetime: invalid time" >&2
+    return 1
+  fi
+
+  set -- $date_fields
+  target_year=$1
+  target_month=$2
+  target_day=$3
+  target_date=$(awk -v y="$target_year" -v m="$target_month" -v d="$target_day" 'BEGIN { printf "%04d-%02d-%02d\n", y+0, m+0, d+0 }') || return 1
+
+  set -- $time_fields
+  target_hour=$1
+  target_minute=$2
+  target_seconds=$(awk -v h="$target_hour" -v m="$target_minute" 'BEGIN { printf "%d\n", (h+0)*3600 + (m+0)*60 }') || return 1
+
+  base_epoch=$(epoch_for_utc_date "$target_date") || return 1
+  guess=$(( base_epoch + target_seconds ))
+
+  iterations=0
+  while [ "$iterations" -lt 8 ]; do
+    info=$(format_epoch_local "$guess" "%Y-%m-%d %H:%M") || return 1
+    local_date=${info%% *}
+    local_time=${info#* }
+    local_hour=${local_time%%:*}
+    local_minute=${local_time#*:}
+
+    if [ "$local_date" != "$target_date" ]; then
+      local_day_epoch=$(epoch_for_utc_date "$local_date") || return 1
+      if [ "$local_day_epoch" -gt "$base_epoch" ]; then
+        guess=$(( guess - 86400 ))
+        iterations=$(( iterations + 1 ))
+        continue
+      fi
+
+      if [ "$local_day_epoch" -lt "$base_epoch" ]; then
+        guess=$(( guess + 86400 ))
+        iterations=$(( iterations + 1 ))
+        continue
+      fi
+
+      printf '%s\n' "epoch_for_local_datetime: failed to compare localized date" >&2
+      return 1
+    fi
+
+    local_seconds=$(awk -v h="$local_hour" -v m="$local_minute" 'BEGIN { printf "%d\n", (h+0)*3600 + (m+0)*60 }') || return 1
+
+    delta=$(( target_seconds - local_seconds ))
+    if [ "$delta" -eq 0 ]; then
+      printf '%s\n' "$guess"
+      return 0
+    fi
+
+    guess=$(( guess + delta ))
+    iterations=$(( iterations + 1 ))
+  done
+
+  printf '%s\n' "epoch_for_local_datetime: failed to converge" >&2
+  return 1
 }
 
 week_tag_for_epoch() {

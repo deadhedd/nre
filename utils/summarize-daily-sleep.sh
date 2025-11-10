@@ -27,9 +27,8 @@ raw_to_entries() {
   '
 }
 
-today_epoch=$(epoch_for_utc_date "$today")
-prev_day_epoch=$(shift_epoch_by_days "$today_epoch" -1)
-cutoff=$((prev_day_epoch + 43200))
+prev_local_date=$(shift_utc_date_by_days "$today" -1)
+cutoff=$(epoch_for_local_datetime "$prev_local_date" "12:00")
 
 entries=$(raw_to_entries < "$inputPath")
 
@@ -58,9 +57,8 @@ process_date() {
   ds="$1"
   file="$sleepFolder/$ds.txt"
   [ -f "$file" ] || return
-  ds_epoch=$(epoch_for_utc_date "$ds") || return
-  prev_epoch=$(shift_epoch_by_days "$ds_epoch" -1) || return
-  cutoff=$((prev_epoch + 43200))
+  prev_local=$(shift_utc_date_by_days "$ds" -1) || return
+  cutoff=$(epoch_for_local_datetime "$prev_local" "12:00") || return
   raw_to_entries < "$file" | jq --argjson cutoff "$cutoff" '
     def clean:
       gsub("\u202F|\u00A0";" ") | gsub("\s+";" ") | gsub("^\s+|\s+$";"") | sub(" at ";" ");
