@@ -10,6 +10,8 @@ High Priority
     • Add recycling and filling water jug to daily notes which are a little complicated due to the interval to repeat
 
     • set up grocery list automation
+
+    - set up windows vault to pull on boot, and push on off, and auto push late at night in case of forgetting off
 Medium Priority
 
     • fix moon phase illumination bug
