@@ -10,6 +10,10 @@
 
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+# shellcheck source=utils/date-period-helpers.sh
+. "$script_dir/date-period-helpers.sh"
+
 vault_base="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 vault_base="${vault_base%/}"
 relative_path='000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Templates/Daily Plan.md'
@@ -39,7 +43,7 @@ Modes:
   - With --block   → prints only that block for the resolved day/date (for subnotes)
 
 Notes:
-  - If --date is provided, weekday is derived from that date (requires date -d support).
+  - If --date is provided, weekday is derived from that date.
   - If --day is provided, it overrides the derived weekday.
   - Recognized blocks are the headings under "##### <BlockName>" in Daily Plan.md.
 EOT
@@ -48,16 +52,17 @@ EOT
   esac
 done
 
-today_name=$(date +%A)
-tomorrow_name=$(TZ=UTC-24 date +%A)
+today_date=$(get_today)
+today_index=$(weekday_for_utc_date "$today_date") || die "Unable to resolve today's weekday"
+today_name=$(weekday_name_for_index "$today_index") || die "Unable to resolve today's weekday name"
+tomorrow_date=$(shift_utc_date_by_days "$today_date" 1) || die "Unable to resolve tomorrow's date"
+tomorrow_index=$(weekday_for_utc_date "$tomorrow_date") || die "Unable to resolve tomorrow's weekday"
+tomorrow_name=$(weekday_name_for_index "$tomorrow_index") || die "Unable to resolve tomorrow's weekday name"
 
 dow_from_date() {
   d="$1"
-  if date -d "$d" +%A >/dev/null 2>&1; then
-    date -d "$d" +%A
-  else
-    die "This host cannot derive weekday from --date; omit --date or provide --day"
-  fi
+  idx=$(weekday_for_utc_date "$d") || die "This host cannot derive weekday from --date; omit --date or provide --day"
+  weekday_name_for_index "$idx"
 }
 
 if [ -n "$DATE_IN" ]; then

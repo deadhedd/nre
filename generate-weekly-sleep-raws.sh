@@ -3,6 +3,9 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
+date_helpers="$script_dir/utils/date-period-helpers.sh"
+# shellcheck source=utils/date-period-helpers.sh
+. "$date_helpers"
 
 vaultRoot="$HOME/automation/obsidian/vaults/Main"
 sleepFolder="$vaultRoot/Sleep Data"
@@ -50,9 +53,10 @@ printf '%s' "$entries" | jq -c '.[]' | while IFS= read -r obj; do
 done
 
 outputs=""
-today=$(date +%Y-%m-%d)
+today=$(get_today)
 for offset in 0 1 2 3 4 5 6; do
-  day=$(date -d "$today -$offset day" +%Y-%m-%d)
+  day_offset=$((0 - offset))
+  day=$(shift_utc_date_by_days "$today" "$day_offset")
   if [ -d "$tmpdir/$day" ]; then
     out="$sleepFolder/$day.txt"
     cat "$tmpdir/$day/stages" "$tmpdir/$day/durations" "$tmpdir/$day/starts" "$tmpdir/$day/ends" > "$out"

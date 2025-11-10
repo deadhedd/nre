@@ -3,11 +3,14 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/commit.sh"
+date_helpers="$script_dir/date-period-helpers.sh"
+# shellcheck source=utils/date-period-helpers.sh
+. "$date_helpers"
 
 vaultRoot="$HOME/automation/obsidian/vaults/Main"
 sleepFolder="$vaultRoot/Sleep Data"
 
-today=$(date +%Y-%m-%d)
+today=$(get_today)
 inputPath="$sleepFolder/$today.txt"
 outputPath="$sleepFolder/$today Sleep Summary.md"
 
@@ -24,7 +27,9 @@ raw_to_entries() {
   '
 }
 
-cutoff=$(date -d "$today -1 day 12:00" +%s)
+today_epoch=$(epoch_for_utc_date "$today")
+prev_day_epoch=$(shift_epoch_by_days "$today_epoch" -1)
+cutoff=$((prev_day_epoch + 43200))
 
 entries=$(raw_to_entries < "$inputPath")
 
@@ -53,7 +58,9 @@ process_date() {
   ds="$1"
   file="$sleepFolder/$ds.txt"
   [ -f "$file" ] || return
-  cutoff=$(date -d "$ds -1 day 12:00" +%s)
+  ds_epoch=$(epoch_for_utc_date "$ds") || return
+  prev_epoch=$(shift_epoch_by_days "$ds_epoch" -1) || return
+  cutoff=$((prev_epoch + 43200))
   raw_to_entries < "$file" | jq --argjson cutoff "$cutoff" '
     def clean:
       gsub("\u202F|\u00A0";" ") | gsub("\s+";" ") | gsub("^\s+|\s+$";"") | sub(" at ";" ");
@@ -69,7 +76,8 @@ process_date() {
 
 pastTotals=""
 for offset in 6 5 4 3 2 1 0; do
-  d=$(date -d "$today -$offset day" +%Y-%m-%d)
+  day_offset=$((0 - offset))
+  d=$(shift_utc_date_by_days "$today" "$day_offset")
   t=$(process_date "$d" || true)
   if [ -n "$t" ]; then
     pastTotals="$pastTotals\n$t"
@@ -87,8 +95,8 @@ fi
 avgH=$(printf '%s' "$avgMin" | awk '{printf("%d",$1/60)}')
 avgM=$(printf '%s %s' "$avgMin" "$avgH" | awk '{m=$1-$2*60; printf("%.0f",m)}')
 
-prev=$(date -d "$today -1 day" +%Y-%m-%d)
-next=$(date -d "$today +1 day" +%Y-%m-%d)
+prev=$(shift_utc_date_by_days "$today" -1)
+next=$(shift_utc_date_by_days "$today" 1)
 linkLine="[[${prev} Sleep Summary|← ${prev} Sleep Summary]] | [[${next} Sleep Summary|${next} Sleep Summary →]]"
 
 md="${linkLine}\n\n"
