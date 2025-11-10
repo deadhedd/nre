@@ -3,11 +3,27 @@
 
 set -e
 
+coerce_month_to_decimal() {
+  month=$1
+
+  if [ -z "$month" ]; then
+    printf '%s\n' 0
+    return
+  fi
+
+  month=$(expr "$month" + 0)
+  printf '%s\n' "$month"
+}
+
 get_current_year() { date +%Y; }
 get_prev_year() { echo $(( $(get_current_year) - 1 )); }
 get_next_year() { echo $(( $(get_current_year) + 1 )); }
 
-get_current_quarter() { echo $(( ( $(date +%m) + 2 ) / 3 )); }
+get_current_quarter() {
+  month=$(date +%m)
+  month=$(coerce_month_to_decimal "$month")
+  echo $(( (month + 2) / 3 ))
+}
 get_quarter_tag() { printf 'Q%s-%s\n' "$(get_current_quarter)" "$(get_current_year)"; }
 
 month_tag() {
