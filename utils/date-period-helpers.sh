@@ -4,7 +4,7 @@
 set -e
 
 coerce_month_to_decimal() {
-  month=$1
+  month=${1:-}
 
   if [ -z "$month" ]; then
     printf '%s\n' 0
@@ -38,7 +38,7 @@ get_current_date_parts() {
 }
 
 month_tag() {
-  if [ "$1" ]; then
+  if [ "${1:-}" ]; then
     date -d "$1" +%Y-%m
   else
     date +%Y-%m
@@ -50,7 +50,7 @@ get_prev_month_tag() { date -d "$(date +%Y-%m-01) -1 month" +%Y-%m; }
 get_next_month_tag() { date -d "$(date +%Y-%m-01) +1 month" +%Y-%m; }
 
 week_tag() {
-  if [ "$1" ]; then
+  if [ "${1:-}" ]; then
     date -d "$1" +%G-W%V
   else
     date +%G-W%V
@@ -63,7 +63,8 @@ get_next_week_tag() { date -d 'next week' +%G-W%V; }
 
 get_yesterday() { TZ=UTC+24 date +%Y-%m-%d; }
 get_tomorrow() { TZ=UTC-24 date +%Y-%m-%d; }
-if [ $# -gt 0 ]; then
+
+if [ "${0##*/}" = "date-period-helpers.sh" ] && [ $# -gt 0 ]; then
   case "$1" in
     getCurrentYear) get_current_year;;
     getPrevYear) get_prev_year;;
