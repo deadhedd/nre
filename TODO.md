@@ -9,8 +9,6 @@ High Priority
 
     • Add recycling and filling water jug to daily notes which are a little complicated due to the interval to repeat
 
-    - add par payoff countdown to daily note
-
     • set up grocery list automation
 Medium Priority
 
