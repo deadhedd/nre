@@ -64,6 +64,9 @@ log_info "Starting daily note generation"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
+date_helper="$script_dir/utils/date-period-helpers.sh"
+
+. "$date_helper"
 
 # Match the legacy default vault path unless overridden and construct
 # the periodic notes directory using the same path handling as the
@@ -85,12 +88,14 @@ if [ ! -d "$daily_note_dir" ]; then
 fi
 
 # Date helpers
-today=$(date +%Y-%m-%d)
-year=$(printf '%s' "$today" | cut -d- -f1)
-month=$(printf '%s' "$today" | cut -d- -f2)
-day=$(printf '%s' "$today" | cut -d- -f3)
-quarter=$(( (10#$month + 2) / 3 ))
-week_tag=$(date +%G-W%V)
+today=$(get_today)
+current_date_parts=$(get_current_date_parts)
+year=${current_date_parts%% *}
+month_day=${current_date_parts#* }
+month=${month_day%% *}
+day=${month_day#* }
+quarter=$(get_current_quarter)
+week_tag=$(get_current_week_tag)
 
 # --- Loan payoff countdown (pay on the 20th; payoff 2027-12-20) ---
 payoff_y=2027
@@ -175,8 +180,8 @@ EOF_TB
 )
 
 # Portable yesterday/tomorrow (works on BSD/GNU date)
-yesterday=$(TZ=UTC+24 date +%Y-%m-%d)
-tomorrow=$(TZ=UTC-24 date +%Y-%m-%d)
+yesterday=$(get_yesterday)
+tomorrow=$(get_tomorrow)
 
 file_path="${daily_note_dir%/}/${today}.md"
 
