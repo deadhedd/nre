@@ -386,34 +386,34 @@ ${weekly_goal_text}
 
 # ☑️ Pending Tasks
 ### Stand on Business
-```tasks
+\`\`\`tasks
 not done
 tags include #stand-on-business
-```
+\`\`\`
 
 ### Comms Queue
-```tasks
+\`\`\`tasks
 not done
 tags include #comms-queue
-```
+\`\`\`
 
 ### Device Config
-```tasks
+\`\`\`tasks
 not done
 tags include #device-config
-```
+\`\`\`
 
 ### Quick Wins
-```tasks
+\`\`\`tasks
 not done
 tags include #quick-wins
-```
+\`\`\`
 
 ### Someday/Maybe
-```tasks
+\`\`\`tasks
 not done
 tags include #someday-maybe
-```
+\`\`\`
 
 ---
 
