@@ -12,21 +12,13 @@ log "Starting pagan seasonal lookup"
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 # shellcheck source=utils/pagan-timings-common.sh
 . "$SCRIPT_DIR/pagan-timings-common.sh"
+# shellcheck source=utils/date-period-helpers.sh
+. "$SCRIPT_DIR/date-period-helpers.sh"
 
 need curl
 need jq
 need awk
 need date
-
-# Portable UTC → epoch helper (GNU/BSD date)
-date_to_epoch_utc() {
-  # Args: "YYYY-MM-DD HH:MM"
-  if date --version >/dev/null 2>&1; then
-    TZ=UTC date -d "$1 UTC" +%s
-  else
-    TZ=UTC date -j -f "%Y-%m-%d %H:%M" "$1" +%s
-  fi
-}
 
 season_icon() {
   case "$1" in
@@ -94,7 +86,7 @@ canon_rows=$(
     y=$1; m=$2; d=$3; hm=$4
     [ -n "${y:-}" ] && [ -n "${m:-}" ] && [ -n "${d:-}" ] && [ -n "${hm:-}" ] || continue
     iso=$(printf "%04d-%02d-%02d %s" "$y" "$m" "$d" "$hm")
-    if ep=$(date_to_epoch_utc "$iso" 2>/dev/null); then
+    if ep=$(epoch_for_utc_datetime "$iso" 2>/dev/null); then
       printf '|%s|%s|%s|\n' "$ep" "$iso" "$typ"
     fi
   done
@@ -155,12 +147,7 @@ esac
 left=$((epoch - NOW))
 log "Next seasonal turning is $next_name at $iso (epoch $epoch)"
 
-# Pretty timestamp in local TZ if possible (BSD/GNU)
-if date -j -f "%Y-%m-%d %H:%M" "$iso" "+%b %e, %Y %I:%M %p %Z" >/dev/null 2>&1; then
-  pretty=$(date -j -f "%Y-%m-%d %H:%M" "$iso" "+%b %e, %Y %I:%M %p %Z")
-else
-  pretty=$(date -d "$iso" "+%b %e, %Y %I:%M %p %Z")
-fi
+pretty=$(format_epoch_local "$epoch" "%b %e, %Y %I:%M %p %Z")
 
 printf "Next seasonal turning: %s **%s** in %s  \n(%s)\n" \
   "$(season_icon "$next_name")" "$next_name" "$(fmt_eta "$left")" "$pretty"
