@@ -25,6 +25,17 @@ get_current_quarter() {
   echo $(( (month + 2) / 3 ))
 }
 get_quarter_tag() { printf 'Q%s-%s\n' "$(get_current_quarter)" "$(get_current_year)"; }
+get_quarter_tag_iso() { printf '%s-Q%s\n' "$(get_current_year)" "$(get_current_quarter)"; }
+
+get_today() { date +%Y-%m-%d; }
+
+get_current_date_parts() {
+  today=$(get_today)
+  year=$(printf '%s' "$today" | cut -d- -f1)
+  month=$(printf '%s' "$today" | cut -d- -f2)
+  day=$(printf '%s' "$today" | cut -d- -f3)
+  printf '%s %s %s\n' "$year" "$month" "$day"
+}
 
 month_tag() {
   if [ "$1" ]; then
@@ -50,17 +61,29 @@ get_current_week_tag() { week_tag; }
 get_prev_week_tag() { date -d 'last week' +%G-W%V; }
 get_next_week_tag() { date -d 'next week' +%G-W%V; }
 
-case "$1" in
-  getCurrentYear) get_current_year;;
-  getPrevYear) get_prev_year;;
-  getNextYear) get_next_year;;
-  getCurrentQuarter) get_current_quarter;;
-  getQuarterTag) get_quarter_tag;;
-  getCurrentMonthTag) get_current_month_tag;;
-  getPrevMonthTag) get_prev_month_tag;;
-  getNextMonthTag) get_next_month_tag;;
-  getCurrentWeekTag) get_current_week_tag;;
-  getPrevWeekTag) get_prev_week_tag;;
-  getNextWeekTag) get_next_week_tag;;
-  *) echo "Usage: $0 {getCurrentYear|getPrevYear|getNextYear|getCurrentQuarter|getQuarterTag|getCurrentMonthTag|getPrevMonthTag|getNextMonthTag|getCurrentWeekTag|getPrevWeekTag|getNextWeekTag}" >&2; exit 1;;
-esac
+get_yesterday() { TZ=UTC+24 date +%Y-%m-%d; }
+get_tomorrow() { TZ=UTC-24 date +%Y-%m-%d; }
+if [ $# -gt 0 ]; then
+  case "$1" in
+    getCurrentYear) get_current_year;;
+    getPrevYear) get_prev_year;;
+    getNextYear) get_next_year;;
+    getCurrentQuarter) get_current_quarter;;
+    getQuarterTag) get_quarter_tag;;
+    getQuarterTagISO) get_quarter_tag_iso;;
+    getToday) get_today;;
+    getCurrentDateParts) get_current_date_parts;;
+    getCurrentMonthTag) get_current_month_tag;;
+    getPrevMonthTag) get_prev_month_tag;;
+    getNextMonthTag) get_next_month_tag;;
+    getCurrentWeekTag) get_current_week_tag;;
+    getPrevWeekTag) get_prev_week_tag;;
+    getNextWeekTag) get_next_week_tag;;
+    getYesterday) get_yesterday;;
+    getTomorrow) get_tomorrow;;
+    *)
+      echo "Usage: $0 {getCurrentYear|getPrevYear|getNextYear|getCurrentQuarter|getQuarterTag|getQuarterTagISO|getToday|getCurrentDateParts|getCurrentMonthTag|getPrevMonthTag|getNextMonthTag|getCurrentWeekTag|getPrevWeekTag|getNextWeekTag|getYesterday|getTomorrow}" >&2
+      exit 1
+      ;;
+  esac
+fi
