@@ -64,6 +64,88 @@ get_next_week_tag() { date -d 'next week' +%G-W%V; }
 get_yesterday() { TZ=UTC+24 date +%Y-%m-%d; }
 get_tomorrow() { TZ=UTC-24 date +%Y-%m-%d; }
 
+get_today_utc() { date -u +%Y-%m-%d; }
+
+epoch_for_utc_date() {
+  if [ -z "${1:-}" ]; then
+    printf '%s\n' "epoch_for_utc_date: missing date" >&2
+    return 1
+  fi
+
+  date -u -d "$1" +%s
+}
+
+shift_epoch_by_days() {
+  if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    printf '%s\n' "shift_epoch_by_days: requires epoch and day offset" >&2
+    return 1
+  fi
+
+  epoch=$1
+  days=$2
+  printf '%s\n' "$(( epoch + days * 86400 ))"
+}
+
+week_tag_for_epoch() {
+  if [ -z "${1:-}" ]; then
+    printf '%s\n' "week_tag_for_epoch: missing epoch" >&2
+    return 1
+  fi
+
+  date -u -d "@$1" +%G-W%V
+}
+
+week_tag_for_utc_date() {
+  epoch=$(epoch_for_utc_date "$1") || return 1
+  week_tag_for_epoch "$epoch"
+}
+
+month_tag_for_epoch() {
+  if [ -z "${1:-}" ]; then
+    printf '%s\n' "month_tag_for_epoch: missing epoch" >&2
+    return 1
+  fi
+
+  date -u -d "@$1" +%Y-%m
+}
+
+month_tag_for_utc_date() {
+  epoch=$(epoch_for_utc_date "$1") || return 1
+  month_tag_for_epoch "$epoch"
+}
+
+year_for_epoch() {
+  if [ -z "${1:-}" ]; then
+    printf '%s\n' "year_for_epoch: missing epoch" >&2
+    return 1
+  fi
+
+  date -u -d "@$1" +%Y
+}
+
+year_for_utc_date() {
+  epoch=$(epoch_for_utc_date "$1") || return 1
+  year_for_epoch "$epoch"
+}
+
+quarter_tag_for_epoch() {
+  if [ -z "${1:-}" ]; then
+    printf '%s\n' "quarter_tag_for_epoch: missing epoch" >&2
+    return 1
+  fi
+
+  month=$(date -u -d "@$1" +%m)
+  month=$(coerce_month_to_decimal "$month")
+  year=$(year_for_epoch "$1")
+  quarter=$(( (month + 2) / 3 ))
+  printf 'Q%d-%s\n' "$quarter" "$year"
+}
+
+quarter_tag_for_utc_date() {
+  epoch=$(epoch_for_utc_date "$1") || return 1
+  quarter_tag_for_epoch "$epoch"
+}
+
 if [ "${0##*/}" = "date-period-helpers.sh" ] && [ $# -gt 0 ]; then
   case "$1" in
     getCurrentYear) get_current_year;;
