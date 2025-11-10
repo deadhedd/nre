@@ -49,9 +49,9 @@ done
 write_output() {
   dest=$1
   if [ "$dry_run" -eq 1 ]; then
-    printf '--- DRY RUN: %s ---\n' "$dest"
+    printf -- '--- DRY RUN: %s ---\n' "$dest"
     cat
-    printf '--- END DRY RUN: %s ---\n' "$dest"
+    printf -- '--- END DRY RUN: %s ---\n' "$dest"
   else
     cat >"$dest"
   fi
