@@ -4,6 +4,9 @@
 
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$script_dir/utils/commit.sh"
+
 usage() {
   cat <<'EOF_USAGE'
 Usage: generate-quarterly-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-QN] [--force] [--dry-run]
@@ -206,4 +209,13 @@ EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
   printf 'ℹ️ Dry run: quarterly note would be written to %s\n' "$note_path"
+fi
+
+if [ "$dry_run" -eq 1 ]; then
+  printf 'ℹ️ Dry run: skipping commit helper\n'
+elif [ -x "$commit_helper" ]; then
+  printf 'ℹ️ Invoking commit helper\n'
+  "$commit_helper" -c "quarterly note" "$vault_path" "quarterly note: $tag" "$note_path"
+else
+  printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
 fi

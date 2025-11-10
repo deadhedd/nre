@@ -5,6 +5,7 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$script_dir/utils/commit.sh"
 date_helper="$script_dir/utils/date-period-helpers.sh"
 
 . "$date_helper"
@@ -208,3 +209,13 @@ if [ "$dry_run" -eq 1 ]; then
 fi
 
 log_info "Weekly note created: $note_path"
+
+if [ "$dry_run" -eq 1 ]; then
+  log_info "Dry run: skipping commit helper"
+elif [ -x "$commit_helper" ]; then
+  log_info "Invoking commit helper"
+  "$commit_helper" -c "weekly note" "$vault_path" "weekly note: $iso_week_tag" "$note_path"
+else
+  log_info "Commit helper not found: $commit_helper"
+  printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+fi
