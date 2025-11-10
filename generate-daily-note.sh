@@ -157,6 +157,7 @@ log_info "Preparing time block navigation"
 
 time_blocks_nav=$(cat <<EOF_TB
 ## ⌚ Time Blocks
+- [[Periodic Notes/Daily Notes/${today}|Daily Hub]]
 - [[Periodic Notes/Daily Notes/Subnotes/${today} - Wake Up|Wake Up]]
 - [[Periodic Notes/Daily Notes/Subnotes/${today} - Morning|Morning]]
 - [[Periodic Notes/Daily Notes/Subnotes/${today} - Afternoon|Afternoon]]
