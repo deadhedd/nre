@@ -6,6 +6,9 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
+date_helper="$script_dir/utils/date-period-helpers.sh"
+
+. "$date_helper"
 
 usage() {
   cat <<'EOF_USAGE'
@@ -98,7 +101,15 @@ if [ -n "$year_arg" ]; then
       ;;
   esac
 else
-  target_year=$(date -u +%Y)
+  if ! utc_today=$(get_today_utc); then
+    printf '❌ Failed to determine current UTC date\n' >&2
+    exit 1
+  fi
+
+  if ! target_year=$(year_for_utc_date "$utc_today"); then
+    printf '❌ Failed to determine current year\n' >&2
+    exit 1
+  fi
 fi
 
 prev_year=$((target_year - 1))
