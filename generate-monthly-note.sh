@@ -49,12 +49,15 @@ get_month_name() {
     return 1
   fi
 
-  if month=$(LC_TIME="$locale_value" format_epoch_local "$epoch" '%B' 2>/dev/null); then
+  # Offset into the middle of the month to prevent timezone rollbacks into the previous month.
+  shifted_epoch=$((epoch + (12 * 60 * 60)))
+
+  if month=$(LC_TIME="$locale_value" format_epoch_local "$shifted_epoch" '%B' 2>/dev/null); then
     printf '%s' "$month"
     return 0
   fi
 
-  if fallback=$(LC_TIME=C format_epoch_local "$epoch" '%B' 2>/dev/null); then
+  if fallback=$(LC_TIME=C format_epoch_local "$shifted_epoch" '%B' 2>/dev/null); then
     printf '%s' "$fallback"
     return 0
   fi
