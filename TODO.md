@@ -5,8 +5,6 @@ High Priority
 
     • Workout Data Automation
 
-    - test monthly note before next execution
-
     • Workout schedule implemented in daily notes
 
     • Add recycling and filling water jug to daily notes which are a little complicated due to the interval to repeat
