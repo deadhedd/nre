@@ -6,6 +6,9 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
+date_helper="$script_dir/utils/date-period-helpers.sh"
+
+. "$date_helper"
 
 usage() {
   cat <<'EOF_USAGE'
@@ -103,14 +106,19 @@ if [ -n "$date_arg" ]; then
       ;;
   esac
 else
-  current_year=$(date -u +%Y)
-  current_month=$(date -u +%m)
-  month_number=${current_month#0}
-  if [ -z "$month_number" ]; then
-    month_number=0
+  if ! utc_today=$(get_today_utc); then
+    printf '❌ Failed to determine current UTC date\n' >&2
+    exit 1
   fi
-  target_year=$current_year
-  target_quarter=$(( (month_number + 2) / 3 ))
+
+  if ! quarter_info=$(quarter_tag_for_utc_date "$utc_today"); then
+    printf '❌ Failed to determine current quarter\n' >&2
+    exit 1
+  fi
+
+  target_quarter=${quarter_info#Q}
+  target_quarter=${target_quarter%%-*}
+  target_year=${quarter_info##*-}
 fi
 
 tag="${target_year}-Q${target_quarter}"
@@ -120,21 +128,25 @@ if [ "$target_quarter" -lt 1 ] || [ "$target_quarter" -gt 4 ]; then
   exit 2
 fi
 
-if [ "$target_quarter" -eq 1 ]; then
-  prev_year=$((target_year - 1))
-  prev_quarter=4
-else
-  prev_year=$target_year
-  prev_quarter=$((target_quarter - 1))
-fi
+start_month=$(( (target_quarter - 1) * 3 + 1 ))
 
-if [ "$target_quarter" -eq 4 ]; then
-  next_year=$((target_year + 1))
-  next_quarter=1
-else
-  next_year=$target_year
-  next_quarter=$((target_quarter + 1))
+if ! set -- $(add_months "$target_year" "$start_month" -3); then
+  printf '❌ Failed to compute previous quarter\n' >&2
+  exit 1
 fi
+prev_year=$1
+prev_month=$2
+prev_month=$((prev_month + 0))
+prev_quarter=$(( (prev_month + 2) / 3 ))
+
+if ! set -- $(add_months "$target_year" "$start_month" 3); then
+  printf '❌ Failed to compute next quarter\n' >&2
+  exit 1
+fi
+next_year=$1
+next_month=$2
+next_month=$((next_month + 0))
+next_quarter=$(( (next_month + 2) / 3 ))
 
 prev_link="Q${prev_quarter} ${prev_year}"
 next_link="Q${next_quarter} ${next_year}"
