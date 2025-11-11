@@ -7,6 +7,9 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/utils/commit.sh"
+date_helper="$script_dir/utils/date-period-helpers.sh"
+
+. "$date_helper"
 
 usage() {
   cat <<'EOF_USAGE'
@@ -40,11 +43,24 @@ normalize_locale() {
 get_month_name() {
   locale_value=$1
   target=$2
-  if month=$(LC_TIME="$locale_value" date -u -d "$target" +%B 2>/dev/null); then
-    printf '%s' "$month"
-  else
-    LC_TIME=C date -u -d "$target" +%B
+
+  if ! epoch=$(epoch_for_utc_date "$target"); then
+    printf '❌ Failed to compute epoch for %s\n' "$target" >&2
+    return 1
   fi
+
+  if month=$(LC_TIME="$locale_value" format_epoch_local "$epoch" '%B' 2>/dev/null); then
+    printf '%s' "$month"
+    return 0
+  fi
+
+  if fallback=$(LC_TIME=C format_epoch_local "$epoch" '%B' 2>/dev/null); then
+    printf '%s' "$fallback"
+    return 0
+  fi
+
+  printf '❌ Failed to format month name for %s\n' "$target" >&2
+  return 1
 }
 
 vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
@@ -153,10 +169,22 @@ month_tag="${year}-${month}"
 quarter=$(( (month_number + 2) / 3 ))
 quarter_tag="${year}-Q${quarter}"
 
-prev_tag=$(date -u -d "${year}-${month}-01 -1 month" +%Y-%m)
-next_tag=$(date -u -d "${year}-${month}-01 +1 month" +%Y-%m)
+if ! set -- $(add_months "$year" "$month" -1); then
+  printf '❌ Failed to compute previous month for %s-%s\n' "$year" "$month" >&2
+  exit 1
+fi
+prev_tag=$(printf '%04d-%02d' "$1" "$2")
 
-month_name=$(get_month_name "$locale" "${year}-${month}-01")
+if ! set -- $(add_months "$year" "$month" 1); then
+  printf '❌ Failed to compute next month for %s-%s\n' "$year" "$month" >&2
+  exit 1
+fi
+next_tag=$(printf '%04d-%02d' "$1" "$2")
+
+if ! month_name=$(get_month_name "$locale" "${year}-${month}-01"); then
+  printf '❌ Failed to determine localized month name\n' >&2
+  exit 1
+fi
 
 vault_root="${vault_path%/}"
 trimmed_outdir=$outdir
