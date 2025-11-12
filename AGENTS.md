@@ -68,11 +68,14 @@ HOME=/home/obsidian
 MAILTO=obsidian
 
 10 0 * * * /bin/sh /home/obsidian/obsidian-note-tools/utils/job-wrap.sh daily-note \
-  /home/obsidian/obsidian-note-tools/generate-daily-note.sh >>/home/obsidian/logs/cron.log 2>&1
+  generate-daily-note.sh >>/home/obsidian/logs/cron.log 2>&1
 
 8 0 * * 1 /bin/sh /home/obsidian/obsidian-note-tools/utils/job-wrap.sh weekly-note \
-  /home/obsidian/obsidian-note-tools/generate-weekly-note.sh >>/home/obsidian/logs/cron.log 2>&1
+  generate-weekly-note.sh >>/home/obsidian/logs/cron.log 2>&1
 ```
+
+> The wrapper looks in `$REPO_ROOT:$REPO_ROOT/utils` by default; override with
+> `JOB_WRAP_SEARCH_PATH` when cron runs from another working directory.
 
 ---
 
