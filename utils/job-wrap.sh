@@ -18,19 +18,32 @@ case "$ORIGINAL_CMD" in
   *)
     SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
     REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-    SEARCH_PATH=${JOB_WRAP_SEARCH_PATH:-"$REPO_ROOT:$REPO_ROOT/utils"}
     RESOLVED_CMD=""
-    OLD_IFS=${IFS}
-    IFS=:
-    for dir in $SEARCH_PATH; do
-      [ -n "$dir" ] || continue
-      CANDIDATE="$dir/$ORIGINAL_CMD"
-      if [ -x "$CANDIDATE" ]; then
-        RESOLVED_CMD="$CANDIDATE"
-        break
-      fi
-    done
-    IFS=$OLD_IFS
+    
+    # 1) If JOB_WRAP_SEARCH_PATH is set, honor it (non-recursive, like before)
+    if [ -n "${JOB_WRAP_SEARCH_PATH:-}" ]; then
+      SEARCH_PATH="$JOB_WRAP_SEARCH_PATH"
+      OLD_IFS=${IFS}
+      IFS=:
+      for dir in $SEARCH_PATH; do
+        [ -n "$dir" ] || continue
+        CANDIDATE="$dir/$ORIGINAL_CMD"
+        if [ -x "$CANDIDATE" ]; then
+          RESOLVED_CMD="$CANDIDATE"
+          break
+        fi
+      done
+      IFS=$OLD_IFS
+    fi
+
+    # 2) If still not found, search the repo recursively
+    if [ -z "$RESOLVED_CMD" ]; then
+      # -perm -111 = any execute bits set (portable)
+      # drop -maxdepth if you ever hit a platform without it
+      RESOLVED_CMD=$(find "$REPO_ROOT" -type f -name "$ORIGINAL_CMD" -perm -111 2>/dev/null | head -n 1 || true)
+    fi
+
+    # 3) If still not found, try PATH
     if [ -z "$RESOLVED_CMD" ]; then
       if RESOLVED_CMD=$(command -v "$ORIGINAL_CMD" 2>/dev/null); then
         :
@@ -38,8 +51,9 @@ case "$ORIGINAL_CMD" in
         RESOLVED_CMD=""
       fi
     fi
+
     [ -n "$RESOLVED_CMD" ] || {
-      printf 'Error: could not resolve command %s in JOB_WRAP_SEARCH_PATH or PATH\n' "$ORIGINAL_CMD" >&2
+      printf 'Error: could not resolve command %s under %s or in PATH\n' "$ORIGINAL_CMD" "$REPO_ROOT" >&2
       exit 127
     }
     ;;
