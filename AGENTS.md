@@ -11,7 +11,7 @@ This file tells AI assistants how to propose, implement, and verify changes in *
 
 ## TL;DR (follow this every time)
 
-1. **Read before you edit:** `generate-daily-note.sh`, `generate-weekly-note.sh`, `utils/`,and cron docs below.
+1. **Read before you edit:** `generators/generate-daily-note.sh`, `generators/generate-weekly-note.sh`, `utils/`, and cron docs below.
 2. **Propose first:** Outline the plan and list files to touch. Prefer minimal, reversible diffs.
 3. **Keep it POSIX-sh:** Use portable shell (no Bash-isms unless explicitly stated).
 4. **Log everything:** Use `job-wrap.sh` (or compatible logging) and avoid emoji in cron-captured logs.
@@ -37,8 +37,8 @@ This file tells AI assistants how to propose, implement, and verify changes in *
 
 > Note: Files in the `legacy/` directory are deprecated and should be ignored unless a task explicitly requires referencing or migrating them.
 
-* `generate-daily-note.sh`
-* `generate-weekly-note.sh`
+* `generators/generate-daily-note.sh`
+* `generators/generate-weekly-note.sh`
 * `utils/job-wrap.sh`
 * `utils/commit.sh`
 * `utils/` (other helpers)

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Generate a daily note markdown file that mirrors the legacy Node implementation.
-# Uses helper scripts in ./utils when available to populate dynamic sections.
+# Uses helper scripts in ../utils when available to populate dynamic sections.
 
 set -eu
 
@@ -63,8 +63,10 @@ PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 log_info "Starting daily note generation"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-commit_helper="$script_dir/utils/commit.sh"
-date_helper="$script_dir/utils/date-period-helpers.sh"
+repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
+utils_dir="$repo_root/utils"
+commit_helper="$utils_dir/commit.sh"
+date_helper="$utils_dir/date-period-helpers.sh"
 
 . "$date_helper"
 
@@ -199,7 +201,7 @@ fi
 
 populate_block() {
   block_name="$1"   # e.g., "Morning"
-  sh "$script_dir/utils/generate-day-plan.sh" --block "$block_name" 2>/dev/null || true
+  sh "$utils_dir/generate-day-plan.sh" --block "$block_name" 2>/dev/null || true
 }
 
 for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
@@ -249,10 +251,10 @@ pagan_header="### Pagan Timings"
 moon_text="⚠️ Moon phase info unavailable."
 season_text="⚠️ Seasonal turning info unavailable."
 
-# ----- Optional dynamic sections (resolve paths from script_dir; do not require +x) -----
-if [ -r "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
+# ----- Optional dynamic sections (resolve paths from utils_dir; do not require +x) -----
+if [ -r "$utils_dir/f1-schedule-and-standings.sh" ]; then
   log_info "Fetching Formula 1 data"
-  if output=$(sh "$script_dir/utils/f1-schedule-and-standings.sh"); then
+  if output=$(sh "$utils_dir/f1-schedule-and-standings.sh"); then
     log_info "Formula 1 data retrieved"
     f1_text="$output"
   else
@@ -260,12 +262,12 @@ if [ -r "$script_dir/utils/f1-schedule-and-standings.sh" ]; then
     log_warn "Formula 1 script failed with exit code $status, using fallback text"
   fi
 else
-  log_warn "Formula 1 script not found at $script_dir/utils/f1-schedule-and-standings.sh, using fallback text"
+  log_warn "Formula 1 script not found at $utils_dir/f1-schedule-and-standings.sh, using fallback text"
 fi
 
-if [ -r "$script_dir/utils/extract-weekly-goal.sh" ]; then
+if [ -r "$utils_dir/extract-weekly-goal.sh" ]; then
   log_info "Extracting weekly goal"
-  if output=$(sh "$script_dir/utils/extract-weekly-goal.sh"); then
+  if output=$(sh "$utils_dir/extract-weekly-goal.sh"); then
     log_info "Weekly goal extracted"
     weekly_goal_text="$output"
   else
@@ -273,10 +275,10 @@ if [ -r "$script_dir/utils/extract-weekly-goal.sh" ]; then
     log_warn "Weekly goal script failed with exit code $status, using fallback text"
   fi
 else
-  log_warn "Weekly goal script not found at $script_dir/utils/extract-weekly-goal.sh, using fallback text"
+  log_warn "Weekly goal script not found at $utils_dir/extract-weekly-goal.sh, using fallback text"
 fi
 
-pagan_moon_script="$script_dir/utils/pagan-moon.sh"
+pagan_moon_script="$utils_dir/pagan-moon.sh"
 if [ -r "$pagan_moon_script" ]; then
   log_info "Gathering pagan moon data"
   if output=$(sh "$pagan_moon_script"); then
@@ -290,7 +292,7 @@ else
   log_warn "Pagan moon script not found at $pagan_moon_script, using fallback text"
 fi
 
-pagan_seasons_script="$script_dir/utils/pagan-seasons.sh"
+pagan_seasons_script="$utils_dir/pagan-seasons.sh"
 if [ -r "$pagan_seasons_script" ]; then
   log_info "Gathering pagan season data"
   if output=$(sh "$pagan_seasons_script"); then
@@ -308,7 +310,7 @@ pagan_timings_text=$(printf '%s\n%s\n%s\n' "$pagan_header" "$moon_text" "$season
 
 # Daily Plan intro (day + purpose)
 daily_plan_intro=""
-day_plan_script="$script_dir/utils/generate-day-plan.sh"
+day_plan_script="$utils_dir/generate-day-plan.sh"
 if [ -r "$day_plan_script" ]; then
   log_info "Loading daily plan intro"
   if day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
