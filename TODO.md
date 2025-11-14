@@ -5,7 +5,7 @@ To-Do List
 * **Shortcuts**
 
   * ☐ Create new *Sleep Data Backfill* shortcut to fetch fresh data.
-  * ☐ Update and test *Daily Sleep Data Upload* shortcut.
+  * x Update and test *Daily Sleep Data Upload* shortcut.
   * ☐ Schedule both shortcuts to run automatically.
 
 * **Scripts**
