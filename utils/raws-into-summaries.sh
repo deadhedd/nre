@@ -31,8 +31,8 @@ jq_program='
   def to_minutes:
     split(":") as $p
     | if ($p|length)==3 then ($p[0]|tonumber)*60 + ($p[1]|tonumber) + ($p[2]|tonumber)/60
-      elif ($p|length)==2 then ($p[0]|tonumber) + ($p[1]|tonumber)/60
-      elif ($p|length)==1 then ($p[0]|tonumber)/60
+      elif ($p|length)==2 then ($p[0]|tonumber)*60 + ($p[1]|tonumber)
+      elif ($p|length)==1 then ($p[0]|tonumber)
       else 0 end;
 
   def sleep_key($ts):
