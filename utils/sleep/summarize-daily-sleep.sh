@@ -2,9 +2,10 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-commit_helper="$script_dir/commit.sh"
-date_helpers="$script_dir/date-period-helpers.sh"
-# shellcheck source=utils/date-period-helpers.sh
+utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
+commit_helper="$utils_dir/commit.sh"
+date_helpers="$utils_dir/date-period-helpers.sh"
+# shellcheck source=../date-period-helpers.sh
 . "$date_helpers"
 
 vaultRoot="$HOME/automation/obsidian/vaults/Main"
