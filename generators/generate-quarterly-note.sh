@@ -194,7 +194,6 @@ write_output "$note_path" <<EOF_NOTE
 not done
 tag includes due/${target_year}
 tag includes due/Q${target_quarter}
-sort by happens
 \`\`\`
 
 ## Quarterly Checklist
