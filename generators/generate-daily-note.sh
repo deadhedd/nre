@@ -6,9 +6,10 @@ set -eu
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: generate-daily-note.sh [--dry-run]
+Usage: generate-daily-note.sh [--force] [--dry-run]
 
 Options:
+  --force    Overwrite the note if it already exists.
   --dry-run  Output the note contents to stdout instead of writing files.
   --help     Show this message.
 EOF_USAGE
@@ -26,10 +27,15 @@ log_err() {
   printf '❌ %s\n' "$*" >&2
 }
 
+force=0
 dry_run=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --force)
+      force=1
+      shift
+      ;;
     --dry-run)
       dry_run=1
       shift
@@ -190,6 +196,13 @@ file_path="${daily_note_dir%/}/${today}.md"
 set -- "$file_path"
 
 log_info "Primary daily note path: $file_path"
+
+# Guard against accidental overwrites unless --force is supplied.
+if [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
+  log_err "Refusing to overwrite existing file: $file_path"
+  printf '     Re-run with --force to overwrite.\n' >&2
+  exit 1
+fi
 
 # Time block subnote placeholders + content
 time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
