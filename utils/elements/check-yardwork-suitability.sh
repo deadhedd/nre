@@ -4,7 +4,8 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-commit_helper="$script_dir/core/commit.sh"
+core_dir=$(dirname -- "$script_dir")/core
+commit_helper="$core_dir/commit.sh"
 
 vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 vault_root="${vault_path%/}"
