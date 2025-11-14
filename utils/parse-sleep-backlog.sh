@@ -6,7 +6,7 @@ repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
 commit_helper="$utils_dir/commit.sh"
 date_helpers="$utils_dir/date-period-helpers.sh"
-# shellcheck source=../utils/date-period-helpers.sh
+# shellcheck source=./date-period-helpers.sh
 . "$date_helpers"
 
 vaultRoot="$HOME/automation/obsidian/vaults/Main"
