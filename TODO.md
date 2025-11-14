@@ -42,6 +42,8 @@ Medium Priority
     • improve yardwork sutiability analysis to include precipitation and ideal time for work
 
     • implement automated budget analysis
+
+    - add leave for work checklist to daily notes
 Low Priority / Someday
 
     • use advanced uri for enhanced ios shortcuts
