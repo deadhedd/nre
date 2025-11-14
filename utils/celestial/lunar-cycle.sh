@@ -3,8 +3,8 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-# shellcheck source=utils/pagan-timings-common.sh
-. "$SCRIPT_DIR/pagan-timings-common.sh"
+# shellcheck source=utils/celestial/celestial-timings-common.sh
+. "$SCRIPT_DIR/celestial-timings-common.sh"
 
 need curl
 need jq

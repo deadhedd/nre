@@ -4,16 +4,17 @@ set -eu
 
 log() {
   [ "${PAGAN_TIMINGS_DEBUG:-0}" != "0" ] || return 0
-  printf '[pagan-seasons] %s\n' "$1" >&2
+  printf '[seasonal-cycle] %s\n' "$1" >&2
 }
 
 log "Starting pagan seasonal lookup"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-# shellcheck source=utils/pagan-timings-common.sh
-. "$SCRIPT_DIR/pagan-timings-common.sh"
+UTILS_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+# shellcheck source=utils/celestial/celestial-timings-common.sh
+. "$SCRIPT_DIR/celestial-timings-common.sh"
 # shellcheck source=utils/date-period-helpers.sh
-. "$SCRIPT_DIR/date-period-helpers.sh"
+. "$UTILS_DIR/date-period-helpers.sh"
 
 need curl
 need jq
