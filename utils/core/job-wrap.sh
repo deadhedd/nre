@@ -17,7 +17,8 @@ case "$ORIGINAL_CMD" in
     ;;
   *)
     SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-    REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+    UTILS_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+    REPO_ROOT=$(cd "$UTILS_DIR/.." && pwd)
     RESOLVED_CMD=""
     
     # 1) If JOB_WRAP_SEARCH_PATH is set, honor it (non-recursive, like before)

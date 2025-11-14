@@ -4,15 +4,15 @@ This repository contains shell scripts that help automate common tasks in an
 [Obsidian](https://obsidian.md/) vault. All periodic note generators live in the
 `generators/` directory to keep the repository root tidy.
 
-## Cron wrapper (`utils/job-wrap.sh`)
+## Cron wrapper (`utils/core/job-wrap.sh`)
 
-`utils/job-wrap.sh` records structured logs for cron jobs and now resolves script
+`utils/core/job-wrap.sh` records structured logs for cron jobs and now resolves script
 names automatically. Provide the job label followed by the script or command
 name; the wrapper searches the repository root and `utils/` directory before
 falling back to the system `PATH`.
 
 ```sh
-/bin/sh utils/job-wrap.sh daily-note generate-daily-note.sh --dry-run
+/bin/sh utils/core/job-wrap.sh daily-note generate-daily-note.sh --dry-run
 ```
 
 Set `JOB_WRAP_SEARCH_PATH` to a colon-delimited list to customize the search
