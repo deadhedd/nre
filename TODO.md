@@ -1,4 +1,25 @@
 To-Do List
+
+### 💤 Sleep Data Pipeline TODO
+
+* **Shortcuts**
+
+  * ☐ Create new *Sleep Data Backfill* shortcut to fetch fresh data.
+  * ☐ Update and test *Daily Sleep Data Upload* shortcut.
+  * ☐ Schedule both shortcuts to run automatically.
+
+* **Scripts**
+
+  * ☐ Run `backfill-into-raws.js` to generate daily raw files.
+  * ☐ Run `raws-into-summaries.js` to produce summaries.
+  * ☐ Verify the *daily processor* script runs correctly and is scheduled.
+
+* **Integration**
+
+  * ☐ Add analyzed sleep data to the daily note template.
+  * ☐ Confirm summaries appear correctly in Obsidian.
+
+
 High Priority
 
     • Sleep Data Automation
