@@ -1,5 +1,9 @@
 To-Do List
 
+## Current focuses
+* sleep data pipeline
+* cascading tasks to implement awkward tasks
+
 ### 💤 Sleep Data Pipeline TODO
 
 * **Shortcuts**
