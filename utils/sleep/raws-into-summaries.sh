@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/raws-into-summaries.sh — Convert raw sleep data into per-day summaries.
+# utils/sleep/raws-into-summaries.sh — Convert raw sleep data into per-day summaries.
 # Author: deadhedd
 # License: MIT
 set -eu
@@ -11,7 +11,8 @@ log_warn() { printf 'WARN %s\n' "$*"; }
 log_err()  { printf 'ERR %s\n'  "$*"; }
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-commit_helper="$script_dir/commit.sh"
+utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
+commit_helper="$utils_dir/commit.sh"
 
 vault_root="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 sleep_folder="$vault_root/Sleep Data"
