@@ -228,13 +228,12 @@ write_output "$note_path" <<EOF_NOTE
 
 ## Cascading Tasks
 
-\`\`\`dataview
-task
-from ""
-where contains(tags, "due/${month_tag}")
-   OR contains(tags, "due/${quarter_tag}")
-   OR contains(tags, "due/${year}")
-\`\`\`
+```tasks
+not done
+tag includes due/${year}
+tag includes due/${quarter_tag}
+tag includes due/${month_tag}
+```
 
 ## Monthly Checklist
 
