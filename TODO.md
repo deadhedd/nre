@@ -28,7 +28,7 @@ High Priority
 
     • Workout schedule implemented in daily notes
 
-    • Add recycling and filling water jug to daily notes which are a little complicated due to the interval to repeat
+    • Add recycling and filling water jug to daily notes which are a little complicated due to the interval to repeat. consider utilizing the cascading tasks system
 
     • set up grocery list automation
 
