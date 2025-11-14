@@ -27,7 +27,7 @@ This file tells AI assistants how to propose, implement, and verify changes in *
 * **Vault default path:** `/home/obsidian/vaults/Main` (override with `VAULT_PATH`)
 * **Periodic notes:** `Periodic Notes/Daily Notes/`, `Periodic Notes/Weekly Notes/`, `Periodic Notes/Monthly Notes/`, `Periodic Notes/Quarterly Notes/`, and `Periodic Notes/Yearly Notes/`
 * **Logging root:** `/home/obsidian/logs`
-* **Cron wrapper:** `utils/job-wrap.sh`
+* **Cron wrapper:** `utils/core/job-wrap.sh`
 * **Author tag:** `deadhedd`
 * **ASCII-only output preference** for OpenBSD TTY logs
 
@@ -39,8 +39,8 @@ This file tells AI assistants how to propose, implement, and verify changes in *
 
 * `generators/generate-daily-note.sh`
 * `generators/generate-weekly-note.sh`
-* `utils/job-wrap.sh`
-* `utils/commit.sh`
+* `utils/core/job-wrap.sh`
+* `utils/core/commit.sh`
 * `utils/` (other helpers)
 
 ---
@@ -67,10 +67,10 @@ PATH=/usr/local/bin:/usr/bin:/bin
 HOME=/home/obsidian
 MAILTO=obsidian
 
-10 0 * * * /bin/sh /home/obsidian/obsidian-note-tools/utils/job-wrap.sh daily-note \
+10 0 * * * /bin/sh /home/obsidian/obsidian-note-tools/utils/core/job-wrap.sh daily-note \
   generate-daily-note.sh >>/home/obsidian/logs/cron.log 2>&1
 
-8 0 * * 1 /bin/sh /home/obsidian/obsidian-note-tools/utils/job-wrap.sh weekly-note \
+8 0 * * 1 /bin/sh /home/obsidian/obsidian-note-tools/utils/core/job-wrap.sh weekly-note \
   generate-weekly-note.sh >>/home/obsidian/logs/cron.log 2>&1
 ```
 

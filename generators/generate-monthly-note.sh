@@ -8,8 +8,8 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
-commit_helper="$utils_dir/commit.sh"
-date_helper="$utils_dir/date-period-helpers.sh"
+commit_helper="$utils_dir/core/commit.sh"
+date_helper="$utils_dir/core/date-period-helpers.sh"
 
 . "$date_helper"
 

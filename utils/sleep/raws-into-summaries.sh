@@ -12,7 +12,7 @@ log_err()  { printf 'ERR %s\n'  "$*"; }
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
-commit_helper="$utils_dir/commit.sh"
+commit_helper="$utils_dir/core/commit.sh"
 
 vault_root="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 sleep_folder="$vault_root/Sleep Data"

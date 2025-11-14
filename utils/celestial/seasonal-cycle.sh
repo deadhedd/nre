@@ -13,8 +13,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 UTILS_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 # shellcheck source=utils/celestial/celestial-timings-common.sh
 . "$SCRIPT_DIR/celestial-timings-common.sh"
-# shellcheck source=utils/date-period-helpers.sh
-. "$UTILS_DIR/date-period-helpers.sh"
+# shellcheck source=../core/date-period-helpers.sh
+. "$UTILS_DIR/core/date-period-helpers.sh"
 
 need curl
 need jq
