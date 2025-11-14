@@ -11,8 +11,9 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-# shellcheck source=core/date-period-helpers.sh
-. "$script_dir/core/date-period-helpers.sh"
+core_dir=$(dirname -- "$script_dir")/core
+# shellcheck source=../core/date-period-helpers.sh
+. "$core_dir/date-period-helpers.sh"
 
 vault_base="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 vault_base="${vault_base%/}"

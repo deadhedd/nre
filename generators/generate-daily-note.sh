@@ -71,8 +71,12 @@ log_info "Starting daily note generation"
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
+elements_dir="$utils_dir/elements"
 commit_helper="$utils_dir/core/commit.sh"
 date_helper="$utils_dir/core/date-period-helpers.sh"
+day_plan_script="$elements_dir/generate-day-plan.sh"
+f1_script="$elements_dir/f1-schedule-and-standings.sh"
+weekly_goal_script="$elements_dir/extract-weekly-goal.sh"
 
 . "$date_helper"
 
@@ -214,7 +218,7 @@ fi
 
 populate_block() {
   block_name="$1"   # e.g., "Morning"
-  sh "$utils_dir/generate-day-plan.sh" --block "$block_name" 2>/dev/null || true
+  sh "$day_plan_script" --block "$block_name" 2>/dev/null || true
 }
 
 for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
@@ -265,9 +269,9 @@ moon_text="⚠️ Moon phase info unavailable."
 season_text="⚠️ Seasonal turning info unavailable."
 
 # ----- Optional dynamic sections (resolve paths from utils_dir; do not require +x) -----
-if [ -r "$utils_dir/f1-schedule-and-standings.sh" ]; then
+if [ -r "$f1_script" ]; then
   log_info "Fetching Formula 1 data"
-  if output=$(sh "$utils_dir/f1-schedule-and-standings.sh"); then
+  if output=$(sh "$f1_script"); then
     log_info "Formula 1 data retrieved"
     f1_text="$output"
   else
@@ -275,12 +279,12 @@ if [ -r "$utils_dir/f1-schedule-and-standings.sh" ]; then
     log_warn "Formula 1 script failed with exit code $status, using fallback text"
   fi
 else
-  log_warn "Formula 1 script not found at $utils_dir/f1-schedule-and-standings.sh, using fallback text"
+  log_warn "Formula 1 script not found at $f1_script, using fallback text"
 fi
 
-if [ -r "$utils_dir/extract-weekly-goal.sh" ]; then
+if [ -r "$weekly_goal_script" ]; then
   log_info "Extracting weekly goal"
-  if output=$(sh "$utils_dir/extract-weekly-goal.sh"); then
+  if output=$(sh "$weekly_goal_script"); then
     log_info "Weekly goal extracted"
     weekly_goal_text="$output"
   else
@@ -288,7 +292,7 @@ if [ -r "$utils_dir/extract-weekly-goal.sh" ]; then
     log_warn "Weekly goal script failed with exit code $status, using fallback text"
   fi
 else
-  log_warn "Weekly goal script not found at $utils_dir/extract-weekly-goal.sh, using fallback text"
+  log_warn "Weekly goal script not found at $weekly_goal_script, using fallback text"
 fi
 
 lunar_cycle_script="$utils_dir/celestial/lunar-cycle.sh"
@@ -323,7 +327,6 @@ pagan_timings_text=$(printf '%s\n%s\n%s\n' "$pagan_header" "$moon_text" "$season
 
 # Daily Plan intro (day + purpose)
 daily_plan_intro=""
-day_plan_script="$utils_dir/generate-day-plan.sh"
 if [ -r "$day_plan_script" ]; then
   log_info "Loading daily plan intro"
   if day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
