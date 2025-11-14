@@ -291,32 +291,32 @@ else
   log_warn "Weekly goal script not found at $utils_dir/extract-weekly-goal.sh, using fallback text"
 fi
 
-pagan_moon_script="$utils_dir/pagan-moon.sh"
-if [ -r "$pagan_moon_script" ]; then
-  log_info "Gathering pagan moon data"
-  if output=$(sh "$pagan_moon_script"); then
-    log_info "Pagan moon data retrieved"
+lunar_cycle_script="$utils_dir/celestial/lunar-cycle.sh"
+if [ -r "$lunar_cycle_script" ]; then
+  log_info "Gathering lunar cycle data"
+  if output=$(sh "$lunar_cycle_script"); then
+    log_info "Lunar cycle data retrieved"
     moon_text="$output"
   else
     status=$?
-    log_warn "Pagan moon script failed with exit code $status, using fallback text"
+    log_warn "Lunar cycle script failed with exit code $status, using fallback text"
   fi
 else
-  log_warn "Pagan moon script not found at $pagan_moon_script, using fallback text"
+  log_warn "Lunar cycle script not found at $lunar_cycle_script, using fallback text"
 fi
 
-pagan_seasons_script="$utils_dir/pagan-seasons.sh"
-if [ -r "$pagan_seasons_script" ]; then
-  log_info "Gathering pagan season data"
-  if output=$(sh "$pagan_seasons_script"); then
-    log_info "Pagan season data retrieved"
+seasonal_cycle_script="$utils_dir/celestial/seasonal-cycle.sh"
+if [ -r "$seasonal_cycle_script" ]; then
+  log_info "Gathering seasonal cycle data"
+  if output=$(sh "$seasonal_cycle_script"); then
+    log_info "Seasonal cycle data retrieved"
     season_text="$output"
   else
     status=$?
-    log_warn "Pagan seasons script failed with exit code $status, using fallback text"
+    log_warn "Seasonal cycle script failed with exit code $status, using fallback text"
   fi
 else
-  log_warn "Pagan seasons script not found at $pagan_seasons_script, using fallback text"
+  log_warn "Seasonal cycle script not found at $seasonal_cycle_script, using fallback text"
 fi
 
 pagan_timings_text=$(printf '%s\n%s\n%s\n' "$pagan_header" "$moon_text" "$season_text")
