@@ -192,7 +192,7 @@ write_output "$note_path" <<EOF_NOTE
 
 \`\`\`tasks
 not done
-tag includes due/Q${target_quarter}
+tag includes due/${tag}
 \`\`\`
 
 ## Quarterly Checklist
