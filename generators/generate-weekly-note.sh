@@ -191,7 +191,6 @@ write_output "$note_path" <<EOF_NOTE
 
 \`\`\`tasks
 not done
-tag includes due/${current_year}
 tag includes due/${current_quarter_tag}
 tag includes due/${current_month_tag}
 \`\`\`
