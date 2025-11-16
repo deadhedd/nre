@@ -24,16 +24,33 @@
 
 set -eu
 
+log_root=${LOG_DIR:-/home/obsidian/logs}
+log_file=${LOG_FILE:-"$log_root/summarize-daily-sleep.log"}
+
+if [ ! -d "$log_root" ]; then
+  mkdir -p "$log_root"
+fi
+
+log_write() {
+  level=$1
+  shift
+  msg=$*
+  timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  line="$timestamp $level $msg"
+  printf '%s\n' "$line" >>"$log_file"
+  printf '%s\n' "$line"
+}
+
 log_info() {
-  printf 'INFO %s\n' "$*"
+  log_write INFO "$@"
 }
 
 log_warn() {
-  printf 'WARN %s\n' "$*"
+  log_write WARN "$@"
 }
 
 log_err() {
-  printf 'ERR %s\n' "$*"
+  log_write ERR "$@"
 }
 
 ###############################################################################
