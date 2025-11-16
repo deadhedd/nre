@@ -208,18 +208,21 @@ entriesLines=$(
 # 7-day running average (up to last 7 days with data, incl. target_date)
 ###############################################################################
 
-pastTotals=""
+pastTotals_file=$(tmpfile)
+# ensure empty file
+: >"$pastTotals_file"
 for offset in 6 5 4 3 2 1 0; do
   day_offset=$((0 - offset))
   d=$(shift_utc_date_by_days "$target_date" "$day_offset")
 
   t=$(process_date "$d" || true)
   if [ -n "${t:-}" ]; then
-    pastTotals="${pastTotals}\n$t"
+    printf '%s\n' "$t" >>"$pastTotals_file"
   fi
 done
 
-cleanTotals=$(printf '%s\n' "$pastTotals" | sed '/^$/d')
+cleanTotals=$(sed '/^$/d' "$pastTotals_file")
+rm -f "$pastTotals_file"
 count=$(printf '%s\n' "$cleanTotals" | wc -l | awk '{print $1}')
 
 if [ "$count" -gt 0 ]; then
@@ -227,7 +230,7 @@ if [ "$count" -gt 0 ]; then
   if ! sum7=$(printf '%s\n' "$cleanTotals" | paste -sd+ - | bc -l 2>"$bc_err"); then
     err=$(cat "$bc_err")
     rm -f "$bc_err"
-    log_warn "failed to compute running average with bc: ${err:-bc error}"
+    log_err "failed to compute running average with bc: ${err:-bc error}"
     avgMin=0
   else
     rm -f "$bc_err"
