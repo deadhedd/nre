@@ -53,6 +53,21 @@ log_err() {
   log_write ERR "$@"
 }
 
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    log_err "missing required command: $1"
+    exit 1
+  fi
+}
+
+tmpfile() {
+  mktemp "${TMPDIR:-/tmp}/sleep-summary.XXXXXX" 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/sleep-summary.$$"
+}
+
+require_cmd jq
+require_cmd bc
+require_cmd paste
+
 ###############################################################################
 # Paths & helpers
 ###############################################################################
@@ -126,20 +141,35 @@ process_date() {
   file="$sleepFolder/$ds.txt"
   [ -f "$file" ] || return
 
-  raw_to_entries < "$file" | jq "
-    $jq_add_duration_min_filter
-    | [ .[] | select(.stage != \"Awake\") | .durationMin ]
-    | add // empty
-  "
+  err_file=$(tmpfile)
+  if ! minutes=$(raw_to_entries < "$file" | jq "
+      $jq_add_duration_min_filter
+      | [ .[] | select(.stage != \"Awake\") | .durationMin ]
+      | add // empty
+    " 2>"$err_file"); then
+    err=$(cat "$err_file")
+    rm -f "$err_file"
+    log_warn "failed to process $file: ${err:-jq parsing error}"
+    return 1
+  fi
+  rm -f "$err_file"
+  printf '%s\n' "$minutes"
 }
 
 ###############################################################################
 # Load entries for target_date & compute totals
 ###############################################################################
 
-entries=$(
-  raw_to_entries < "$inputPath" | jq "$jq_add_duration_min_filter"
-)
+entries_err=$(tmpfile)
+if ! entries=$(
+  raw_to_entries < "$inputPath" | jq "$jq_add_duration_min_filter" 2>"$entries_err"
+); then
+  err=$(cat "$entries_err")
+  rm -f "$entries_err"
+  log_err "failed to parse $inputPath: ${err:-jq parsing error}"
+  exit 1
+fi
+rm -f "$entries_err"
 
 # Total minutes of sleep excluding "Awake"
 totalMin=$(
@@ -188,8 +218,16 @@ cleanTotals=$(printf '%s\n' "$pastTotals" | sed '/^$/d')
 count=$(printf '%s\n' "$cleanTotals" | wc -l | awk '{print $1}')
 
 if [ "$count" -gt 0 ]; then
-  sum7=$(printf '%s\n' "$cleanTotals" | paste -sd+ - | bc -l)
-  avgMin=$(printf '%s\n' "$sum7" | awk -v c="$count" 'BEGIN{OFMT="%.4f"} {print $1 / c}')
+  bc_err=$(tmpfile)
+  if ! sum7=$(printf '%s\n' "$cleanTotals" | paste -sd+ - | bc -l 2>"$bc_err"); then
+    err=$(cat "$bc_err")
+    rm -f "$bc_err"
+    log_warn "failed to compute running average with bc: ${err:-bc error}"
+    avgMin=0
+  else
+    rm -f "$bc_err"
+    avgMin=$(printf '%s\n' "$sum7" | awk -v c="$count" 'BEGIN{OFMT="%.4f"} {print $1 / c}')
+  fi
 else
   avgMin=0
 fi
