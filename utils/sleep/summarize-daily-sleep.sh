@@ -66,7 +66,7 @@ date_helpers="$utils_dir/core/date-period-helpers.sh"
 # shellcheck source=../core/date-period-helpers.sh
 . "$date_helpers"
 
-vaultRoot="$HOME/automation/obsidian/vaults/Main"
+vaultRoot="${VAULT_PATH:-$HOME/vaults/Main}"
 sleepFolder="$vaultRoot/Sleep Data"
 
 # Optional arg: explicit date (YYYY-MM-DD). Default: get_today.
