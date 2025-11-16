@@ -249,37 +249,46 @@ next=$(shift_utc_date_by_days "$target_date" 1)
 
 linkLine="[[${prev} Sleep Summary|← ${prev} Sleep Summary]] | [[${next} Sleep Summary|${next} Sleep Summary →]]"
 
-md="${linkLine}\n\n"
-md="${md}## Sleep Summary for ${target_date}\n\n"
-md="${md}🛌 Total (excl. Awake): ${totalH}h ${totalM}m (${totalMin} min)\n\n"
-md="${md}📈 7-day running average: ${avgH}h ${avgM}m (${avgMin} min)\n\n"
+md=$(cat <<EOF
+${linkLine}
+
+## Sleep Summary for ${target_date}
+
+🛌 Total (excl. Awake): ${totalH}h ${totalM}m (${totalMin} min)
+
+📈 7-day running average: ${avgH}h ${avgM}m (${avgMin} min)
+
+### By Stage:
+EOF
+)
 
 log_info "total minutes (excl. Awake): $totalMin"
 log_info "7-day running average (minutes): $avgMin"
 
-md="${md}### By Stage:\n"
 while IFS="$(printf '\t')" read -r stage mins; do
   [ -z "$stage" ] && continue
   sh=$(printf '%s\n' "$mins" | awk '{printf("%d", $1 / 60)}')
   sm=$(printf '%s %s\n' "$mins" "$sh" | awk '{m = $1 - $2 * 60; printf("%.0f", m)}')
-  md="${md}- ${stage}: ${sh}h ${sm}m (${mins} min)\n"
+  md=$(printf '%s\n- %s: %sh %sm (%s min)' "$md" "$stage" "$sh" "$sm" "$mins")
 done <<EOF
 $stageLines
 EOF
 
-md="${md}\n---\n\n### Full Entries\n"
+md=$(printf '%s\n---\n\n### Full Entries\n' "$md")
 while IFS="$(printf '\t')" read -r stage mins start end; do
   [ -z "$stage" ] && continue
-  md="${md}- $(printf '%-6s' "$stage") | ${mins} min | ${start} → ${end}\n"
+  stage_fmt=$(printf '%-6s' "$stage")
+  md=$(printf '%s\n- %s | %s min | %s → %s' "$md" "$stage_fmt" "$mins" "$start" "$end")
 done <<EOF
 $entriesLines
 EOF
+
 
 ###############################################################################
 # Write file & optional commit
 ###############################################################################
 
-printf '%s' "$md" > "$outputPath"
+printf '%s\n' "$md" > "$outputPath"
 log_info "wrote $(basename "$outputPath")"
 
 if [ -x "$commit_helper" ]; then
