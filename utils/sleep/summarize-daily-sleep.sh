@@ -109,17 +109,22 @@ fi
 #   ...
 # ]
 raw_to_entries() {
-  jq -R '
-    (split("\n") | map(select(length>0))) as $l |
-    (length / 4) as $q |
-    [ range(0; $q)
-      | {
-          stage:    $l[.],
-          duration: $l[. + $q],
-          start:    $l[. + 2*$q],
-          end:      $l[. + 3*$q]
-        }
-    ]
+  jq -R -s '
+    (split("\n") | map(select(length > 0))) as $l |
+    ($l | length) as $len |
+    if ($len % 4) != 0 then
+      error("sleep data line count not divisible by 4: \($len)")
+    else
+      ($len / 4 | floor) as $q |
+      [ range(0; $q)
+        | {
+            stage:    $l[.],
+            duration: $l[. + $q],
+            start:    $l[. + 2 * $q],
+            end:      $l[. + 3 * $q]
+          }
+      ]
+    end
   '
 }
 
