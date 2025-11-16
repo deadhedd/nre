@@ -24,6 +24,18 @@
 
 set -eu
 
+log_info() {
+  printf 'INFO %s\n' "$*"
+}
+
+log_warn() {
+  printf 'WARN %s\n' "$*"
+}
+
+log_err() {
+  printf 'ERR %s\n' "$*"
+}
+
 ###############################################################################
 # Paths & helpers
 ###############################################################################
@@ -46,8 +58,12 @@ target_date="${1:-$(get_today)}"
 inputPath="$sleepFolder/$target_date.txt"
 outputPath="$sleepFolder/$target_date Sleep Summary.md"
 
+log_info "summarizing sleep for $target_date"
+log_info "input: $inputPath"
+log_info "output: $outputPath"
+
 if [ ! -f "$inputPath" ]; then
-  echo "❌ No input file for $target_date" >&2
+  log_err "no input file for $target_date"
   exit 1
 fi
 
@@ -178,6 +194,9 @@ md="${md}## Sleep Summary for ${target_date}\n\n"
 md="${md}🛌 Total (excl. Awake): ${totalH}h ${totalM}m (${totalMin} min)\n\n"
 md="${md}📈 7-day running average: ${avgH}h ${avgM}m (${avgMin} min)\n\n"
 
+log_info "total minutes (excl. Awake): $totalMin"
+log_info "7-day running average (minutes): $avgMin"
+
 md="${md}### By Stage:\n"
 while IFS="$(printf '\t')" read -r stage mins; do
   [ -z "$stage" ] && continue
@@ -201,10 +220,11 @@ EOF
 ###############################################################################
 
 printf '%s' "$md" > "$outputPath"
-echo "✅ Wrote $(basename "$outputPath")"
+log_info "wrote $(basename "$outputPath")"
 
 if [ -x "$commit_helper" ]; then
+  log_info "running commit helper"
   "$commit_helper" "$vaultRoot" "sleep summary: $target_date" "$outputPath"
 else
-  printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+  log_warn "commit helper not found: $commit_helper"
 fi
