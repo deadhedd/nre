@@ -9,6 +9,18 @@ context='changes'
 
 print_usage() {
   printf '%s\n' "Usage: $0 [-c context] <work_tree_root> <message> <file> [file...]" >&2
+  printf '%s\n' "Environment:" >&2
+  printf '%s\n' "  COMMIT_BARE_REPO  Override the bare repository path (default /home/git/vaults/Main.git)" >&2
+}
+
+resolve_path() {
+  input=$1
+  dir_part=$(dirname "$input") || return 1
+  base_part=$(basename "$input") || return 1
+  if ! abs_dir=$(cd "$dir_part" 2>/dev/null && pwd -P); then
+    return 1
+  fi
+  printf '%s/%s\n' "$abs_dir" "$base_part"
 }
 
 # Parse optional context flag.
@@ -46,20 +58,31 @@ shift
 message=$1
 shift
 
+# Determine logging prefix for errors.
+if [ "$context" = 'changes' ]; then
+  prefix='⚠️ Failed to commit changes:'
+else
+  prefix="⚠️ Failed to commit $context:"
+fi
+
 # Resolve work tree root to an absolute path.
 if ! work_root=$(cd "$work_input" 2>/dev/null && pwd -P); then
   printf '⚠️ Failed to commit %s: %s\n' "$context" "invalid work tree root: $work_input" >&2
   exit 1
 fi
 
-# Central bare repository path
-BARE_REPO="/home/git/vaults/Main.git"
+# Central bare repository path (override with COMMIT_BARE_REPO).
+BARE_REPO_DEFAULT='/home/git/vaults/Main.git'
+bare_repo_input=${COMMIT_BARE_REPO:-$BARE_REPO_DEFAULT}
 
-# Determine logging prefix for errors.
-if [ "$context" = 'changes' ]; then
-  prefix='⚠️ Failed to commit changes:'
-else
-  prefix="⚠️ Failed to commit $context:"
+if ! BARE_REPO=$(resolve_path "$bare_repo_input"); then
+  printf '%s invalid bare repository path: %s\n' "$prefix" "$bare_repo_input" >&2
+  exit 1
+fi
+
+if [ ! -d "$BARE_REPO" ]; then
+  printf '%s bare repository not found: %s\n' "$prefix" "$BARE_REPO" >&2
+  exit 1
 fi
 
 # Convenience wrapper to run git as the git user against the bare repo + work tree
