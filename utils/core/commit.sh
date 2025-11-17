@@ -60,14 +60,14 @@ shift
 
 # Determine logging prefix for errors.
 if [ "$context" = 'changes' ]; then
-  prefix='⚠️ Failed to commit changes:'
+  prefix='WARN Failed to commit changes:'
 else
-  prefix="⚠️ Failed to commit $context:"
+  prefix="WARN Failed to commit $context:"
 fi
 
 # Resolve work tree root to an absolute path.
 if ! work_root=$(cd "$work_input" 2>/dev/null && pwd -P); then
-  printf '⚠️ Failed to commit %s: %s\n' "$context" "invalid work tree root: $work_input" >&2
+  printf 'WARN Failed to commit %s: %s\n' "$context" "invalid work tree root: $work_input" >&2
   exit 1
 fi
 
@@ -114,7 +114,7 @@ done
 
 # ---- Commit (if there is anything staged) ----
 if run_git diff --cached --quiet; then
-  printf '⚠️ No changes to commit for %s.\n' "$context" >&2
+  printf 'WARN No changes to commit for %s.\n' "$context" >&2
   exit 0
 fi
 
@@ -125,7 +125,7 @@ if [ "$commit_status" -ne 0 ]; then
   case $commit_output in
     *'nothing to commit'*|*'no changes added to commit'*)
       [ -n "$commit_output" ] && printf '%s\n' "$commit_output" >&2
-      printf '⚠️ No changes to commit for %s.\n' "$context" >&2
+      printf 'WARN No changes to commit for %s.\n' "$context" >&2
       exit 0
       ;;
     *)
@@ -141,7 +141,7 @@ fi
 # ---- Optional: push to upstream if configured ----
 if run_git remote get-url origin >/dev/null 2>&1; then
   if ! run_git push origin master; then
-    printf '⚠️ push to origin/master failed for %s (manual intervention required).\n' "$context" >&2
+    printf 'WARN push to origin/master failed for %s (manual intervention required).\n' "$context" >&2
     exit 1
   fi
 fi
