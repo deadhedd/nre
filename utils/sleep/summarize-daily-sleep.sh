@@ -71,20 +71,36 @@ tmpfile() {
 timestamp_to_epoch() {
   ts=$1
   [ -n "${ts:-}" ] || return 1
-  trimmed=$(printf '%s' "$ts" | tr -d '\r')
+  nbsp=$(printf '\302\240')
+  nnbsp=$(printf '\342\200\257')
+  normalized=$(printf '%s' "$ts" \
+    | tr -d '\r' \
+    | sed -e "s/${nbsp}/ /g" -e "s/${nnbsp}/ /g")
+  trimmed=$(printf '%s' "$normalized" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
   formats='%Y-%m-%dT%H:%M:%S%z|%Y-%m-%dT%H:%M:%S|%Y-%m-%dT%H:%M|%Y-%m-%d %H:%M:%S %z|%Y-%m-%d %H:%M:%S|%Y-%m-%d %H:%M|%b %e, %Y at %I:%M:%S %p|%b %e, %Y at %I:%M %p|%B %e, %Y at %I:%M:%S %p|%B %e, %Y at %I:%M %p'
   old_ifs=$IFS
   IFS='|'
   for fmt in $formats; do
     [ -z "$fmt" ] && continue
-    if epoch=$(TZ=UTC date -u -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
-      IFS=$old_ifs
-      printf '%s\n' "$epoch"
-      return 0
-    fi
+    case $fmt in
+      *%z*)
+        if epoch=$(TZ=UTC date -u -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
+          IFS=$old_ifs
+          printf '%s\n' "$epoch"
+          return 0
+        fi
+        ;;
+      *)
+        if epoch=$(date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
+          IFS=$old_ifs
+          printf '%s\n' "$epoch"
+          return 0
+        fi
+        ;;
+    esac
   done
   IFS=$old_ifs
-  if epoch=$(TZ=UTC date -u -d "$trimmed" '+%s' 2>/dev/null); then
+  if epoch=$(date -d "$trimmed" '+%s' 2>/dev/null); then
     printf '%s\n' "$epoch"
     return 0
   fi
