@@ -11,8 +11,9 @@ To-Do List
   * [ ] Create new *Sleep Data Backfill* shortcut to fetch fresh data.
   * [x] Update and test *Daily Sleep Data Upload* shortcut.
   * [x] Schedule both shortcuts to run automatically.
-  * [ ] update sleep data upload for 2 days instead of one
-  * [ ] update sleep data upload to include today and yesterday's wake up time via data jar
+  * [x] update sleep data upload for 2 days instead of one
+  * [x] update sleep data upload to include today and yesterday's wake up time via data jar
+  * [ ] verify functionality of shortcut changes
 
 #### Wake metadata for exported `.txt` files
 
