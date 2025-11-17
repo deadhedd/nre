@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
       break
       ;;
   esac
-}
+done
 
 if [ $# -lt 3 ]; then
   print_usage
@@ -82,11 +82,6 @@ for file in "$@"; do
     /*)   abs_path=$file ;;
     *)    abs_path="$work_root/$file" ;;
   esac
-
-  if [ ! -e "$abs_path" ]; then
-    printf '%s file does not exist: %s\n' "$prefix" "$file" >&2
-    exit 1
-  fi
 
   if ! run_git add -- "$abs_path"; then
     printf '%s git add failed for %s\n' "$prefix" "$file" >&2
