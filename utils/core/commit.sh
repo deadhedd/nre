@@ -1,6 +1,6 @@
 #!/bin/sh
-# Stage and commit files to the git repository, mirroring the legacy commit.js helper.
-# Usage: commit.sh [-c context] <repo_root> <message> <file> [file...]
+# Stage and commit files to the central bare repository from a dumb work tree.
+# Usage: commit.sh [-c context] <work_tree_root> <message> <file> [file...]
 
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin"
@@ -8,7 +8,7 @@ PATH="/usr/local/bin:/usr/bin:/bin"
 context='changes'
 
 print_usage() {
-  printf '%s\n' "Usage: $0 [-c context] <repo_root> <message> <file> [file...]" >&2
+  printf '%s\n' "Usage: $0 [-c context] <work_tree_root> <message> <file> [file...]" >&2
 }
 
 # Parse optional context flag.
@@ -34,23 +34,26 @@ while [ $# -gt 0 ]; do
       break
       ;;
   esac
-done
+}
 
 if [ $# -lt 3 ]; then
   print_usage
   exit 1
 fi
 
-repo_input=$1
+work_input=$1
 shift
 message=$1
 shift
 
-# Resolve repository root to an absolute path.
-if ! repo_root=$(cd "$repo_input" 2>/dev/null && pwd -P); then
-  printf '⚠️ Failed to commit %s: %s\n' "$context" "invalid repository root: $repo_input" >&2
+# Resolve work tree root to an absolute path.
+if ! work_root=$(cd "$work_input" 2>/dev/null && pwd -P); then
+  printf '⚠️ Failed to commit %s: %s\n' "$context" "invalid work tree root: $work_input" >&2
   exit 1
 fi
+
+# Central bare repository path
+BARE_REPO="/home/git/vaults/Main.git"
 
 # Determine logging prefix for errors.
 if [ "$context" = 'changes' ]; then
@@ -59,87 +62,52 @@ else
   prefix="⚠️ Failed to commit $context:"
 fi
 
-# --- Repo hygiene / config ---
-git -C "$repo_root" config --global --add safe.directory "$repo_root" 2>/dev/null || true
-git -C "$repo_root" remote set-url origin /home/git/vaults/Main.git 2>/dev/null || true
-git -C "$repo_root" config pull.rebase true 2>/dev/null || true
+# Convenience wrapper to run git as the git user against the bare repo + work tree
+run_git() {
+  doas -u git /usr/local/bin/git \
+    --git-dir="$BARE_REPO" \
+    --work-tree="$work_root" \
+    "$@"
+}
 
-# --- Helper for portable timestamps (OpenBSD-compatible) ---
-ts_utc() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
-
-# --- Pre-sync protection for local changes (including untracked) ---
-stashed=0
-if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then
-  git -C "$repo_root" stash push -u -m "auto: pre-sync $(ts_utc)"
-  stashed=1
-fi
-
-# Ensure we're on a branch (prefer master) before rebasing; avoid detached-HEAD weirdness.
-current_branch=$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)
-if [ "$current_branch" = "HEAD" ]; then
-  if git -C "$repo_root" show-ref --verify --quiet refs/heads/master; then
-    git -C "$repo_root" checkout master
-  elif git -C "$repo_root" show-ref --verify --quiet refs/heads/main; then
-    git -C "$repo_root" checkout main
-  else
-    git -C "$repo_root" checkout -B master || true
-  fi
-fi
-
-# ---- Sync with remote safely ----
-git -C "$repo_root" fetch --prune origin
-
-upstream_branch=master
-if ! git -C "$repo_root" ls-remote --heads origin master >/dev/null 2>&1; then
-  if git -C "$repo_root" ls-remote --heads origin main >/dev/null 2>&1; then
-    upstream_branch=main
-  fi
-fi
-
-sync_ok=1
-if ! git -C "$repo_root" rebase "origin/$upstream_branch"; then
-  git -C "$repo_root" rebase --abort 2>/dev/null || true
-  sync_ok=0
-fi
-
-# Restore stashed work (if any) back into the working tree.
-if [ $stashed -eq 1 ]; then
-  if ! git -C "$repo_root" stash pop --index; then
-    printf '%s unable to reapply stashed work cleanly.\n' "$prefix" >&2
-    printf '   The pre-sync stash is still available as stash@{0}.\n' >&2
-    printf '   Resolve the conflicts manually and re-run the automation.\n' >&2
-    git -C "$repo_root" reset --hard HEAD 2>/dev/null || true
-    git -C "$repo_root" clean -fd 2>/dev/null || true
-    exit 1
-  fi
-fi
-
-# If sync failed (e.g., due to conflicts unrelated to our stash), bail gracefully.
-if [ $sync_ok -ne 1 ]; then
-  printf '⚠️ Failed to sync with origin/%s before commit\n' "$upstream_branch" >&2
+# --- Ensure the bare repo exists and is usable ---
+if ! run_git rev-parse --git-dir >/dev/null 2>&1; then
+  printf '%s bare repository not accessible at %s\n' "$prefix" "$BARE_REPO" >&2
+  exit 1
 fi
 
 # ---- Stage each file explicitly provided to the script ----
 for file in "$@"; do
   case $file in
-    /*) abs_path=$file ;;
-    *) abs_path="$repo_root/$file" ;;
+    /*)   abs_path=$file ;;
+    *)    abs_path="$work_root/$file" ;;
   esac
-  if ! git -C "$repo_root" add -- "$abs_path"; then
+
+  if [ ! -e "$abs_path" ]; then
+    printf '%s file does not exist: %s\n' "$prefix" "$file" >&2
+    exit 1
+  fi
+
+  if ! run_git add -- "$abs_path"; then
     printf '%s git add failed for %s\n' "$prefix" "$file" >&2
     exit 1
   fi
 done
 
 # ---- Commit (if there is anything staged) ----
+if run_git diff --cached --quiet; then
+  printf '⚠️ No changes to commit for %s.\n' "$context" >&2
+  exit 0
+fi
+
 commit_status=0
-commit_output=$(git -C "$repo_root" commit -m "$message" 2>&1) || commit_status=$?
+commit_output=$(run_git commit -m "$message" 2>&1) || commit_status=$?
 
 if [ "$commit_status" -ne 0 ]; then
   case $commit_output in
     *'nothing to commit'*|*'no changes added to commit'*)
       [ -n "$commit_output" ] && printf '%s\n' "$commit_output" >&2
-      printf '⚠️ No changes to commit.\n' >&2
+      printf '⚠️ No changes to commit for %s.\n' "$context" >&2
       exit 0
       ;;
     *)
@@ -152,17 +120,10 @@ else
   [ -n "$commit_output" ] && printf '%s\n' "$commit_output"
 fi
 
-# ---- Push with one retry on rejection ----
-if ! git -C "$repo_root" push origin HEAD:"$upstream_branch"; then
-  git -C "$repo_root" fetch --prune origin
-  if git -C "$repo_root" rebase "origin/$upstream_branch"; then
-    git -C "$repo_root" push origin HEAD:"$upstream_branch" || {
-      printf '⚠️ push failed after rebase retry\n' >&2
-      exit 1
-    }
-  else
-    git -C "$repo_root" rebase --abort 2>/dev/null || true
-    printf '⚠️ rebase failed during push retry\n' >&2
+# ---- Optional: push to upstream if configured ----
+if run_git remote get-url origin >/dev/null 2>&1; then
+  if ! run_git push origin master; then
+    printf '⚠️ push to origin/master failed for %s (manual intervention required).\n' "$context" >&2
     exit 1
   fi
 fi
