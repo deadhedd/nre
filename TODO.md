@@ -13,7 +13,7 @@ To-Do List
   * [x] Schedule both shortcuts to run automatically.
   * [x] update sleep data upload for 2 days instead of one
   * [x] update sleep data upload to include today and yesterday's wake up time via data jar
-  * [ ] verify functionality of shortcut changes
+  * [x] verify functionality of shortcut changes
 
 #### Wake metadata for exported `.txt` files
 
@@ -35,7 +35,7 @@ Manual runs can temporarily override these values with the `YESTERDAY_WAKE` and
   * [ ] Run `backfill-into-raws.js` to generate daily raw files.
   * [ ] Run `raws-into-summaries.js` to produce summaries.
   * [ ] Verify the *daily processor* script runs correctly and is scheduled.
-  * [ ] update daily processor to trim raw file using the today and yesterday wake time
+  * [x] update daily processor to trim raw file using the today and yesterday wake time
 
 * **Integration**
 
