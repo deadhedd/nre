@@ -13,7 +13,8 @@ To-Do List
   * [x] Schedule both shortcuts to run automatically.
   * [x] update sleep data upload for 2 days instead of one
   * [x] update sleep data upload to include today and yesterday's wake up time via data jar
-  * [x] verify functionality of shortcut changes
+  * [ ] verify functionality of shortcut changes
+  * [ ] repeat run safeguard is failing to allow the shortcut to run when conditions allow
 
 #### Wake metadata for exported `.txt` files
 
