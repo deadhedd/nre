@@ -23,7 +23,7 @@ log_write() {
   timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
   line="$timestamp $level $msg"
   printf '%s\n' "$line" >>"$log_file"
-  printf '%s\n' "$line"
+  printf '%s\n' "$line" >&2
 }
 
 log_info() {
