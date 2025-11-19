@@ -79,6 +79,15 @@ timestamp_to_epoch() {
       *%z*)
         log_info "timestamp_to_epoch: trying fmt='$fmt' (offset-aware, no TZ override)"
         if epoch=$(date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
+          # If format has no explicit seconds, floor to the minute.
+          case "$fmt" in
+            *%S*|*%T*) ;;  # has seconds, leave as-is
+            *)
+              adj=$((epoch - (epoch % 60)))
+              log_info "timestamp_to_epoch: fmt '$fmt' has no seconds; adjusting epoch from $epoch to $adj (floor to minute)"
+              epoch=$adj
+              ;;
+          esac
           IFS=$old_ifs
           log_info "timestamp_to_epoch: success fmt='$fmt' epoch=$epoch iso=$(date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
           printf '%s\n' "$epoch"
@@ -88,6 +97,15 @@ timestamp_to_epoch() {
       *)
         log_info "timestamp_to_epoch: trying fmt='$fmt' (SLEEP_TZ=$SLEEP_TZ)"
         if epoch=$(TZ="$SLEEP_TZ" date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
+          # If format has no explicit seconds, floor to the minute.
+          case "$fmt" in
+            *%S*|*%T*) ;;  # has seconds, leave as-is
+            *)
+              adj=$((epoch - (epoch % 60)))
+              log_info "timestamp_to_epoch: fmt '$fmt' has no seconds; adjusting epoch from $epoch to $adj (floor to minute)"
+              epoch=$adj
+              ;;
+          esac
           IFS=$old_ifs
           log_info "timestamp_to_epoch: success fmt='$fmt' epoch=$epoch iso=$(date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
           printf '%s\n' "$epoch"
