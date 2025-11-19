@@ -77,7 +77,7 @@ timestamp_to_epoch() {
     | tr -d '\r' \
     | sed -e "s/${nbsp}/ /g" -e "s/${nnbsp}/ /g")
   trimmed=$(printf '%s' "$normalized" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-  formats='%Y-%m-%dT%H:%M:%S%z|%Y-%m-%dT%H:%M:%S|%Y-%m-%dT%H:%M|%Y-%m-%d %H:%M:%S %z|%Y-%m-%d %H:%M:%S|%Y-%m-%d %H:%M|%b %e, %Y at %I:%M:%S %p|%b %e, %Y at %I:%M %p|%B %e, %Y at %I:%M:%S %p|%B %e, %Y at %I:%M %p'
+  formats='%Y-%m-%dT%H:%M:%S%z|%Y-%m-%dT%H:%M:%S|%Y-%m-%dT%H:%M|%Y-%m-%d %H:%M:%S %z|%Y-%m-%d %H:%M:%S|%Y-%m-%d %H:%M|%b %d, %Y at %I:%M:%S %p|%b %d, %Y at %I:%M %p|%B %d, %Y at %I:%M:%S %p|%B %d, %Y at %I:%M %p'
   old_ifs=$IFS
   IFS='|'
   for fmt in $formats; do
