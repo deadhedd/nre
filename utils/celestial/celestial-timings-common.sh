@@ -56,7 +56,9 @@ to_epoch_utc() {
 
   if date -u -j -f "%Y-%m-%d %H:%M" "$ds_norm" +%s >/dev/null 2>&1; then
     date -u -j -f "%Y-%m-%d %H:%M" "$ds_norm" +%s
-  else
-    date -u -d "$ds_norm UTC" +%s
+    return 0
   fi
+
+  printf "to_epoch_utc: unable to parse '%s'\n" "$ds" >&2
+  return 1
 }

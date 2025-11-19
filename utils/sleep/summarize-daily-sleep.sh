@@ -100,20 +100,12 @@ timestamp_to_epoch() {
     esac
   done
   IFS=$old_ifs
-  if epoch=$(date -d "$trimmed" '+%s' 2>/dev/null); then
-    printf '%s\n' "$epoch"
-    return 0
-  fi
   return 1
 }
 
 epoch_to_iso() {
   ep=$1
   if iso=$(date -u -r "$ep" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null); then
-    printf '%s\n' "$iso"
-    return 0
-  fi
-  if iso=$(date -u -d "@$ep" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null); then
     printf '%s\n' "$iso"
     return 0
   fi

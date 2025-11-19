@@ -78,10 +78,6 @@ format_utc_date() {
     printf "%s\n" "$d"
     return 0
   fi
-  if d=$(date -u -d "@$epoch" +%Y-%m-%d 2>/dev/null); then
-    printf "%s\n" "$d"
-    return 0
-  fi
   printf "n/a\n"
 }
 
