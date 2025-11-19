@@ -85,13 +85,15 @@ timestamp_to_epoch() {
     [ -z "$fmt" ] && continue
     case $fmt in
       *%z*)
-        if epoch=$(TZ=UTC date -u -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
+        # Let the offset in the string do its job; no TZ forcing, no -u
+        if epoch=$(date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
           IFS=$old_ifs
           printf '%s\n' "$epoch"
           return 0
         fi
         ;;
       *)
+        # No offset → interpret in SLEEP_TZ
         if epoch=$(TZ="$SLEEP_TZ" date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
           IFS=$old_ifs
           printf '%s\n' "$epoch"
