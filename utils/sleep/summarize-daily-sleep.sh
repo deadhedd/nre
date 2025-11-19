@@ -77,6 +77,7 @@ timestamp_to_epoch() {
     | tr -d '\r' \
     | sed -e "s/${nbsp}/ /g" -e "s/${nnbsp}/ /g")
   trimmed=$(printf '%s' "$normalized" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  SLEEP_TZ=${SLEEP_TZ:-America/Los_Angeles}
   formats='%Y-%m-%dT%H:%M:%S%z|%Y-%m-%dT%H:%M:%S|%Y-%m-%dT%H:%M|%Y-%m-%d %H:%M:%S %z|%Y-%m-%d %H:%M:%S|%Y-%m-%d %H:%M|%b %d, %Y at %I:%M:%S %p|%b %d, %Y at %I:%M %p|%B %d, %Y at %I:%M:%S %p|%B %d, %Y at %I:%M %p'
   old_ifs=$IFS
   IFS='|'
@@ -91,7 +92,7 @@ timestamp_to_epoch() {
         fi
         ;;
       *)
-        if epoch=$(date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
+        if epoch=$(TZ="$SLEEP_TZ" date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
           IFS=$old_ifs
           printf '%s\n' "$epoch"
           return 0
