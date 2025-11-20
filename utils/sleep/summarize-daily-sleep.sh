@@ -288,9 +288,8 @@ apply_wake_window() {
   rm -f "$entries_tmp"
 
   if [ "$trim_error" -ne 0 ]; then
-    log_warn "apply_wake_window: trim_error=1, returning original entries"
+    log_warn "apply_wake_window: trim_error=1, aborting without trimmed entries"
     rm -f "$trimmed_tmp"
-    printf '%s\n' "$entries_json"
     return 1
   fi
 
