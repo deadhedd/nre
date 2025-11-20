@@ -594,8 +594,8 @@ if [ "$count" -gt 0 ]; then
   if ! sum7=$(printf '%s\n' "$cleanTotals" | paste -sd+ - | bc -l 2>"$bc_err"); then
     err=$(cat "$bc_err")
     rm -f "$bc_err"
-    log_err "failed to compute running average with bc: ${err:-bc error}"
-    avgMin=0
+    log_err "failed to compute running average with bc: ${err:-bc error (no stderr captured)}"
+    exit 1
   else
     rm -f "$bc_err"
     avgMin=$(printf '%s\n' "$sum7" | awk -v c="$count" 'BEGIN{OFMT="%.4f"} {print $1 / c}')
