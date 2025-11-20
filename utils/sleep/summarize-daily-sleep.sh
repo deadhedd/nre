@@ -5,12 +5,14 @@
 # Generate a sleep summary markdown file for a given date.
 # - Input:  "Sleep Data/YYYY-MM-DD.txt"
 # - Output: "Sleep Data/YYYY-MM-DD Sleep Summary.md"
+# - Flags:  -debug to enable verbose logging
 #
 
 set -eu
 
 log_root=${LOG_DIR:-/home/obsidian/logs}
 log_file=${LOG_FILE:-"$log_root/summarize-daily-sleep.log"}
+DEBUG_MODE=0
 
 if [ ! -d "$log_root" ]; then
   mkdir -p "$log_root"
@@ -38,6 +40,11 @@ log_err() {
   log_write ERR "$@"
 }
 
+log_debug() {
+  [ "$DEBUG_MODE" -eq 1 ] || return 0
+  log_write DEBUG "$@"
+}
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     log_err "missing required command: $1"
@@ -57,7 +64,7 @@ timestamp_to_epoch() {
   ts=$1
   [ -n "${ts:-}" ] || return 1
 
-  log_info "timestamp_to_epoch: raw='$ts'"
+  log_debug "timestamp_to_epoch: raw='$ts'"
 
   nbsp=$(printf '\302\240')
   nnbsp=$(printf '\342\200\257')
@@ -66,7 +73,7 @@ timestamp_to_epoch() {
     | sed -e "s/${nbsp}/ /g" -e "s/${nnbsp}/ /g")
   trimmed=$(printf '%s' "$normalized" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
-  log_info "timestamp_to_epoch: trimmed='$trimmed'"
+  log_debug "timestamp_to_epoch: trimmed='$trimmed'"
 
   SLEEP_TZ=${SLEEP_TZ:-America/Los_Angeles}
   formats='%Y-%m-%dT%H:%M:%S%z|%Y-%m-%dT%H:%M:%S|%Y-%m-%dT%H:%M|%Y-%m-%d %H:%M:%S %z|%Y-%m-%d %H:%M:%S|%Y-%m-%d %H:%M|%b %d, %Y at %I:%M:%S %p|%b %d, %Y at %I:%M %p|%B %d, %Y at %I:%M:%S %p|%B %d, %Y at %I:%M %p'
@@ -77,37 +84,37 @@ timestamp_to_epoch() {
 
     case $fmt in
       *%z*)
-        log_info "timestamp_to_epoch: trying fmt='$fmt' (offset-aware, no TZ override)"
+        log_debug "timestamp_to_epoch: trying fmt='$fmt' (offset-aware, no TZ override)"
         if epoch=$(date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
           # If format has no explicit seconds, floor to the minute.
           case "$fmt" in
             *%S*|*%T*) ;;  # has seconds, leave as-is
             *)
               adj=$((epoch - (epoch % 60)))
-              log_info "timestamp_to_epoch: fmt '$fmt' has no seconds; adjusting epoch from $epoch to $adj (floor to minute)"
+              log_debug "timestamp_to_epoch: fmt '$fmt' has no seconds; adjusting epoch from $epoch to $adj (floor to minute)"
               epoch=$adj
               ;;
           esac
           IFS=$old_ifs
-          log_info "timestamp_to_epoch: success fmt='$fmt' epoch=$epoch iso=$(date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+          log_debug "timestamp_to_epoch: success fmt='$fmt' epoch=$epoch iso=$(date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
           printf '%s\n' "$epoch"
           return 0
         fi
         ;;
       *)
-        log_info "timestamp_to_epoch: trying fmt='$fmt' (SLEEP_TZ=$SLEEP_TZ)"
+        log_debug "timestamp_to_epoch: trying fmt='$fmt' (SLEEP_TZ=$SLEEP_TZ)"
         if epoch=$(TZ="$SLEEP_TZ" date -j -f "$fmt" "$trimmed" '+%s' 2>/dev/null); then
           # If format has no explicit seconds, floor to the minute.
           case "$fmt" in
             *%S*|*%T*) ;;  # has seconds, leave as-is
             *)
               adj=$((epoch - (epoch % 60)))
-              log_info "timestamp_to_epoch: fmt '$fmt' has no seconds; adjusting epoch from $epoch to $adj (floor to minute)"
+              log_debug "timestamp_to_epoch: fmt '$fmt' has no seconds; adjusting epoch from $epoch to $adj (floor to minute)"
               epoch=$adj
               ;;
           esac
           IFS=$old_ifs
-          log_info "timestamp_to_epoch: success fmt='$fmt' epoch=$epoch iso=$(date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+          log_debug "timestamp_to_epoch: success fmt='$fmt' epoch=$epoch iso=$(date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
           printf '%s\n' "$epoch"
           return 0
         fi
@@ -142,7 +149,7 @@ split_sleep_file() {
   meta_out=$3
   : >"$stage_out"
   : >"$meta_out"
-  log_info "split_sleep_file: splitting '$in_file' into data='$stage_out' and meta='$meta_out'"
+  log_debug "split_sleep_file: splitting '$in_file' into data='$stage_out' and meta='$meta_out'"
   awk -v stage="$stage_out" -v meta="$meta_out" '
     BEGIN { meta_mode = 0 }
     /^[[:space:]]*#[[:space:]]*Wake Metadata[[:space:]]*$/ {
@@ -164,27 +171,27 @@ split_sleep_file() {
   ' "$in_file"
   data_count=$(wc -l <"$stage_out" | awk '{print $1}')
   meta_count=$(wc -l <"$meta_out" | awk '{print $1}')
-  log_info "split_sleep_file: data lines=$data_count meta lines=$meta_count"
+  log_debug "split_sleep_file: data lines=$data_count meta lines=$meta_count"
 }
 
 read_wake_metadata_value() {
   meta_file=$1
   key=$2
   [ -f "$meta_file" ] || return 1
-  log_info "read_wake_metadata_value: scanning '$meta_file' for key='$key'"
+  log_debug "read_wake_metadata_value: scanning '$meta_file' for key='$key'"
   while IFS= read -r line; do
     case $line in
       ""|\#*) continue ;;
       $key=*)
         value=${line#${key}=}
         value=$(printf '%s' "$value" | tr -d '\r')
-        log_info "read_wake_metadata_value: found $key='$value'"
+        log_debug "read_wake_metadata_value: found $key='$value'"
         printf '%s\n' "$value"
         return 0
         ;;
     esac
   done <"$meta_file"
-  log_info "read_wake_metadata_value: key='$key' not found in '$meta_file'"
+  log_debug "read_wake_metadata_value: key='$key' not found in '$meta_file'"
   return 1
 }
 
@@ -193,7 +200,7 @@ apply_wake_window() {
   window_start=$2
   window_end=$3
 
-  log_info "apply_wake_window: window_start=$window_start iso=$(epoch_to_iso "$window_start") window_end=$window_end iso=$(epoch_to_iso "$window_end")"
+  log_debug "apply_wake_window: window_start=$window_start iso=$(epoch_to_iso "$window_start") window_end=$window_end iso=$(epoch_to_iso "$window_end")"
 
   entries_tmp=$(tmpfile)
   printf '%s\n' "$entries_json" | jq -c '.[]' >"$entries_tmp"
@@ -201,7 +208,7 @@ apply_wake_window() {
   trim_error=0
 
   total_entries=$(wc -l <"$entries_tmp" | awk '{print $1}')
-  log_info "apply_wake_window: total entries before trim=$total_entries"
+  log_debug "apply_wake_window: total entries before trim=$total_entries"
 
   while IFS= read -r entry; do
     [ -z "$entry" ] && continue
@@ -209,7 +216,7 @@ apply_wake_window() {
     start_raw=$(printf '%s\n' "$entry" | jq -r '.start')
     end_raw=$(printf '%s\n' "$entry" | jq -r '.end')
 
-    log_info "apply_wake_window: entry stage='$stage' start_raw='$start_raw' end_raw='$end_raw'"
+    log_debug "apply_wake_window: entry stage='$stage' start_raw='$start_raw' end_raw='$end_raw'"
 
     start_epoch=$(timestamp_to_epoch "$start_raw" || true)
     end_epoch=$(timestamp_to_epoch "$end_raw" || true)
@@ -220,40 +227,40 @@ apply_wake_window() {
       break
     fi
 
-    log_info "apply_wake_window: stage='$stage' start_epoch=$start_epoch iso=$(epoch_to_iso "$start_epoch") end_epoch=$end_epoch iso=$(epoch_to_iso "$end_epoch")"
+    log_debug "apply_wake_window: stage='$stage' start_epoch=$start_epoch iso=$(epoch_to_iso "$start_epoch") end_epoch=$end_epoch iso=$(epoch_to_iso "$end_epoch")"
 
     # invalid or zero-length interval?
     if [ "$end_epoch" -le "$start_epoch" ]; then
-      log_info "apply_wake_window: DROP stage='$stage' reason=end<=start start_ep=$start_epoch end_ep=$end_epoch"
+      log_debug "apply_wake_window: DROP stage='$stage' reason=end<=start start_ep=$start_epoch end_ep=$end_epoch"
       continue
     fi
 
     # entirely before window
     if [ "$end_epoch" -le "$window_start" ]; then
-      log_info "apply_wake_window: DROP stage='$stage' reason=before_window start_ep=$start_epoch end_ep=$end_epoch ws=$window_start we=$window_end"
+      log_debug "apply_wake_window: DROP stage='$stage' reason=before_window start_ep=$start_epoch end_ep=$end_epoch ws=$window_start we=$window_end"
       continue
     fi
 
     # entirely after window
     if [ "$start_epoch" -ge "$window_end" ]; then
-      log_info "apply_wake_window: DROP stage='$stage' reason=after_window start_ep=$start_epoch end_ep=$end_epoch ws=$window_start we=$window_end"
+      log_debug "apply_wake_window: DROP stage='$stage' reason=after_window start_ep=$start_epoch end_ep=$end_epoch ws=$window_start we=$window_end"
       continue
     fi
 
     clip_start=$start_epoch
     clip_end=$end_epoch
     if [ "$clip_start" -lt "$window_start" ]; then
-      log_info "apply_wake_window: stage='$stage' clip_start adjusted from $clip_start to window_start=$window_start"
+      log_debug "apply_wake_window: stage='$stage' clip_start adjusted from $clip_start to window_start=$window_start"
       clip_start=$window_start
     fi
     if [ "$clip_end" -gt "$window_end" ]; then
-      log_info "apply_wake_window: stage='$stage' clip_end adjusted from $clip_end to window_end=$window_end"
+      log_debug "apply_wake_window: stage='$stage' clip_end adjusted from $clip_end to window_end=$window_end"
       clip_end=$window_end
     fi
 
     overlap=$((clip_end - clip_start))
     if [ "$overlap" -le 0 ]; then
-      log_info "apply_wake_window: DROP stage='$stage' reason=no_overlap start_ep=$start_epoch end_ep=$end_epoch ws=$window_start we=$window_end clip_start=$clip_start clip_end=$clip_end"
+      log_debug "apply_wake_window: DROP stage='$stage' reason=no_overlap start_ep=$start_epoch end_ep=$end_epoch ws=$window_start we=$window_end clip_start=$clip_start clip_end=$clip_end"
       continue
     fi
 
@@ -270,7 +277,7 @@ apply_wake_window() {
       end_fmt=$(epoch_to_iso "$clip_end")
     fi
 
-    log_info "apply_wake_window: KEEP stage='$stage' overlap=${overlap}s durationMin=$duration_min start_fmt='$start_fmt' end_fmt='$end_fmt'"
+    log_debug "apply_wake_window: KEEP stage='$stage' overlap=${overlap}s durationMin=$duration_min start_fmt='$start_fmt' end_fmt='$end_fmt'"
 
     updated=$(printf '%s\n' "$entry" | jq \
       --arg start "$start_fmt" \
@@ -294,7 +301,7 @@ apply_wake_window() {
   fi
 
   trimmed_count=$(wc -l <"$trimmed_tmp" | awk '{print $1}')
-  log_info "apply_wake_window: entries after trim=$trimmed_count (removed=$((total_entries - trimmed_count)))"
+  log_debug "apply_wake_window: entries after trim=$trimmed_count (removed=$((total_entries - trimmed_count)))"
 
   trimmed=$(jq -s '.' "$trimmed_tmp")
   rm -f "$trimmed_tmp"
@@ -323,8 +330,26 @@ date_helpers="$utils_dir/core/date-period-helpers.sh"
 vaultRoot="${VAULT_PATH:-$HOME/vaults/Main}"
 sleepFolder="$vaultRoot/Sleep Data"
 
+explicit_date=""
+while [ "$#" -gt 0 ]; do
+  case $1 in
+    -debug)
+      DEBUG_MODE=1
+      shift
+      ;;
+    -*)
+      log_err "unknown option: $1"
+      exit 1
+      ;;
+    *)
+      explicit_date=$1
+      shift
+      ;;
+  esac
+done
+
 # Optional arg: explicit date (YYYY-MM-DD). Default: get_today.
-target_date="${1:-$(get_today)}"
+target_date="${explicit_date:-$(get_today)}"
 
 inputPath="$sleepFolder/$target_date.txt"
 outputPath="$sleepFolder/$target_date Sleep Summary.md"
@@ -381,7 +406,7 @@ process_date() {
   file="$sleepFolder/$ds.txt"
   [ -f "$file" ] || return
 
-  log_info "process_date: ds=$ds file='$file'"
+  log_debug "process_date: ds=$ds file='$file'"
 
   stage_tmp=$(tmpfile)
   meta_tmp=$(tmpfile)
@@ -398,10 +423,10 @@ process_date() {
   rm -f "$err_file" "$stage_tmp"
 
   entry_count=$(printf '%s\n' "$entries" | jq 'length')
-  log_info "process_date: initial entry_count=$entry_count"
+  log_debug "process_date: initial entry_count=$entry_count"
 
   untrimmedMin=$(printf '%s\n' "$entries" | jq '[ .[] | select(.stage != "Awake") | .durationMin ] | add // 0')
-  log_info "process_date: UNTRIMMED_SLEEP_MIN=$untrimmedMin"
+  log_debug "process_date: UNTRIMMED_SLEEP_MIN=$untrimmedMin"
 
   y_meta=$(read_wake_metadata_value "$meta_tmp" "YESTERDAY_WAKE" || true)
   t_meta=$(read_wake_metadata_value "$meta_tmp" "TODAY_WAKE" || true)
@@ -424,7 +449,7 @@ process_date() {
     return 1
   fi
 
-  log_info "process_date: y_meta='$y_meta' y_epoch=$y_epoch t_meta='$t_meta' t_epoch=$t_epoch"
+  log_debug "process_date: y_meta='$y_meta' y_epoch=$y_epoch t_meta='$t_meta' t_epoch=$t_epoch"
 
   if [ "$t_epoch" -le "$y_epoch" ]; then
     log_err "process_date: invalid wake window order for ds=$ds (y='$y_meta' t='$t_meta')"
@@ -441,7 +466,7 @@ process_date() {
 
   entries=$trimmed
   entries_after=$(printf '%s\n' "$entries" | jq 'length')
-  log_info "process_date: applied wake window ds=$ds entries_before=$entries_before entries_after=$entries_after"
+  log_debug "process_date: applied wake window ds=$ds entries_before=$entries_before entries_after=$entries_after"
 
   rm -f "$meta_tmp"
 
@@ -449,7 +474,7 @@ process_date() {
       [ .[] | select(.stage != "Awake") | .durationMin ]
       | add // empty
     ')
-  log_info "process_date: FINAL_SLEEP_MIN(ds=$ds)=$minutes"
+  log_debug "process_date: FINAL_SLEEP_MIN(ds=$ds)=$minutes"
   printf '%s\n' "$minutes"
 }
 
@@ -469,14 +494,14 @@ fi
 rm -f "$entries_err"
 
 entry_count_main=$(printf '%s\n' "$entries" | jq 'length')
-log_info "main: initial entry_count=$entry_count_main"
+log_debug "main: initial entry_count=$entry_count_main"
 
 untrimmedSleepMin=$(
   printf '%s\n' "$entries" | jq '
     [ .[] | select(.stage != "Awake") | .durationMin ] | add // 0
   '
 )
-log_info "main: UNTRIMMED_SLEEP_MIN=$untrimmedSleepMin"
+log_debug "main: UNTRIMMED_SLEEP_MIN=$untrimmedSleepMin"
 
 yesterday_wake_raw=${YESTERDAY_WAKE:-}
 today_wake_raw=${TODAY_WAKE:-}
@@ -488,7 +513,7 @@ if [ -z "${today_wake_raw:-}" ]; then
   today_wake_raw=$(read_wake_metadata_value "$meta_block" "TODAY_WAKE" || true)
 fi
 
-log_info "main: yesterday_wake_raw='${yesterday_wake_raw:-}' today_wake_raw='${today_wake_raw:-}'"
+log_debug "main: yesterday_wake_raw='${yesterday_wake_raw:-}' today_wake_raw='${today_wake_raw:-}'"
 
 if [ -z "${yesterday_wake_raw:-}" ] || [ -z "${today_wake_raw:-}" ]; then
   log_err "missing wake timestamps for target date (Y=${yesterday_wake_raw:-unset}, T=${today_wake_raw:-unset})"
@@ -508,7 +533,7 @@ if ! today_epoch=$(timestamp_to_epoch "$today_wake_raw"); then
   exit 1
 fi
 
-log_info "main: yesterday_epoch=$yesterday_epoch today_epoch=$today_epoch"
+log_debug "main: yesterday_epoch=$yesterday_epoch today_epoch=$today_epoch"
 
 if [ "$today_epoch" -le "$yesterday_epoch" ]; then
   log_err "invalid wake window (${yesterday_wake_raw:-?} to ${today_wake_raw:-?})"
@@ -526,7 +551,7 @@ fi
 entries=$trimmed_entries
 after_count=$(printf '%s\n' "$entries" | jq 'length')
 removed=$((before_count - after_count))
-log_info "applied wake window: ${yesterday_wake_raw} (${yesterday_epoch}) → ${today_wake_raw} (${today_epoch}) | trimmed ${removed} entrie(s)"
+log_debug "applied wake window: ${yesterday_wake_raw} (${yesterday_epoch}) → ${today_wake_raw} (${today_epoch}) | trimmed ${removed} entrie(s)"
 
 rm -f "$stage_block" "$meta_block"
 
@@ -537,7 +562,7 @@ totalMin=$(
   '
 )
 
-log_info "main: FINAL_SLEEP_MIN(totalMin)=$totalMin"
+log_debug "main: FINAL_SLEEP_MIN(totalMin)=$totalMin"
 
 totalH=$(printf '%s\n' "$totalMin" | awk '{printf("%d", $1 / 60)}')
 totalM=$(printf '%s %s\n' "$totalMin" "$totalH" | awk '{m = $1 - $2 * 60; printf("%.0f", m)}')
@@ -569,24 +594,24 @@ pastTotals_file=$(tmpfile)
 for offset in 6 5 4 3 2 1 0; do
   day_offset=$((0 - offset))
   d=$(shift_utc_date_by_days "$target_date" "$day_offset")
-  log_info "main: computing process_date for d=$d (offset=$day_offset)"
+  log_debug "main: computing process_date for d=$d (offset=$day_offset)"
   if ! t=$(process_date "$d"); then
     log_err "main: failed process_date for d=$d"
     rm -f "$pastTotals_file"
     exit 1
   fi
   if [ -n "${t:-}" ]; then
-    log_info "main: process_date d=$d returned t=$t"
+    log_debug "main: process_date d=$d returned t=$t"
     printf '%s\n' "$t" >>"$pastTotals_file"
   else
-    log_info "main: process_date d=$d returned empty"
+    log_debug "main: process_date d=$d returned empty"
   fi
 done
 
 cleanTotals=$(sed '/^$/d' "$pastTotals_file")
 rm -f "$pastTotals_file"
 count=$(printf '%s\n' "$cleanTotals" | wc -l | awk '{print $1}')
-log_info "main: 7-day window count=$count totals='$cleanTotals'"
+log_debug "main: 7-day window count=$count totals='$cleanTotals'"
 
 if [ "$count" -gt 0 ]; then
   bc_err=$(tmpfile)
@@ -603,7 +628,7 @@ else
   avgMin=0
 fi
 
-log_info "main: 7-day running average avgMin=$avgMin"
+log_debug "main: 7-day running average avgMin=$avgMin"
 
 avgH=$(printf '%s\n' "$avgMin" | awk '{printf("%d", $1 / 60)}')
 avgM=$(printf '%s %s\n' "$avgMin" "$avgH" | awk '{m = $1 - $2 * 60; printf("%.0f", m)}')
