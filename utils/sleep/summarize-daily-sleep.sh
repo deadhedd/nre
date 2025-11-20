@@ -407,26 +407,42 @@ process_date() {
   y_meta=$(read_wake_metadata_value "$meta_tmp" "YESTERDAY_WAKE" || true)
   t_meta=$(read_wake_metadata_value "$meta_tmp" "TODAY_WAKE" || true)
 
-  if [ -n "${y_meta:-}" ] && [ -n "${t_meta:-}" ]; then
-    y_epoch=$(timestamp_to_epoch "$y_meta" || true)
-    t_epoch=$(timestamp_to_epoch "$t_meta" || true)
-    log_info "process_date: y_meta='$y_meta' y_epoch=$y_epoch t_meta='$t_meta' t_epoch=$t_epoch"
-    if [ -n "${y_epoch:-}" ] && [ -n "${t_epoch:-}" ] && [ "$t_epoch" -gt "$y_epoch" ]; then
-      entries_before=$(printf '%s\n' "$entries" | jq 'length')
-      trimmed=$(apply_wake_window "$entries" "$y_epoch" "$t_epoch")
-      if [ $? -eq 0 ]; then
-        entries=$trimmed
-        entries_after=$(printf '%s\n' "$entries" | jq 'length')
-        log_info "process_date: applied wake window ds=$ds entries_before=$entries_before entries_after=$entries_after"
-      else
-        log_warn "process_date: failed to trim entries with wake window; using full dataset"
-      fi
-    else
-      log_warn "process_date: invalid wake window for ds=$ds (y='$y_meta' t='$t_meta')"
-    fi
-  else
-    log_info "process_date: wake metadata missing for ds=$ds (Y=${y_meta:-unset}, T=${t_meta:-unset}); using full dataset"
+  if [ -z "${y_meta:-}" ] || [ -z "${t_meta:-}" ]; then
+    log_err "process_date: missing wake metadata for ds=$ds (Y=${y_meta:-unset}, T=${t_meta:-unset})"
+    rm -f "$meta_tmp"
+    return 1
   fi
+
+  if ! y_epoch=$(timestamp_to_epoch "$y_meta"); then
+    log_err "process_date: failed to parse YESTERDAY_WAKE for ds=$ds raw='$y_meta'"
+    rm -f "$meta_tmp"
+    return 1
+  fi
+
+  if ! t_epoch=$(timestamp_to_epoch "$t_meta"); then
+    log_err "process_date: failed to parse TODAY_WAKE for ds=$ds raw='$t_meta'"
+    rm -f "$meta_tmp"
+    return 1
+  fi
+
+  log_info "process_date: y_meta='$y_meta' y_epoch=$y_epoch t_meta='$t_meta' t_epoch=$t_epoch"
+
+  if [ "$t_epoch" -le "$y_epoch" ]; then
+    log_err "process_date: invalid wake window order for ds=$ds (y='$y_meta' t='$t_meta')"
+    rm -f "$meta_tmp"
+    return 1
+  fi
+
+  entries_before=$(printf '%s\n' "$entries" | jq 'length')
+  if ! trimmed=$(apply_wake_window "$entries" "$y_epoch" "$t_epoch"); then
+    log_err "process_date: failed to apply wake window for ds=$ds"
+    rm -f "$meta_tmp"
+    return 1
+  fi
+
+  entries=$trimmed
+  entries_after=$(printf '%s\n' "$entries" | jq 'length')
+  log_info "process_date: applied wake window ds=$ds entries_before=$entries_before entries_after=$entries_after"
 
   rm -f "$meta_tmp"
 
@@ -475,27 +491,43 @@ fi
 
 log_info "main: yesterday_wake_raw='${yesterday_wake_raw:-}' today_wake_raw='${today_wake_raw:-}'"
 
-if [ -n "${yesterday_wake_raw:-}" ] && [ -n "${today_wake_raw:-}" ]; then
-  yesterday_epoch=$(timestamp_to_epoch "$yesterday_wake_raw" || true)
-  today_epoch=$(timestamp_to_epoch "$today_wake_raw" || true)
-  log_info "main: yesterday_epoch=$yesterday_epoch today_epoch=$today_epoch"
-  if [ -n "${yesterday_epoch:-}" ] && [ -n "${today_epoch:-}" ] && [ "$today_epoch" -gt "$yesterday_epoch" ]; then
-    before_count=$(printf '%s\n' "$entries" | jq 'length')
-    trimmed_entries=$(apply_wake_window "$entries" "$yesterday_epoch" "$today_epoch")
-    if [ $? -eq 0 ]; then
-      entries=$trimmed_entries
-      after_count=$(printf '%s\n' "$entries" | jq 'length')
-      removed=$((before_count - after_count))
-      log_info "applied wake window: ${yesterday_wake_raw} (${yesterday_epoch}) → ${today_wake_raw} (${today_epoch}) | trimmed ${removed} entrie(s)"
-    else
-      log_warn "failed to trim entries with wake window; processing full dataset"
-    fi
-  else
-    log_warn "invalid wake window (${yesterday_wake_raw:-?} to ${today_wake_raw:-?}); processing full dataset"
-  fi
-else
-  log_info "wake timestamps missing (Y=${yesterday_wake_raw:-unset}, T=${today_wake_raw:-unset}); processing full dataset"
+if [ -z "${yesterday_wake_raw:-}" ] || [ -z "${today_wake_raw:-}" ]; then
+  log_err "missing wake timestamps for target date (Y=${yesterday_wake_raw:-unset}, T=${today_wake_raw:-unset})"
+  rm -f "$stage_block" "$meta_block"
+  exit 1
 fi
+
+if ! yesterday_epoch=$(timestamp_to_epoch "$yesterday_wake_raw"); then
+  log_err "failed to parse YESTERDAY_WAKE for target date raw='${yesterday_wake_raw:-}'"
+  rm -f "$stage_block" "$meta_block"
+  exit 1
+fi
+
+if ! today_epoch=$(timestamp_to_epoch "$today_wake_raw"); then
+  log_err "failed to parse TODAY_WAKE for target date raw='${today_wake_raw:-}'"
+  rm -f "$stage_block" "$meta_block"
+  exit 1
+fi
+
+log_info "main: yesterday_epoch=$yesterday_epoch today_epoch=$today_epoch"
+
+if [ "$today_epoch" -le "$yesterday_epoch" ]; then
+  log_err "invalid wake window (${yesterday_wake_raw:-?} to ${today_wake_raw:-?})"
+  rm -f "$stage_block" "$meta_block"
+  exit 1
+fi
+
+before_count=$(printf '%s\n' "$entries" | jq 'length')
+if ! trimmed_entries=$(apply_wake_window "$entries" "$yesterday_epoch" "$today_epoch"); then
+  log_err "failed to trim entries with wake window for target date"
+  rm -f "$stage_block" "$meta_block"
+  exit 1
+fi
+
+entries=$trimmed_entries
+after_count=$(printf '%s\n' "$entries" | jq 'length')
+removed=$((before_count - after_count))
+log_info "applied wake window: ${yesterday_wake_raw} (${yesterday_epoch}) → ${today_wake_raw} (${today_epoch}) | trimmed ${removed} entrie(s)"
 
 rm -f "$stage_block" "$meta_block"
 
@@ -539,7 +571,11 @@ for offset in 6 5 4 3 2 1 0; do
   day_offset=$((0 - offset))
   d=$(shift_utc_date_by_days "$target_date" "$day_offset")
   log_info "main: computing process_date for d=$d (offset=$day_offset)"
-  t=$(process_date "$d" || true)
+  if ! t=$(process_date "$d"); then
+    log_err "main: failed process_date for d=$d"
+    rm -f "$pastTotals_file"
+    exit 1
+  fi
   if [ -n "${t:-}" ]; then
     log_info "main: process_date d=$d returned t=$t"
     printf '%s\n' "$t" >>"$pastTotals_file"
