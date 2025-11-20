@@ -15,11 +15,6 @@ To-Do List
   * [x] Update sleep data upload to include today and yesterday's wake time via Data Jar.
   * [ ] Verify functionality of shortcut changes.
   * [ ] Repeat run safeguard is failing to allow the shortcut to run when conditions allow.
-  * [ ] Fetch “Today” sleep data separately.
-  * [ ] Fetch “Previous Day” sleep data separately.
-  * [ ] Merge the two data sets inside the shortcut.
-  * [ ] Decide on a clean merged output format for stages + timestamps + metadata.
-  * [ ] Export merged dataset using the new format.
 
 * **Scripts**
 
@@ -27,14 +22,11 @@ To-Do List
   * [ ] Run `raws-into-summaries.js` to produce summaries.
   * [ ] Verify the *daily processor* script runs correctly and is scheduled.
   * [x] Update daily processor to trim raw file using today and yesterday wake time.
-  * [ ] Update `sleep-summary.sh` to parse the new merged format.
-  * [ ] Adjust wake-window logic if the new merged format changes boundary handling.
 
 * **Integration**
 
   * [ ] Add analyzed sleep data to the daily note template.
   * [ ] Confirm summaries appear correctly in Obsidian.
-  * [ ] Verify merged-format summaries correctly populate daily notes.
 
 
 High Priority
