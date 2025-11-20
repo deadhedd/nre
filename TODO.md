@@ -16,21 +16,6 @@ To-Do List
   * [ ] verify functionality of shortcut changes
   * [ ] repeat run safeguard is failing to allow the shortcut to run when conditions allow
 
-#### Wake metadata for exported `.txt` files
-
-Each `Sleep Data/YYYY-MM-DD.txt` file should end with a metadata trailer so the
-daily summary can trim entries to the `[yesterday_wake, today_wake]` window.
-Append the following block (values in ISO 8601 with timezone offsets or UTC):
-
-```
-# Wake Metadata
-YESTERDAY_WAKE=2025-01-05T06:45:00-0500
-TODAY_WAKE=2025-01-06T07:10:00-0500
-```
-
-Manual runs can temporarily override these values with the `YESTERDAY_WAKE` and
-`TODAY_WAKE` environment variables.
-
 * **Scripts**
 
   * [ ] Run `backfill-into-raws.js` to generate daily raw files.
