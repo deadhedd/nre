@@ -13,7 +13,7 @@ To-Do List
   * [x] Schedule both shortcuts to run automatically.
   * [x] Update sleep data upload for 2 days instead of one.
   * [x] Update sleep data upload to include today and yesterday's wake time via Data Jar.
-  * [ ] Verify functionality of shortcut changes.
+  * [x] Verify functionality of shortcut changes.
   * [ ] Repeat run safeguard is failing to allow the shortcut to run when conditions allow.
 
 * **Scripts**
