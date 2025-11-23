@@ -407,10 +407,10 @@ ${weekly_goal_text}
 
 ---
 
-```tasks
+\`\`\`tasks
 not done
 happens today
-```
+\`\`\`
 
 # ☑️ Pending Tasks
 ### Stand on Business
