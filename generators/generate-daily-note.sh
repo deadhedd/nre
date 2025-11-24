@@ -76,7 +76,6 @@ commit_helper="$utils_dir/core/commit.sh"
 date_helper="$utils_dir/core/date-period-helpers.sh"
 day_plan_script="$elements_dir/generate-day-plan.sh"
 f1_script="$elements_dir/f1-schedule-and-standings.sh"
-weekly_goal_script="$elements_dir/extract-weekly-goal.sh"
 
 . "$date_helper"
 
@@ -262,8 +261,6 @@ f1_text=$(cat <<'EOF'
 EOF
 )
 
-weekly_goal_text="⚠️ Weekly Goal section is empty."
-
 pagan_header="### Pagan Timings"
 moon_text="⚠️ Moon phase info unavailable."
 season_text="⚠️ Seasonal turning info unavailable."
@@ -280,19 +277,6 @@ if [ -r "$f1_script" ]; then
   fi
 else
   log_warn "Formula 1 script not found at $f1_script, using fallback text"
-fi
-
-if [ -r "$weekly_goal_script" ]; then
-  log_info "Extracting weekly goal"
-  if output=$(sh "$weekly_goal_script"); then
-    log_info "Weekly goal extracted"
-    weekly_goal_text="$output"
-  else
-    status=$?
-    log_warn "Weekly goal script failed with exit code $status, using fallback text"
-  fi
-else
-  log_warn "Weekly goal script not found at $weekly_goal_script, using fallback text"
 fi
 
 lunar_cycle_script="$utils_dir/celestial/lunar-cycle.sh"
@@ -403,7 +387,7 @@ The year of standing on business
 Yard work and home repairs
 
 ## 🎯 Weekly Goal
-${weekly_goal_text}
+![[Periodic Notes/Weekly Notes/${week_tag}#🎯 Weekly Goal]]
 
 ---
 # Recurring Tasks
