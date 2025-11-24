@@ -406,7 +406,8 @@ Yard work and home repairs
 ${weekly_goal_text}
 
 ---
-
+# Recurring Tasks
+[[Recurring Tasks]]
 \`\`\`tasks
 not done
 happens today
