@@ -5,8 +5,9 @@
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_err()  { printf 'ERR %s\n' "$*"; }
+log_info() { printf 'INFO %s\n' "$*" >&2; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err()  { printf 'ERR %s\n' "$*" >&2; }
 
 # Set this to your vault root or override via environment.
 VAULT_DEFAULT=${VAULT_PATH:-/home/obsidian/vaults/Main}
@@ -38,7 +39,7 @@ fi
 NOTE=$1
 
 if [ ! -f "$NOTE" ]; then
-  log_err "note not found: $NOTE" >&2
+  log_err "note not found: $NOTE"
   exit 1
 fi
 
@@ -51,6 +52,14 @@ TEST_NOTE=$NOTE.dryrun
 
 # Clean up temp file on exit or common signals (0 is the POSIX "EXIT" pseudo-signal)
 trap 'rm -f "$TMP"' 0 HUP INT TERM
+
+log_info "Vault root: $VAULT_ROOT"
+log_info "Note: $NOTE"
+if [ "$DRY_RUN" -eq 1 ]; then
+  log_info "Mode: dry run (writing to $TEST_NOTE)"
+else
+  log_info "Mode: replace note in place with backup $BAK"
+fi
 
 expand_embed() {
   link=$1
@@ -97,6 +106,7 @@ expand_embed() {
 
   if [ -z "$file" ]; then
     # Cannot resolve, leave embed as-is
+    log_warn "embed not resolved (missing file?): $link"
     printf '%s\n' "$line"
     return
   fi
@@ -151,6 +161,7 @@ expand_embed() {
   ' "$file"
   then
     # Heading not found: leave embed as-is
+    log_warn "embed not resolved (missing heading): $link"
     printf '%s\n' "$line"
   fi
 }
@@ -176,9 +187,10 @@ done < "$NOTE"
 if [ "$DRY_RUN" -eq 1 ]; then
   # Dry run: keep original note; write result to NOTE.dryrun
   mv "$TMP" "$TEST_NOTE"
-  log_info "Dry run: wrote expanded note to $TEST_NOTE" >&2
+  log_info "Dry run: wrote expanded note to $TEST_NOTE"
 else
   # Backup and replace original note
   cp "$NOTE" "$BAK"
   mv "$TMP" "$NOTE"
+  log_info "Replaced $NOTE (backup at $BAK)"
 fi
