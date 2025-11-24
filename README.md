@@ -33,7 +33,13 @@ export VAULT_PATH=/path/to/your/obsidian/vault
 
 By default the note is placed inside `/Periodic Notes/Daily Notes/` within the
 specified vault. Optional helper scripts in the `utils/` directory will be used
-if present to populate sections such as a day plan or weekly goal.
+if present to populate sections such as a day plan. The weekly goal is pulled
+in via an Obsidian embed of the current weekly note rather than a helper
+script; generated notes include an embed similar to:
+
+```
+![[Periodic Notes/Weekly Notes/2025-W06#🎯 Weekly Goal]]
+```
 
 
 ## `generators/generate-monthly-note.sh`
