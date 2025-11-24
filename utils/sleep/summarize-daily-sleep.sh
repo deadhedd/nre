@@ -634,6 +634,66 @@ avgH=$(printf '%s\n' "$avgMin" | awk '{printf("%d", $1 / 60)}')
 avgM=$(printf '%s %s\n' "$avgMin" "$avgH" | awk '{m = $1 - $2 * 60; printf("%.0f", m)}')
 
 ###############################################################################
+# Sleep advice based on last night + 7-day running average
+###############################################################################
+
+# Hours with one decimal, for human-readable text
+totalH_dec=$(printf '%s\n' "$totalMin" | awk 'BEGIN{OFMT="%.1f"} {print $1 / 60}')
+avgH_dec=$(printf '%s\n' "$avgMin" | awk 'BEGIN{OFMT="%.1f"} {print $1 / 60}')
+
+# Thresholds in minutes (using ideal = 8h, decisions in hour-based bands)
+# Last night overrides:
+#   < 5.5h (330 min)  -> disable alarms
+#   < 6.0h (360 min)  -> sleep in ~2h next suitable morning
+# Otherwise base on 7-day avg:
+#   avg < 6.0h (360)  -> very low
+#   6.0–6.7h (360–402)-> low
+#   6.7–7.3h (402–438)-> slightly low
+#   >= 7.3h (>=438)   -> fine
+
+sleep_advice_reason=""
+sleep_advice="Your 7-day running average is close to your 8-hour target. No catch-up sleep is needed; stick to your normal wake time."
+
+# Strong last-night overrides first
+if [ "$(printf '%s < %s\n' "$totalMin" "330" | bc -l)" -eq 1 ]; then
+  sleep_advice_reason="last_night_very_short"
+  sleep_advice=$(printf '%s\n' \
+    "Last night was about ${totalH_dec} hours, which is very short." \
+    "When possible, disable alarms and sleep until you naturally wake to catch up.")
+elif [ "$(printf '%s < %s\n' "$totalMin" "360" | bc -l)" -eq 1 ]; then
+  sleep_advice_reason="last_night_short"
+  sleep_advice=$(printf '%s\n' \
+    "Last night was about ${totalH_dec} hours, which is shorter than you’d like." \
+    "Plan to sleep in for around 2 extra hours on your next suitable morning.")
+else
+  # No severe short night; use the 7-day running average
+  if [ "$(printf '%s < %s\n' "$avgMin" "360" | bc -l)" -eq 1 ]; then
+    sleep_advice_reason="avg_very_low"
+    sleep_advice=$(printf '%s\n' \
+      "Your 7-day running average is about ${avgH_dec} hours, which is very low compared to your 8-hour target." \
+      "When you can, disable alarms and let yourself sleep as late as your schedule allows.")
+  elif [ "$(printf '%s < %s\n' "$avgMin" "402" | bc -l)" -eq 1 ]; then
+    sleep_advice_reason="avg_low"
+    sleep_advice=$(printf '%s\n' \
+      "Your 7-day running average is about ${avgH_dec} hours, which is low." \
+      "Plan to sleep in for about 2 extra hours on your next off day.")
+  elif [ "$(printf '%s < %s\n' "$avgMin" "438" | bc -l)" -eq 1 ]; then
+    sleep_advice_reason="avg_slightly_low"
+    sleep_advice=$(printf '%s\n' \
+      "Your 7-day running average is about ${avgH_dec} hours, a bit under your 8-hour target." \
+      "A 1-hour sleep-in is optional if you feel you need it.")
+  else
+    sleep_advice_reason="avg_ok"
+    sleep_advice=$(printf '%s\n' \
+      "Your 7-day running average is about ${avgH_dec} hours, close to your 8-hour target." \
+      "No catch-up sleep is needed; stick to your normal wake time.")
+  fi
+fi
+
+log_debug "main: sleep_advice_reason=$sleep_advice_reason totalMin=$totalMin avgMin=$avgMin"
+log_debug "main: sleep_advice=$(printf '%s' "$sleep_advice" | tr '\n' '|' )"
+
+###############################################################################
 # Build markdown
 ###############################################################################
 
@@ -650,6 +710,9 @@ ${linkLine}
 🛌 Total (excl. Awake): ${totalH}h ${totalM}m (${totalMin} min)
 
 📈 7-day running average: ${avgH}h ${avgM}m (${avgMin} min)
+
+### Sleep Advice
+${sleep_advice}
 
 ### By Stage:
 EOF
