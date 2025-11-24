@@ -4,6 +4,8 @@
 # License: MIT
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+commit_helper="$script_dir/commit.sh"
 
 log_info() { printf 'INFO %s\n' "$*" >&2; }
 log_warn() { printf 'WARN %s\n' "$*" >&2; }
@@ -43,8 +45,10 @@ if [ ! -f "$NOTE" ]; then
   exit 1
 fi
 
-# Directory containing the note, for Obsidian-style relative links.
-NOTE_DIR=$(dirname "$NOTE")
+# Resolve to an absolute path for downstream helpers.
+NOTE_DIR=$(CDPATH= cd -- "$(dirname -- "$NOTE")" && pwd -P)
+NOTE_BASE=$(basename -- "$NOTE")
+NOTE="$NOTE_DIR/$NOTE_BASE"
 
 TMP=$NOTE.tmp
 BAK=$NOTE.bak
@@ -193,4 +197,12 @@ else
   cp "$NOTE" "$BAK"
   mv "$TMP" "$NOTE"
   log_info "Replaced $NOTE (backup at $BAK)"
+
+  if [ -x "$commit_helper" ]; then
+    if ! "$commit_helper" "$VAULT_ROOT" "daily snapshot: $NOTE_BASE" "$NOTE"; then
+      log_warn "commit helper failed for $NOTE"
+    fi
+  else
+    log_warn "commit helper not found: $commit_helper"
+  fi
 fi
