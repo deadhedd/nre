@@ -2,7 +2,6 @@ To-Do List
 
 ## Current focuses
 * sleep data pipeline
-* cascading tasks to implement awkward tasks
 
 ### 💤 Sleep Data Pipeline TODO
 
@@ -14,7 +13,7 @@ To-Do List
   * [x] Update sleep data upload for 2 days instead of one.
   * [x] Update sleep data upload to include today and yesterday's wake time via Data Jar.
   * [x] Verify functionality of shortcut changes.
-  * [ ] Repeat run safeguard is failing to allow the shortcut to run when conditions allow.
+  * [x] Repeat run safeguard is failing to allow the shortcut to run when conditions allow.
   * [ ] edit upload shortcut to trigger sleep processor script using the run script over ssh action
 
 * **Scripts**
@@ -27,7 +26,7 @@ To-Do List
 * **Integration**
 
   * [ ] Add analyzed sleep data to the daily note template by using obsidian's embed feature.
-  * [ ] Confirm summaries appear correctly in Obsidian.
+  * [x] Confirm summaries appear correctly in Obsidian.
 
 
 High Priority
