@@ -75,7 +75,6 @@ elements_dir="$utils_dir/elements"
 commit_helper="$utils_dir/core/commit.sh"
 date_helper="$utils_dir/core/date-period-helpers.sh"
 day_plan_script="$elements_dir/generate-day-plan.sh"
-f1_script="$elements_dir/f1-schedule-and-standings.sh"
 
 . "$date_helper"
 
@@ -196,9 +195,36 @@ tomorrow=$(get_tomorrow)
 
 file_path="${daily_note_dir%/}/${today}.md"
 
+f1_dashboard_note="Reference/Dashboards/Formula 1"
+f1_dashboard_path="${vault_root%/}/${f1_dashboard_note}.md"
+f1_dashboard_embed="![[${f1_dashboard_note}]]"
+
 set -- "$file_path"
 
 log_info "Primary daily note path: $file_path"
+log_info "Formula 1 dashboard note: $f1_dashboard_path"
+
+f1_dashboard_dir=$(dirname -- "$f1_dashboard_path")
+if [ "$dry_run" -eq 1 ]; then
+  log_info "Dry run: would ensure directory exists: $f1_dashboard_dir"
+else
+  mkdir -p "$f1_dashboard_dir"
+fi
+
+if [ ! -f "$f1_dashboard_path" ]; then
+  if [ "$dry_run" -eq 1 ]; then
+    log_warn "Dry run: Formula 1 dashboard missing; would create placeholder at $f1_dashboard_path"
+  else
+    log_warn "Formula 1 dashboard missing; creating placeholder at $f1_dashboard_path"
+    cat >"$f1_dashboard_path" <<'EOF_F1_DASHBOARD'
+# 🏎️ Formula 1
+_This dashboard was created automatically. Populate it with race data or widgets for embeds._
+EOF_F1_DASHBOARD
+    set -- "$@" "$f1_dashboard_path"
+  fi
+else
+  log_info "Formula 1 dashboard present: $f1_dashboard_path"
+fi
 
 # Guard against accidental overwrites unless --force is supplied.
 if [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
@@ -254,30 +280,11 @@ EOF_SUBNOTE
   fi
 done
 
-# ----- Defaults as real multiline text (no literal \n) -----
-f1_text=$(cat <<'EOF'
-# 🏎️ Formula 1
-⚠️ Could not load race data.
-EOF
-)
 
 pagan_header="### Pagan Timings"
 moon_text="⚠️ Moon phase info unavailable."
 season_text="⚠️ Seasonal turning info unavailable."
 
-# ----- Optional dynamic sections (resolve paths from utils_dir; do not require +x) -----
-if [ -r "$f1_script" ]; then
-  log_info "Fetching Formula 1 data"
-  if output=$(sh "$f1_script"); then
-    log_info "Formula 1 data retrieved"
-    f1_text="$output"
-  else
-    status=$?
-    log_warn "Formula 1 script failed with exit code $status, using fallback text"
-  fi
-else
-  log_warn "Formula 1 script not found at $f1_script, using fallback text"
-fi
 
 lunar_cycle_script="$utils_dir/celestial/lunar-cycle.sh"
 if [ -r "$lunar_cycle_script" ]; then
@@ -374,7 +381,8 @@ ${time_blocks_nav}
 ${loan_countdown_text}
 
 ---
-${f1_text}
+## 🏎️ Formula 1
+${f1_dashboard_embed}
 
 ---
 # Themes and Goals
