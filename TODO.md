@@ -26,7 +26,7 @@ To-Do List
 
 * **Integration**
 
-  * [ ] Add analyzed sleep data to the daily note template.
+  * [ ] Add analyzed sleep data to the daily note template by using obsidian's embed feature.
   * [ ] Confirm summaries appear correctly in Obsidian.
 
 
