@@ -54,6 +54,8 @@ Medium Priority
     • implement automated budget analysis
 
     - add leave for work checklist to daily notes
+
+    * replace day plan util script with obsidian embed
 Low Priority / Someday
 
     • use advanced uri for enhanced ios shortcuts
