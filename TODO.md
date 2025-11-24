@@ -31,6 +31,8 @@ To-Do List
 
 High Priority
 
+    * refactor daily note to utilize obsidian's embed feature wherever possible
+    
     • Sleep Data Automation
 
     • Workout Data Automation
