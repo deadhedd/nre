@@ -108,6 +108,21 @@ expand_embed() {
     fi
   done
 
+  case "$path" in
+    */*)
+      ;;
+    *)
+      if [ -z "$file" ]; then
+        found=$(
+          find "$VAULT_ROOT" -type f \( -name "$path" -o -name "$path.md" \) -print 2>/dev/null | head -n 1 || :
+        )
+        if [ -n "$found" ]; then
+          file=$found
+        fi
+      fi
+      ;;
+  esac
+
   if [ -z "$file" ]; then
     # Cannot resolve, leave embed as-is
     log_warn "embed not resolved (missing file?): $link"
@@ -176,7 +191,7 @@ expand_embed() {
 # Process note line by line
 # Only replaces lines that are exactly an embed: ![[...]]
 while IFS= read -r line; do
-  case $line in
+  case "$line" in
     '![['*']]' )
       link=${line#'![['}
       link=${link%']]'}
