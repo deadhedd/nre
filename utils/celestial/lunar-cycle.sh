@@ -117,7 +117,7 @@ phase=$(printf '%s' "$json" | jq -r '
   // .data.moon_phase
   // .moon_phase
   // "Unknown"')
-)
+
 printf 'DEBUG raw phase=[%s]\n' "$phase" >&2
 
 illum=$(printf '%s' "$json" | jq -r '
