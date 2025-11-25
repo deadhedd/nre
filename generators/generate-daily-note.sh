@@ -397,6 +397,9 @@ Yard work and home repairs
 ## 🎯 Weekly Goal
 ![[Periodic Notes/Weekly Notes/${week_tag}#🎯 Weekly Goal]]
 
+# Sleep
+![[Sleep Data/${today} Sleep Summary#Sleep Advice]]
+
 ---
 # Recurring Tasks
 [[Recurring Tasks]]
