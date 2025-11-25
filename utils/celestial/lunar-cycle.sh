@@ -72,6 +72,22 @@ frac_mod() {
     }'
 }
 
+phase_from_frac() {
+  f="$1"
+  awk -v f="$f" '
+    BEGIN {
+      # f is 0..1: 0 = New, 0.25 = First Quarter, 0.5 = Full, 0.75 = Last Quarter.
+      if (f < 0.03125 || f > 0.96875)      print "New Moon";
+      else if (f < 0.21875)                print "Waxing Crescent";
+      else if (f < 0.28125)                print "First Quarter";
+      else if (f < 0.46875)                print "Waxing Gibbous";
+      else if (f < 0.53125)                print "Full Moon";
+      else if (f < 0.71875)                print "Waning Gibbous";
+      else if (f < 0.78125)                print "Last Quarter";
+      else                                 print "Waning Crescent";
+    }'
+}
+
 format_utc_date() {
   epoch="$1"
   if d=$(date -u -r "$epoch" +%Y-%m-%d 2>/dev/null); then
@@ -95,11 +111,14 @@ if ! json=$(curl_json "$url"); then
   exit 0
 fi
 
+
 phase=$(printf '%s' "$json" | jq -r '
   .properties.moon_phase
   // .data.moon_phase
   // .moon_phase
   // "Unknown"')
+)
+printf 'DEBUG raw phase=[%s]\n' "$phase" >&2
 
 illum=$(printf '%s' "$json" | jq -r '
   .properties.moon_illum
@@ -131,6 +150,12 @@ ref=$(to_epoch_utc "2000-01-06 18:14")
 now=$(now_utc_s)
 age_days=$(awk -v n="$now" -v r="$ref" 'BEGIN{printf "%.8f", (n-r)/86400.0}')
 frac=$(frac_mod "$age_days" "$SYN")
+
+phase=$(phase_from_frac "$frac")
+
+# Optional debug:
+ printf 'DEBUG phase=[%s]\n' "$phase" >&2
+ printf 'DEBUG icon=[%s]\n' "$(moon_icon "$phase")" >&2
 
 next_phase_days() {
   target="$1"
