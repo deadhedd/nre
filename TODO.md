@@ -15,7 +15,7 @@ To-Do List
   * [x] Update sleep data upload to include today and yesterday's wake time via Data Jar.
   * [x] Verify functionality of shortcut changes.
   * [x] Repeat run safeguard is failing to allow the shortcut to run when conditions allow.
-  * [ ] edit upload shortcut to trigger sleep processor script using the run script over ssh action
+  * [x] edit upload shortcut to trigger sleep processor script using the run script over ssh action
 
 * **Scripts**
 
