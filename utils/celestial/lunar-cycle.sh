@@ -166,6 +166,9 @@ else
   days_count="0.0"
 fi
 
+printf 'DEBUG phase=[%s]\n' "$phase" >&2
+printf 'DEBUG icon=[%s]\n' "$(moon_icon "$phase")" >&2
+
 guidance="$(moon_guidance "$phase")"
 
 # Build the message first, then append tip if available
