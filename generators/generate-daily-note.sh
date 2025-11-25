@@ -378,7 +378,7 @@ fi
 
 log_info "Writing daily note content"
 
-# Compose note content to match the legacy template.
+# Compose note content to match the legacy template but with clearer grouping.
 write_output "$file_path" <<EOF_NOTE
 ---
 tags:
@@ -386,90 +386,85 @@ tags:
 ---
 << [[Periodic Notes/Daily Notes/${yesterday}|${yesterday}]] | [[Periodic Notes/Daily Notes/${tomorrow}|${tomorrow}]] >>
 
-${daily_plan_intro_section}${pagan_timings_text}
+${daily_plan_intro_section}## Daily Context
+${pagan_timings_text}
 
+## Navigation
 ${time_blocks_nav}
 
 ## 🌤️ Yard Work Suitability
 <!-- yard-work-check -->
 
----
+## Themes and Goals
 
-# Finances
-
-${loan_countdown_text}
-
----
-## 🏎️ Formula 1
-${f1_dashboard_embed}
-
----
-# Themes and Goals
-
-## [[Yearly theme]] (2025)
+### [[Yearly theme]] (2025)
 The year of standing on business
 [[Stand on Business List]]
 
-## [[Season Theme]] (2025 Spring)
+### [[Season Theme]] (2025 Spring)
 Yard work and home repairs
 
-## 🎯 Weekly Goal
+### 🎯 Weekly Goal
 ![[Periodic Notes/Weekly Notes/${week_tag}#🎯 Weekly Goal]]
 
-# Sleep
+## Sleep
 ![[Sleep Data/${today} Sleep Summary#Sleep Advice]]
 
----
-# Recurring Tasks
+## Tasks
+
+### Recurring Tasks
 [[Recurring Tasks]]
 \`\`\`tasks
 not done
 happens today
 \`\`\`
 
-# ☑️ Pending Tasks
-### Stand on Business
+### ☑️ Pending Tasks
+#### Stand on Business
 \`\`\`tasks
 not done
 tags include #stand-on-business
 \`\`\`
 
-### Comms Queue
+#### Comms Queue
 \`\`\`tasks
 not done
 tags include #comms-queue
 \`\`\`
 
-### Device Config
+#### Device Config
 \`\`\`tasks
 not done
 tags include #device-config
 \`\`\`
 
-### Quick Wins
+#### Quick Wins
 \`\`\`tasks
 not done
 tags include #quick-wins
 \`\`\`
 
-### Someday/Maybe
+#### Someday/Maybe
 \`\`\`tasks
 not done
 tags include #someday-maybe
 \`\`\`
 
----
+## Finances
 
-# Periodic Notes
+${loan_countdown_text}
+
+## 🏎️ Formula 1
+${f1_dashboard_embed}
+
+## Periodic Notes
 
 [[Periodic Notes/Weekly Notes/${week_tag}|This Week]]
 [[Periodic Notes/Monthly Notes/${year}-${month}|This Month]]
 [[Periodic Notes/Quarterly Notes/${year}-Q${quarter}|This Quarter]]
 [[Periodic Notes/Yearly Notes/${year}|This Year]]
 
----
-
-# Links
+## Reference Links
 [[Weekly Routine]]
 [[Consider Johnie]]
 [[Daily Note Template]]
