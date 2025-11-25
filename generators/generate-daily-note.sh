@@ -72,6 +72,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
 elements_dir="$utils_dir/elements"
+f1_script="$elements_dir/f1-schedule-and-standings.sh"
 commit_helper="$utils_dir/core/commit.sh"
 date_helper="$utils_dir/core/date-period-helpers.sh"
 day_plan_script="$elements_dir/generate-day-plan.sh"
@@ -224,6 +225,24 @@ EOF_F1_DASHBOARD
   fi
 else
   log_info "Formula 1 dashboard present: $f1_dashboard_path"
+fi
+
+if [ "$dry_run" -eq 1 ]; then
+  log_info "Dry run: skipping Formula 1 dashboard refresh"
+elif [ ! -r "$f1_script" ]; then
+  log_warn "Formula 1 script not found: $f1_script"
+elif ! command -v jq >/dev/null 2>&1; then
+  log_warn "Skipping Formula 1 refresh; jq is unavailable"
+else
+  log_info "Refreshing Formula 1 dashboard content"
+  if output=$(sh "$f1_script" 2>/dev/null); then
+    printf '%s\n' "$output" | write_output "$f1_dashboard_path"
+    log_info "Formula 1 dashboard updated: $f1_dashboard_path"
+    set -- "$@" "$f1_dashboard_path"
+  else
+    status=$?
+    log_warn "Formula 1 dashboard refresh failed with exit code $status; leaving existing content"
+  fi
 fi
 
 # Guard against accidental overwrites unless --force is supplied.
