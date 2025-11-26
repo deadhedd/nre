@@ -77,8 +77,6 @@ Medium Priority
 
     • fix moon phase illumination bug
 
-    • add newline after day headline so it doesnt mess with pagan timings
-
     • improve yardwork sutiability analysis to include precipitation and ideal time for work
 
     • implement automated budget analysis
