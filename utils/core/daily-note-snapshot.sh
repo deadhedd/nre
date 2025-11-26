@@ -16,6 +16,9 @@ VAULT_DEFAULT=${VAULT_PATH:-/home/obsidian/vaults/Main}
 : "${VAULT_ROOT:=$VAULT_DEFAULT}"
 
 DRY_RUN=0
+embed_total=0
+embed_resolved=0
+embed_unresolved=0
 
 print_usage() {
   printf 'Usage: %s [-n|--dry-run] PATH/TO/daily-note.md\n' "$0" >&2
@@ -69,10 +72,14 @@ expand_embed() {
   link=$1
   line=$2
 
+  embed_total=$((embed_total + 1))
+  log_info "Processing embed: $link"
+
   # Strip alias part: "path#heading|Alias" -> "path#heading"
   case "$link" in
     *'|'*)
       link_no_alias=${link%%'|'*}
+      log_info "Alias stripped: $link_no_alias"
       ;;
     *)
       link_no_alias=$link
@@ -84,14 +91,17 @@ expand_embed() {
     *'#'*)
       path=${link_no_alias%%'#'*}
       heading=${link_no_alias#*'#'}
+      log_info "Parsed path: $path (heading: $heading)"
       ;;
     *)
       path=$link_no_alias
       heading=
+      log_info "Parsed path: $path (full file)"
       ;;
   esac
 
   file=
+  resolve_hint=
 
   # Resolve path:
   # 1) Relative to the note's directory
@@ -101,9 +111,11 @@ expand_embed() {
     candidate=$base/$path
     if [ -f "$candidate" ]; then
       file=$candidate
+      resolve_hint="direct match under $base"
       break
     elif [ -f "$candidate.md" ]; then
       file=$candidate.md
+      resolve_hint="direct .md match under $base"
       break
     fi
   done
@@ -118,6 +130,7 @@ expand_embed() {
         )
         if [ -n "$found" ]; then
           file=$found
+          resolve_hint="recursive match under $VAULT_ROOT"
         fi
       fi
       ;;
@@ -126,12 +139,17 @@ expand_embed() {
   if [ -z "$file" ]; then
     # Cannot resolve, leave embed as-is
     log_warn "embed not resolved (missing file?): $link"
+    embed_unresolved=$((embed_unresolved + 1))
     printf '%s\n' "$line"
     return
   fi
 
+  log_info "Resolved embed to $file ($resolve_hint)"
+
   if [ -z "$heading" ]; then
     # Whole file
+    log_info "Expanding entire file for embed"
+    embed_resolved=$((embed_resolved + 1))
     cat "$file"
     return
   fi
@@ -181,7 +199,11 @@ expand_embed() {
   then
     # Heading not found: leave embed as-is
     log_warn "embed not resolved (missing heading): $link"
+    embed_unresolved=$((embed_unresolved + 1))
     printf '%s\n' "$line"
+  else
+    log_info "Expanded heading \"$heading\" from $file"
+    embed_resolved=$((embed_resolved + 1))
   fi
 }
 
@@ -202,6 +224,8 @@ while IFS= read -r line; do
       ;;
   esac
 done < "$NOTE"
+
+log_info "Embeds processed: $embed_total (resolved: $embed_resolved, unresolved: $embed_unresolved)"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   # Dry run: keep original note; write result to NOTE.dryrun
