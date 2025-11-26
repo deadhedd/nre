@@ -26,7 +26,7 @@ To-Do List
 
 * **Integration**
 
-  * [ ] Add analyzed sleep data to the daily note template by using obsidian's embed feature.
+  * [x] Add analyzed sleep data to the daily note template by using obsidian's embed feature.
   * [x] Confirm summaries appear correctly in Obsidian.
 
 ### ✅ **TODO — F1 Daily Snapshot System**
