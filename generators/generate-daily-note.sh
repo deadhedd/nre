@@ -396,7 +396,7 @@ ${time_blocks_nav}
 ![[Sleep Data/${today} Sleep Summary#Sleep Advice]]
 
 ### 🌤️ Yard Work Suitability
-@-- yard-work-check --
+<!-- yard-work-check -->
 
 ${pagan_timings_text}
 
@@ -416,42 +416,42 @@ Yard work and home repairs
 
 ### 🔁 Recurring Today
 [[Recurring Tasks]]
-```tasks
+\`\`\`tasks
 not done
 happens today
-```
+\`\`\`
 
 ### 📌 Focus Buckets
 
 #### Stand on Business
-```tasks
+\`\`\`tasks
 not done
 tags include #stand-on-business
-```
+\`\`\`
 
 #### Quick Wins
-```tasks
+\`\`\`tasks
 not done
 tags include #quick-wins
-```
+\`\`\`
 
 #### Comms Queue
-```tasks
+\`\`\`tasks
 not done
 tags include #comms-queue
-```
+\`\`\`
 
 #### Device Config
-```tasks
+\`\`\`tasks
 not done
 tags include #device-config
-```
+\`\`\`
 
 #### Someday/Maybe (Review Only)
-```tasks
+\`\`\`tasks
 not done
 tags include #someday-maybe
-```
+\`\`\`
 
 ## Finances
 
