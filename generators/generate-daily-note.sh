@@ -386,7 +386,9 @@ tags:
 ---
 << [[Periodic Notes/Daily Notes/${yesterday}|${yesterday}]] | [[Periodic Notes/Daily Notes/${tomorrow}|${tomorrow}]] >>
 
-${daily_plan_intro_section}## 🧭 Daily Orientation
+${daily_plan_intro_section}
+
+## 🧭 Daily Orientation
 
 ${time_blocks_nav}
 
