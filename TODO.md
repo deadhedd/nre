@@ -28,35 +28,10 @@ To-Do List
 
   * [x] Add analyzed sleep data to the daily note template by using obsidian's embed feature.
   * [x] Confirm summaries appear correctly in Obsidian.
+ 
+* **Embedding**
 
-### ✅ **TODO — F1 Daily Snapshot System**
-
-1. **Update Daily Note Template**
-   Add the embed line for current data:
-
-   ```
-   ![[F1/Rolling#main]]
-   ```
-
-2. **Define Rolling.md Structure**
-   Create `F1/Rolling.md` with a stable `## main` block that your update script rewrites daily.
-
-3. **Write Snapshot Script**
-   A cron-triggered script that:
-
-   * Finds yesterday’s daily note
-   * Replaces the embed line with the raw text from `F1/Rolling.md`
-   * Saves & commits the result
-
-4. **Schedule Cron Job**
-   Run snapshot script before the next F1 update (e.g., 23:59 or early morning before your update pipeline).
-
-5. **Integrate Into Automation Pipeline**
-   Ensure:
-
-   * Morning pipeline updates Rolling.md
-   * Evening pipeline runs the snapshot script
-   * Daily notes remain clean with the embed replaced once per day
+  * [ ] create nightly snapshot script which converts all embedded text into static text for archival purposes
 
 High Priority
 
