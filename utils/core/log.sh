@@ -27,10 +27,48 @@ log__sanitize() {
   fi
 }
 
+log__periodic_log_path() {
+  path=$1
+  mapped_path=$path
+
+  case "$path" in
+    */logs/daily-notes/*)
+      base_name=${path##*/}
+      root_dir=${path%/daily-notes/*}
+      mapped_path="$root_dir/Periodic/Daily/$base_name"
+      ;;
+    */logs/weekly-notes/*)
+      base_name=${path##*/}
+      root_dir=${path%/weekly-notes/*}
+      mapped_path="$root_dir/Periodic/Weekly/$base_name"
+      ;;
+    */logs/periodic-notes/*)
+      base_name=${path##*/}
+      root_dir=${path%/periodic-notes/*}
+      cycle_dir=""
+      case "$base_name" in
+        *monthly*) cycle_dir="Monthly" ;;
+        *quarter*) cycle_dir="Quarterly" ;;
+        *yearly*) cycle_dir="Yearly" ;;
+      esac
+
+      if [ -n "$cycle_dir" ]; then
+        mapped_path="$root_dir/Periodic/Long Cycle/$cycle_dir/$base_name"
+      else
+        mapped_path="$root_dir/Periodic/Long Cycle/$base_name"
+      fi
+      ;;
+  esac
+
+  printf '%s' "$mapped_path"
+}
+
 log__append_file() {
   line=$1
   log_file=${LOG_FILE:-}
   [ -n "$log_file" ] || return 0
+
+  log_file=$(log__periodic_log_path "$log_file")
 
   case "$log_file" in
     */*)
