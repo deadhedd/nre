@@ -11,39 +11,19 @@
 set -eu
 
 log_root=${LOG_DIR:-/home/obsidian/logs}
-log_file=${LOG_FILE:-"$log_root/summarize-daily-sleep.log"}
-DEBUG_MODE=0
+: "${LOG_FILE:="$log_root/summarize-daily-sleep.log"}"
+: "${LOG_DEBUG:=0}"
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
+log_helper="$utils_dir/core/log.sh"
+PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 if [ ! -d "$log_root" ]; then
   mkdir -p "$log_root"
 fi
 
-log_write() {
-  level=$1
-  shift
-  msg=$*
-  timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-  line="$timestamp $level $msg"
-  printf '%s\n' "$line" >>"$log_file"
-  printf '%s\n' "$line" >&2
-}
-
-log_info() {
-  log_write INFO "$@"
-}
-
-log_warn() {
-  log_write WARN "$@"
-}
-
-log_err() {
-  log_write ERR "$@"
-}
-
-log_debug() {
-  [ "$DEBUG_MODE" -eq 1 ] || return 0
-  log_write DEBUG "$@"
-}
+. "$log_helper"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -318,9 +298,6 @@ require_cmd date
 # Paths & helpers
 ###############################################################################
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
-
 commit_helper="$utils_dir/core/commit.sh"
 date_helpers="$utils_dir/core/date-period-helpers.sh"
 
@@ -334,7 +311,7 @@ explicit_date=""
 while [ "$#" -gt 0 ]; do
   case $1 in
     -debug)
-      DEBUG_MODE=1
+      LOG_DEBUG=1
       shift
       ;;
     -*)
