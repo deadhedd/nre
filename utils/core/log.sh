@@ -58,6 +58,11 @@ log__periodic_log_path() {
         mapped_path="$root_dir/Periodic/Long Cycle/$base_name"
       fi
       ;;
+    */logs/*)
+      base_name=${path##*/}
+      root_dir=${path%/logs/*}/logs
+      mapped_path="$root_dir/other/$base_name"
+      ;;
   esac
 
   printf '%s' "$mapped_path"

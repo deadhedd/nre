@@ -23,7 +23,7 @@ order when running from other directories.
 ### When run through `utils/core/job-wrap.sh`
 
 * Resolves the requested command name by checking `JOB_WRAP_SEARCH_PATH`, then searching the repository for executables, and finally falling back to `PATH`; unknown commands abort with exit 127.
-* Sanitizes the job label to derive the log folder (daily/weekly/periodic), creates the folder under `${HOME:-/home/obsidian}/logs`, and names each run log `<job>-<UTC timestamp>.log` alongside a `latest` symlink.
+* Sanitizes the job label to derive the log folder (daily/weekly/periodic), falling back to `${HOME:-/home/obsidian}/logs/other` for non-periodic jobs; creates the folder and names each run log `<job>-<UTC timestamp>.log` alongside a `latest` symlink.
 * Writes a header with start time, cwd, user, path, requested/resolved command, and argv, then appends all stdout/stderr from the invoked script, and finally records exit code, end time, and duration.
 * Rotates logs by keeping the newest `LOG_KEEP` (default 20) per job name, deleting older files after each run.
 

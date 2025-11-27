@@ -69,7 +69,7 @@ set -- "$RESOLVED_CMD" "$@"
 HOME_DIR="${HOME:-/home/obsidian}"
 LOG_ROOT="${HOME_DIR}/logs"
 
-# Group logs by note cadence
+# Group logs by note cadence; fall back to an "other" bucket for non-periodic jobs
 SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
 case "$SAFE_JOB_NAME" in
   *daily-note*)
@@ -78,8 +78,11 @@ case "$SAFE_JOB_NAME" in
   *weekly-note*)
     LOGDIR="${LOG_ROOT}/weekly-notes"
     ;;
-  *)
+  *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
     LOGDIR="${LOG_ROOT}/periodic-notes"
+    ;;
+  *)
+    LOGDIR="${LOG_ROOT}/other"
     ;;
 esac
 mkdir -p "$LOGDIR"
