@@ -35,7 +35,9 @@ log__append_file() {
   case "$log_file" in
     */*)
       dir=${log_file%/*}
-      [ -n "$dir" ] && [ -d "$dir" ] || mkdir -p "$dir"
+      if [ -n "$dir" ] && [ ! -d "$dir" ]; then
+        mkdir -p "$dir" || return 1
+      fi
       ;;
   esac
 
