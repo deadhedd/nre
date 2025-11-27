@@ -14,7 +14,7 @@ log__now() {
   if ! command -v date >/dev/null 2>&1; then
     return 1
   fi
-  date -u '+%Y-%m-%dT%H:%M:%SZ'
+  TZ=UTC0 date '+%Y-%m-%dT%H:%M:%SZ'
 }
 
 # Sanitize messages when ASCII-only logs are required (default on).
