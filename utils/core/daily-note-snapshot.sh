@@ -9,6 +9,7 @@ commit_helper="$script_dir/commit.sh"
 log_helper="$script_dir/log.sh"
 
 . "$log_helper"
+log_init daily-note-snapshot
 
 # Set this to your vault root or override via environment.
 VAULT_DEFAULT=${VAULT_PATH:-/home/obsidian/vaults/Main}

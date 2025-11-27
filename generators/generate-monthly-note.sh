@@ -10,7 +10,10 @@ repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
 commit_helper="$utils_dir/core/commit.sh"
 date_helper="$utils_dir/core/date-period-helpers.sh"
+log_helper="$utils_dir/core/log.sh"
 
+. "$log_helper"
+log_init monthly-note
 . "$date_helper"
 
 usage() {

@@ -10,20 +10,14 @@
 
 set -eu
 
-log_root=${LOG_DIR:-/home/obsidian/logs}
-: "${LOG_FILE:="$log_root/summarize-daily-sleep.log"}"
-: "${LOG_DEBUG:=0}"
-
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 log_helper="$utils_dir/core/log.sh"
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-if [ ! -d "$log_root" ]; then
-  mkdir -p "$log_root"
-fi
-
 . "$log_helper"
+log_init sleep-summary
+: "${LOG_DEBUG:=0}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

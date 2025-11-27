@@ -39,13 +39,18 @@ Source `utils/core/log.sh` to standardize log output across scripts:
 
 ```sh
 . "$(cd -- "$(dirname -- "$0")" && pwd -P)/../core/log.sh"
+log_init my-job-name  # idempotent; sets LOG_FILE/LOG_ROOT if missing
 log_info "Starting"      # -> "2025-02-14T00:00:00Z INFO Starting"
 log_warn "Missing file"  # stderr
 LOG_DEBUG=1 log_debug "Verbose details"
 ```
 
 Defaults favor ASCII-only lines for cron safety and append to a log file when
-`LOG_FILE` is set (parents are created automatically). Environment toggles:
+`LOG_FILE` is set (parents are created automatically). `log_init` will export
+`LOG_FILE`, `LOG_ROOT`, `LOG_RUN_TS`, and `LOG_JOB_NAME`, creating a
+timestamped log path under `${LOG_ROOT:-${HOME:-/home/obsidian}/logs}` when the
+wrapper has not set `LOG_FILE`; repeated calls are safe no-ops. Environment
+toggles:
 
 * `LOG_FILE` — Path to append every log line (unset = no file output).
 * `LOG_TIMESTAMP` — `1` (default) to include UTC timestamps, `0` to omit.

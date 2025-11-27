@@ -12,6 +12,7 @@ date_helper="$utils_dir/core/date-period-helpers.sh"
 log_helper="$utils_dir/core/log.sh"
 
 . "$log_helper"
+log_init weekly-note
 . "$date_helper"
 
 usage() {

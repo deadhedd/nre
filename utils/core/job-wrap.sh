@@ -92,6 +92,10 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 RUNLOG="${LOGDIR}/${SAFE_JOB_NAME}-${TS}.log"
 LATEST="${LOGDIR}/${SAFE_JOB_NAME}-latest.log"
 LOG_FILE="$RUNLOG"
+LOG_JOB_NAME="$SAFE_JOB_NAME"
+LOG_RUN_TS="$TS"
+
+log_init "$SAFE_JOB_NAME"
 
 # Header
 log_info "== ${SAFE_JOB_NAME} start =="
