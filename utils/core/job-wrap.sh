@@ -73,25 +73,27 @@ LOG_ROOT="${HOME_DIR}/logs"
 SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
 case "$SAFE_JOB_NAME" in
   *daily-note*)
-    LOGDIR="${LOG_ROOT}/daily-notes"
+LOGDIR="${LOG_ROOT}/daily-notes"
     ;;
   *weekly-note*)
-    LOGDIR="${LOG_ROOT}/weekly-notes"
+LOGDIR="${LOG_ROOT}/weekly-notes"
     ;;
   *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
-    LOGDIR="${LOG_ROOT}/periodic-notes"
+LOGDIR="${LOG_ROOT}/periodic-notes"
     ;;
   *)
-    LOGDIR="${LOG_ROOT}/other"
+LOGDIR="${LOG_ROOT}/other"
     ;;
 esac
-mkdir -p "$LOGDIR"
-
-# Timestamped logfile + "latest" symlink
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
-RUNLOG="${LOGDIR}/${SAFE_JOB_NAME}-${TS}.log"
-LATEST="${LOGDIR}/${SAFE_JOB_NAME}-latest.log"
+RUNLOG_BASE="${LOGDIR}/${SAFE_JOB_NAME}-${TS}.log"
+RUNLOG=$(log__periodic_log_path "$RUNLOG_BASE")
+LOGDIR_MAPPED=${RUNLOG%/*}
+mkdir -p "$LOGDIR_MAPPED"
+
+LATEST="${LOGDIR_MAPPED}/${SAFE_JOB_NAME}-latest.log"
 LOG_FILE="$RUNLOG"
+LOG_FILE_MAPPED=1
 LOG_JOB_NAME="$SAFE_JOB_NAME"
 LOG_RUN_TS="$TS"
 
@@ -146,7 +148,7 @@ ln -sf "$(basename "$RUNLOG")" "$LATEST" 2>/dev/null || true
 LOG_KEEP="${LOG_KEEP:-20}"
 # List newest->oldest, drop beyond N, delete them
 # (ls -t is widely available on BSD/GNU; guard for empty)
-OLD_LIST=$(ls -1t "$LOGDIR/${SAFE_JOB_NAME}-"*.log 2>/dev/null | awk -v n="$LOG_KEEP" 'NR>n')
+OLD_LIST=$(ls -1t "$LOGDIR_MAPPED/${SAFE_JOB_NAME}-"*.log 2>/dev/null | awk -v n="$LOG_KEEP" 'NR>n')
 if [ -n "${OLD_LIST:-}" ]; then
   # xargs without -r for portability; guarded by the if
   printf '%s\n' "$OLD_LIST" | xargs rm -f
