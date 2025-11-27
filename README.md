@@ -18,6 +18,21 @@ falling back to the system `PATH`.
 Set `JOB_WRAP_SEARCH_PATH` to a colon-delimited list to customize the search
 order when running from other directories.
 
+## Logging pipeline
+
+### When run through `utils/core/job-wrap.sh`
+
+* Resolves the requested command name by checking `JOB_WRAP_SEARCH_PATH`, then searching the repository for executables, and finally falling back to `PATH`; unknown commands abort with exit 127.
+* Sanitizes the job label to derive the log folder (daily/weekly/periodic), creates the folder under `${HOME:-/home/obsidian}/logs`, and names each run log `<job>-<UTC timestamp>.log` alongside a `latest` symlink.
+* Writes a header with start time, cwd, user, path, requested/resolved command, and argv, then appends all stdout/stderr from the invoked script, and finally records exit code, end time, and duration.
+* Rotates logs by keeping the newest `LOG_KEEP` (default 20) per job name, deleting older files after each run.
+
+### When a generator runs directly
+
+* Scripts such as `generators/generate-daily-note.sh` print status messages with `log_info`/`log_warn`/`log_err`, sending informational output to stdout and errors to stderr.
+* The daily note script pins `PATH` to `/usr/local/bin:/usr/bin:/bin:${PATH:-}` before doing any work and logs high-level milestones like vault path selection or missing folder warnings.
+* Without the wrapper, these logs remain on the calling terminal; when invoked through `job-wrap.sh`, the same messages are captured in the run log alongside the wrapper's header/footer metadata.
+
 ## `generators/generate-daily-note.sh`
 
 `generators/generate-daily-note.sh` creates a Markdown file for today's date in your vault.
