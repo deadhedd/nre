@@ -9,6 +9,7 @@ repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 log_helper="$repo_root/utils/core/log.sh"
 
 . "$log_helper"
+log_init daily-note
 
 usage() {
   cat <<'EOF_USAGE'

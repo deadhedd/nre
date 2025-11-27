@@ -9,6 +9,81 @@ if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ] 2>/dev/null; then
 fi
 LOG_HELPER_LOADED=1
 
+log__safe_job_name() {
+  printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'
+}
+
+log__default_log_dir() {
+  log_root=${LOG_ROOT:-${HOME:-/home/obsidian}/logs}
+  job_name=$1
+
+  case "$job_name" in
+    *daily-note*)
+      dir="$log_root/daily-notes"
+      ;;
+    *weekly-note*)
+      dir="$log_root/weekly-notes"
+      ;;
+    *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
+      dir="$log_root/periodic-notes"
+      ;;
+    *)
+      dir="$log_root/other"
+      ;;
+  esac
+
+  printf '%s' "$dir"
+}
+
+log_init() {
+  job_arg=${1:-}
+
+  if [ "${LOG_INIT_DONE:-0}" -eq 1 ] 2>/dev/null; then
+    export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME
+    return 0
+  fi
+
+  LOG_INIT_DONE=1
+
+  : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
+
+  if [ -n "$job_arg" ] && [ -z "${LOG_JOB_NAME:-}" ]; then
+    LOG_JOB_NAME=$job_arg
+  elif [ -z "${LOG_JOB_NAME:-}" ]; then
+    LOG_JOB_NAME=${0##*/}
+  fi
+
+  if [ -z "${LOG_RUN_TS:-}" ]; then
+    if ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null); then
+      LOG_RUN_TS=$ts
+    elif ts=$(log__now 2>/dev/null); then
+      LOG_RUN_TS=$(printf '%s' "$ts" | tr -d ':-')
+    fi
+  fi
+  : "${LOG_RUN_TS:=run}"
+
+  safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-job}")
+
+  if [ -z "${LOG_FILE:-}" ]; then
+    log_dir=$(log__default_log_dir "$safe_job")
+    LOG_FILE="${log_dir}/${safe_job}-${LOG_RUN_TS}.log"
+
+    target=$(log__periodic_log_path "$LOG_FILE")
+    case "$target" in
+      */*)
+        target_dir=${target%/*}
+        if [ -n "$target_dir" ] && [ ! -d "$target_dir" ]; then
+          mkdir -p "$target_dir" || true
+        fi
+        ;;
+    esac
+
+    : >"$target" 2>/dev/null || true
+  fi
+
+  export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME
+}
+
 # Emit a timestamp in UTC when enabled. Default is on; set LOG_TIMESTAMP=0 to disable.
 log__now() {
   if ! command -v date >/dev/null 2>&1; then

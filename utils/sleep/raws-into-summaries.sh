@@ -12,6 +12,7 @@ commit_helper="$utils_dir/core/commit.sh"
 log_helper="$utils_dir/core/log.sh"
 
 . "$log_helper"
+log_init sleep-raws-into-summaries
 
 vault_root="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 sleep_folder="$vault_root/Sleep Data"
