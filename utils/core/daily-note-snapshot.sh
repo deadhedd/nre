@@ -6,10 +6,9 @@ set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit_helper="$script_dir/commit.sh"
+log_helper="$script_dir/log.sh"
 
-log_info() { printf 'INFO %s\n' "$*" >&2; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err()  { printf 'ERR %s\n' "$*" >&2; }
+. "$log_helper"
 
 # Set this to your vault root or override via environment.
 VAULT_DEFAULT=${VAULT_PATH:-/home/obsidian/vaults/Main}

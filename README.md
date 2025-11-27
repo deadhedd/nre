@@ -33,6 +33,25 @@ order when running from other directories.
 * The daily note script pins `PATH` to `/usr/local/bin:/usr/bin:/bin:${PATH:-}` before doing any work and logs high-level milestones like vault path selection or missing folder warnings.
 * Without the wrapper, these logs remain on the calling terminal; when invoked through `job-wrap.sh`, the same messages are captured in the run log alongside the wrapper's header/footer metadata.
 
+### Shared logging helper (`utils/core/log.sh`)
+
+Source `utils/core/log.sh` to standardize log output across scripts:
+
+```sh
+. "$(cd -- "$(dirname -- "$0")" && pwd -P)/../core/log.sh"
+log_info "Starting"      # -> "2025-02-14T00:00:00Z INFO Starting"
+log_warn "Missing file"  # stderr
+LOG_DEBUG=1 log_debug "Verbose details"
+```
+
+Defaults favor ASCII-only lines for cron safety and append to a log file when
+`LOG_FILE` is set (parents are created automatically). Environment toggles:
+
+* `LOG_FILE` — Path to append every log line (unset = no file output).
+* `LOG_TIMESTAMP` — `1` (default) to include UTC timestamps, `0` to omit.
+* `LOG_DEBUG` — `1` enables `log_debug` output; `0` suppresses it.
+* `LOG_ASCII_ONLY` — `1` (default) strips non-ASCII characters; set to `0` to allow them.
+
 ## `generators/generate-daily-note.sh`
 
 `generators/generate-daily-note.sh` creates a Markdown file for today's date in your vault.

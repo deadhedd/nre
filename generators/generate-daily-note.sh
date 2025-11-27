@@ -4,6 +4,12 @@
 
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
+log_helper="$repo_root/utils/core/log.sh"
+
+. "$log_helper"
+
 usage() {
   cat <<'EOF_USAGE'
 Usage: generate-daily-note.sh [--force] [--dry-run]
@@ -13,18 +19,6 @@ Options:
   --dry-run  Output the note contents to stdout instead of writing files.
   --help     Show this message.
 EOF_USAGE
-}
-
-log_info() {
-  printf 'ℹ️ %s\n' "$*"
-}
-
-log_warn() {
-  printf '⚠️ %s\n' "$*"
-}
-
-log_err() {
-  printf '❌ %s\n' "$*" >&2
 }
 
 force=0
@@ -68,8 +62,6 @@ PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 log_info "Starting daily note generation"
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
 elements_dir="$utils_dir/elements"
 f1_script="$elements_dir/f1-schedule-and-standings.sh"
@@ -92,9 +84,8 @@ log_info "Daily note directory: $daily_note_dir"
 
 # Ensure the output directory exists
 if [ ! -d "$daily_note_dir" ]; then
-  log_warn "Periodic notes folder does not exist: $daily_note_dir"
-  echo "❌ Periodic notes folder does not exist: $daily_note_dir" >&2
-  echo "Edit generate-daily-note.sh to match your vault structure." >&2
+  log_err "Periodic notes folder does not exist: $daily_note_dir"
+  log_err "Edit generate-daily-note.sh to match your vault structure."
   exit 1
 fi
 
@@ -301,8 +292,8 @@ done
 
 
 pagan_header="### Pagan Timings"
-moon_text="⚠️ Moon phase info unavailable."
-season_text="⚠️ Seasonal turning info unavailable."
+moon_text="Moon phase info unavailable."
+season_text="Seasonal turning info unavailable."
 
 
 lunar_cycle_script="$utils_dir/celestial/lunar-cycle.sh"
@@ -478,9 +469,9 @@ ${f1_dashboard_embed}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'ℹ️ Dry run: daily note would be created at %s\n' "$file_path"
+  log_info "Dry run: daily note would be created at $file_path"
 else
-  printf '✅ Daily note created at %s\n' "$file_path"
+  log_info "Daily note created at $file_path"
 fi
 
 if [ "$dry_run" -eq 1 ]; then
@@ -490,5 +481,4 @@ elif [ -x "$commit_helper" ]; then
   "$commit_helper" -c "daily note" "$vault_path" "daily note: $today" "$@"
 else
   log_warn "Commit helper not found: $commit_helper"
-  printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
 fi

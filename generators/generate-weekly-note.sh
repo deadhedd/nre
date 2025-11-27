@@ -9,7 +9,9 @@ repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
 commit_helper="$utils_dir/core/commit.sh"
 date_helper="$utils_dir/core/date-period-helpers.sh"
+log_helper="$utils_dir/core/log.sh"
 
+. "$log_helper"
 . "$date_helper"
 
 usage() {
@@ -25,9 +27,6 @@ Options:
   --help            Show this message.
 EOF_USAGE
 }
-
-log_info() { printf 'INFO %s\n' "$*"; }
-log_err() { printf 'ERR %s\n' "$*"; }
 
 vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
 outdir="Periodic Notes/Weekly Notes"

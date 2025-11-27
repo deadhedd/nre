@@ -6,13 +6,12 @@ set -eu
 
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*"; }
-log_err()  { printf 'ERR %s\n'  "$*"; }
-
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 commit_helper="$utils_dir/core/commit.sh"
+log_helper="$utils_dir/core/log.sh"
+
+. "$log_helper"
 
 vault_root="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 sleep_folder="$vault_root/Sleep Data"
