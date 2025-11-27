@@ -148,7 +148,9 @@ log__append_file() {
   log_file=${LOG_FILE:-}
   [ -n "$log_file" ] || return 0
 
-  log_file=$(log__periodic_log_path "$log_file")
+  if [ "${LOG_FILE_MAPPED:-0}" -ne 1 ]; then
+    log_file=$(log__periodic_log_path "$log_file")
+  fi
 
   case "$log_file" in
     */*)
