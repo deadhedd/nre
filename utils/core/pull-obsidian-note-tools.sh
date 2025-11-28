@@ -11,7 +11,23 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 LOG_JOB_NAME=${LOG_JOB_NAME:-pull-obsidian-note-tools}
 log_init "$LOG_JOB_NAME"
 
-REPO_DIR=${PULL_REPO_DIR:-${HOME:-/home/obsidian}/automation/obsidian-note-tools}
+HOME_DIR=${HOME:-/home/obsidian}
+DEFAULT_REPO_DIR=$HOME_DIR/obsidian-note-tools
+FALLBACK_REPO_DIR=$HOME_DIR/automation/obsidian-note-tools
+
+if [ -n "${PULL_REPO_DIR:-}" ]; then
+  REPO_DIR=$PULL_REPO_DIR
+  REPO_DIR_SOURCE=env
+elif [ -d "$DEFAULT_REPO_DIR" ]; then
+  REPO_DIR=$DEFAULT_REPO_DIR
+  REPO_DIR_SOURCE=default
+elif [ -d "$FALLBACK_REPO_DIR" ]; then
+  REPO_DIR=$FALLBACK_REPO_DIR
+  REPO_DIR_SOURCE=fallback
+else
+  REPO_DIR=$DEFAULT_REPO_DIR
+  REPO_DIR_SOURCE=default-missing
+fi
 
 if [ -n "${GIT_BIN:-}" ]; then
   RESOLVED_GIT_BIN=$GIT_BIN
@@ -23,6 +39,7 @@ fi
 
 GIT_BIN=$RESOLVED_GIT_BIN
 
+log_info "repo_dir_source=$REPO_DIR_SOURCE"
 log_info "repo_dir=$REPO_DIR"
 log_info "git_bin=$GIT_BIN"
 
