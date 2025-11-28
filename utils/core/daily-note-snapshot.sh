@@ -19,29 +19,50 @@ DRY_RUN=0
 embed_total=0
 embed_resolved=0
 embed_unresolved=0
+NOTE=""
 
 print_usage() {
-  printf 'Usage: %s [-n|--dry-run] PATH/TO/daily-note.md\n' "$0" >&2
+  printf 'Usage: %s [-n|--dry-run] [PATH/TO/daily-note.md]\n' "$0" >&2
 }
 
-# Option parsing (very simple: optional first arg -n/--dry-run)
-case "${1-}" in
-  -n|--dry-run)
-    DRY_RUN=1
-    shift
-    ;;
-  "")
-    print_usage
-    exit 1
-    ;;
-esac
+# Option parsing: support -n/--dry-run and optional note path
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -n|--dry-run)
+      DRY_RUN=1
+      ;;
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      printf 'Unknown option: %s\n' "$1" >&2
+      print_usage
+      exit 1
+      ;;
+    *)
+      if [ -n "$NOTE" ]; then
+        printf 'Error: multiple note paths provided\n' >&2
+        print_usage
+        exit 1
+      fi
+      NOTE=$1
+      ;;
+  esac
+  shift
+done
 
-if [ "$#" -ne 1 ]; then
-  print_usage
-  exit 1
+# If no note path provided, default to today's daily note
+if [ -z "$NOTE" ]; then
+  DAILY_NOTE_DIR=${DAILY_NOTE_DIR:-"$VAULT_ROOT/daily"}
+  today=$(date +%Y-%m-%d)
+  NOTE="$DAILY_NOTE_DIR/$today.md"
+  log_info "No note path provided; defaulting to today's note: $NOTE"
 fi
-
-NOTE=$1
 
 if [ ! -f "$NOTE" ]; then
   log_err "note not found: $NOTE"
