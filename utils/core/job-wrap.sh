@@ -144,14 +144,6 @@ log_info "== ${SAFE_JOB_NAME} end =="
 # Update latest symlink (best-effort)
 ln -sf "$(basename "$RUNLOG")" "$LATEST" 2>/dev/null || true
 
-# Optional: keep only the newest N logs per job (default 20)
-LOG_KEEP="${LOG_KEEP:-20}"
-# List newest->oldest, drop beyond N, delete them
-# (ls -t is widely available on BSD/GNU; guard for empty)
-OLD_LIST=$(ls -1t "$LOGDIR_MAPPED/${SAFE_JOB_NAME}-"*.log 2>/dev/null | awk -v n="$LOG_KEEP" 'NR>n')
-if [ -n "${OLD_LIST:-}" ]; then
-  # xargs without -r for portability; guarded by the if
-  printf '%s\n' "$OLD_LIST" | xargs rm -f
-fi
+log_rotate
 
 exit "$STATUS"

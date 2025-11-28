@@ -167,6 +167,36 @@ log__append_file() {
   printf '%s\n' "$line" >>"$log_file"
 }
 
+log_rotate() {
+  keep_arg=${1:-}
+  keep=${keep_arg:-${LOG_KEEP:-20}}
+  log_file=${LOG_FILE:-}
+  job_name=${LOG_JOB_NAME:-}
+
+  [ -n "$log_file" ] || return 0
+
+  case "$log_file" in
+    */*)
+      log_dir=${log_file%/*}
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  if [ -z "$job_name" ]; then
+    base_name=${log_file##*/}
+    job_name=${base_name%-*}
+  fi
+
+  safe_job=$(log__safe_job_name "$job_name")
+
+  old_list=$(ls -1t "$log_dir/${safe_job}-"*.log 2>/dev/null | awk -v n="$keep" 'NR>n')
+  if [ -n "${old_list:-}" ]; then
+    printf '%s\n' "$old_list" | xargs rm -f
+  fi
+}
+
 log__emit() {
   level=$1
   stream=$2
