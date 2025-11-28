@@ -54,7 +54,7 @@ log_init() {
   fi
 
   if [ -z "${LOG_RUN_TS:-}" ]; then
-    if ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null); then
+    if ts=$(date +%Y%m%dT%H%M%S%z 2>/dev/null); then
       LOG_RUN_TS=$ts
     elif ts=$(log__now 2>/dev/null); then
       LOG_RUN_TS=$(printf '%s' "$ts" | tr -d ':-')
@@ -84,12 +84,12 @@ log_init() {
   export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME
 }
 
-# Emit a timestamp in UTC when enabled. Default is on; set LOG_TIMESTAMP=0 to disable.
+# Emit a timestamp in local time when enabled. Default is on; set LOG_TIMESTAMP=0 to disable.
 log__now() {
   if ! command -v date >/dev/null 2>&1; then
     return 1
   fi
-  TZ=UTC0 date '+%Y-%m-%dT%H:%M:%SZ'
+  date '+%Y-%m-%dT%H:%M:%S%z'
 }
 
 # Sanitize messages when ASCII-only logs are required (default on).
