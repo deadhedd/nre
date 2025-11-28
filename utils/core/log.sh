@@ -9,6 +9,9 @@ if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ] 2>/dev/null; then
 fi
 LOG_HELPER_LOADED=1
 
+: "${LOG_INFO_STREAM:=stdout}"
+: "${LOG_DEBUG_STREAM:=stdout}"
+
 log__safe_job_name() {
   printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'
 }
@@ -184,11 +187,11 @@ log__emit() {
   log__append_file "$line"
 }
 
-log_info() { log__emit INFO stdout "$@"; }
+log_info() { log__emit INFO "${LOG_INFO_STREAM:-stdout}" "$@"; }
 log_warn() { log__emit WARN stderr "$@"; }
 log_err()  { log__emit ERR stderr "$@"; }
 log_debug() {
   if [ "${LOG_DEBUG:-0}" -ne 0 ]; then
-    log__emit DEBUG stdout "$@"
+    log__emit DEBUG "${LOG_DEBUG_STREAM:-stdout}" "$@"
   fi
 }
