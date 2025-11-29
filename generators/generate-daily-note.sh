@@ -394,8 +394,6 @@ tags:
 
 ${daily_plan_intro_section}
 
-## 🧭 Daily Orientation
-
 ${time_blocks_nav}
 
 ## 🌅 Daily Context
@@ -410,77 +408,45 @@ ${pagan_timings_text}
 
 ## 🎯 Direction & Intent
 
-### [[Yearly theme]] (2025)
-The year of standing on business
-[[Stand on Business List]]
+### ![[Yearly theme]]
 
-### [[Season Theme]] (2025 Spring)
-Yard work and home repairs
+### ![[Season Theme]]
 
-### 🎯 Weekly Goal
-![[Periodic Notes/Weekly Notes/${week_tag}#🎯 Weekly Goal]]
+### ![[Periodic Notes/Weekly Notes/2025-W48#🎯 Weekly Goal]]
 
-## ✅ Execution (Today)
+## ✅ Execution
 
 ### 🔁 Recurring Today
 [[Recurring Tasks]]
-\`\`\`tasks
+```tasks
 not done
-happens today
-\`\`\`
+happens on or before today
+sort by happens
+```
 
 ### 📌 Focus Buckets
 
-#### Stand on Business
-\`\`\`tasks
-not done
-tags include #stand-on-business
-\`\`\`
+- [[Stand on Business]]
+- [[Quick Wins]]
+- [[Comms Queue]]
+- [[Device Config]]
+- [[Someday/Maybe]]
 
-#### Quick Wins
-\`\`\`tasks
-not done
-tags include #quick-wins
-\`\`\`
-
-#### Comms Queue
-\`\`\`tasks
-not done
-tags include #comms-queue
-\`\`\`
-
-#### Device Config
-\`\`\`tasks
-not done
-tags include #device-config
-\`\`\`
-
-#### Someday/Maybe (Review Only)
-\`\`\`tasks
-not done
-tags include #someday-maybe
-\`\`\`
-
-## Finances
+## 💰 Finances
+(this section should be an embed, but we need to configure a source note first)
 
 ${loan_countdown_text}
 
-## 🧭 Periodic Navigation
+### 💳 Credit Card Payoff Countdown
+(sample data)
 
-[[Periodic Notes/Weekly Notes/${week_tag}|This Week]]
-[[Periodic Notes/Monthly Notes/${year}-${month}|This Month]]
-[[Periodic Notes/Quarterly Notes/${year}-Q${quarter}|This Quarter]]
-[[Periodic Notes/Yearly Notes/${year}|This Year]]
+| Months left | Payments left (20ths) | Next payment | Target payoff |
+|-------------|-----------------------|--------------|---------------|
+| 18 | 18 | 2026-03-20 | 2027-06-20 |
 
-## 📊 Dashboards & Reference
+## 🏎️ F1 Info
 
-${f1_dashboard_embed}
-
-[[Weekly Routine]]
-[[Consider Johnie]]
-[[Daily Note Template]]
-[[Daily Plan]]
-[[Workout Schedule]]
+![[Reference/Dashboards/Formula 1]]
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
