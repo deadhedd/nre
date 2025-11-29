@@ -288,17 +288,22 @@ EOF_SUBNOTE
 done
 
 
-pagan_header="### Pagan Timings"
-moon_text="Moon phase info unavailable."
-season_text="Seasonal turning info unavailable."
+celestial_header="### 🌌 Celestial Timings"
 
+moon_rows='<tr>
+  <td colspan="4">Moon data unavailable.</td>
+</tr>'
+
+season_rows='<tr>
+  <td colspan="3">Seasonal data unavailable.</td>
+</tr>'
 
 lunar_cycle_script="$utils_dir/celestial/lunar-cycle.sh"
 if [ -r "$lunar_cycle_script" ]; then
   log_info "Gathering lunar cycle data"
   if output=$(sh "$lunar_cycle_script"); then
     log_info "Lunar cycle data retrieved"
-    moon_text="$output"
+    moon_rows="$output"
   else
     status=$?
     log_warn "Lunar cycle script failed with exit code $status, using fallback text"
@@ -312,7 +317,7 @@ if [ -r "$seasonal_cycle_script" ]; then
   log_info "Gathering seasonal cycle data"
   if output=$(sh "$seasonal_cycle_script"); then
     log_info "Seasonal cycle data retrieved"
-    season_text="$output"
+    season_rows="$output"
   else
     status=$?
     log_warn "Seasonal cycle script failed with exit code $status, using fallback text"
@@ -321,7 +326,36 @@ else
   log_warn "Seasonal cycle script not found at $seasonal_cycle_script, using fallback text"
 fi
 
-pagan_timings_text=$(printf '%s\n%s\n%s\n' "$pagan_header" "$moon_text" "$season_text")
+pagan_timings_text=$(cat <<EOF
+$celestial_header
+<table class="moon-table">
+  <thead>
+    <tr>
+      <th>Moon Phase</th>
+      <th>Illumination</th>
+      <th>Next Phase</th>
+      <th>Time Until</th>
+    </tr>
+  </thead>
+  <tbody>
+$moon_rows
+  </tbody>
+</table>
+
+<table class="season-table">
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>Date &amp; Time</th>
+      <th>Time Until</th>
+    </tr>
+  </thead>
+  <tbody>
+$season_rows
+  </tbody>
+</table>
+EOF
+)
 
 # Daily Plan intro (day + purpose)
 daily_plan_intro=""
