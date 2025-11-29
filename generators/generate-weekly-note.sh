@@ -24,7 +24,7 @@ Options:
   --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Weekly Notes".
   --date YYYY-MM-DD Target date used to determine the week tag. Defaults to the current UTC date.
   --force           Overwrite the note if it already exists.
-  --dry-run         Output the note contents to stdout without writing files.
+  --dry-run         Write note content to "Weekly Note Sample.md" in the repo root without touching the vault.
   --help            Show this message.
 EOF_USAGE
 }
@@ -37,6 +37,15 @@ dry_run=0
 
 write_output() {
   dest=$1
+  output_target=$dest
+
+  if [ "$dry_run" -eq 1 ] && [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
+    output_target=$dry_run_output_path
+    log_info "Dry run: redirecting output to sample file: $output_target"
+    cat >"$output_target"
+    return
+  fi
+
   if [ "$dry_run" -eq 1 ]; then
     log_info "DRY RUN start: $dest"
     cat
@@ -147,6 +156,9 @@ fi
 
 note_path="${note_dir%/}/${iso_week_tag}.md"
 
+dry_run_primary_path=$note_path
+dry_run_output_path="${repo_root%/}/Weekly Note Sample.md"
+
 if [ "$dry_run" -eq 1 ]; then
   log_info "Dry run: would ensure directory exists: $note_dir"
 else
@@ -203,10 +215,10 @@ tag includes due/${iso_week_tag}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: weekly note would be written to $note_path"
+  log_info "Dry run: weekly note sample written to $dry_run_output_path"
+else
+  log_info "Weekly note created: $note_path"
 fi
-
-log_info "Weekly note created: $note_path"
 
 if [ "$dry_run" -eq 1 ]; then
   log_info "Dry run: skipping commit helper"
