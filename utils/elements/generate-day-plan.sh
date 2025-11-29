@@ -77,23 +77,85 @@ if [ -n "$DAY_NAME" ]; then
 fi
 
 extract_day_section() {
-  # Allow extra text after the day header (e.g., "## Monday (Deep Work)").
-  awk -v pat="^##[[:space:]]*${1}([[:space:]]|$)" '
-    $0 ~ pat {in_day=1; next}
-    in_day && /^##[[:space:]]/ {exit}
-    in_day {print}
+  day="$1"
+  # Allow emojis and extra text after the day header (e.g., "## 💕 Monday (Deep Work)").
+  awk -v day="$day" '
+    BEGIN { in_day = 0 }
+
+    # Any H2 header: "## ...".
+    /^##[[:space:]]/ {
+      header = $0
+      # Strip anything that is not a letter or space: removes "##", emojis, punctuation.
+      gsub(/[^[:alpha:][:space:]]/, "", header)
+      # Pad with spaces to make word-boundary detection easy.
+      header = " " header " "
+      if (index(header, " " day " ") > 0) {
+        in_day = 1
+        next
+      } else if (in_day) {
+        # We hit the next day header; stop this section.
+        exit
+      } else {
+        in_day = 0
+        next
+      }
+    }
+
+    in_day { print }
   ' "$file"
 }
 
 extract_block_for_day() {
   day="$1"; block="$2"
   # Accept 4+ hash headers so the plan can use either #### or ##### levels.
-  awk -v d="^##[[:space:]]*${day}([[:space:]]|$)" -v b="^####+[[:space:]]*${block}([[:space:]]|$)" '
-    $0 ~ d {in_day=1; next}
-    in_day && /^##[[:space:]]/ {in_day=0}
-    in_day && $0 ~ b {in_blk=1; next}
-    in_blk && (/^####[[:space:]]/ || /^##[[:space:]]/) {exit}
-    in_blk {print}
+  awk -v day="$day" -v block="$block" '
+    BEGIN {
+      in_day  = 0
+      in_blk  = 0
+    }
+
+    # Day headers like:
+    #   "## 😓 Sunday"
+    #   "## 💕 Saturday"
+    #   "## Wednesday (Stuff)"
+    /^##[[:space:]]/ {
+      header = $0
+      gsub(/[^[:alpha:][:space:]]/, "", header)
+      header = " " header " "
+      if (index(header, " " day " ") > 0) {
+        in_day = 1
+      } else {
+        in_day = 0
+      }
+      in_blk = 0
+      next
+    }
+
+    # Within the day, find block headers:
+    #   "##### Morning"
+    #   "##### Wake Up"
+    in_day && /^####+/ {
+      header = $0
+      sub(/^#+[[:space:]]*/, "", header)  # strip leading #s and spaces
+      if (header == block) {
+        in_blk = 1
+      } else {
+        # If we were already in a block and see a different block, stop.
+        if (in_blk) {
+          exit
+        }
+        in_blk = 0
+      }
+      next
+    }
+
+    # If we’re in a block and hit the next day, stop.
+    in_day && in_blk && /^##[[:space:]]/ { exit }
+
+    # Lines that belong to the chosen block for the chosen day.
+    in_day && in_blk {
+      print
+    }
   ' "$file" | awk '
     {lines[++n]=$0}
     END{
