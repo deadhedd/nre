@@ -167,7 +167,7 @@ time_blocks_nav=$(cat <<EOF_TB
  
  [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Wake Up|Wake Up]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Morning|Morning]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Afternoon|Afternoon]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Evening|Evening]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Night|Night]]
 
-## 📅 Periodic Navigation
+## 📅 Periodic Notes
 
 [[Periodic Notes/Weekly Notes/2025-W48|This Week]] · [[Periodic Notes/Monthly Notes/2025-11|This Month]] · [[Periodic Notes/Quarterly Notes/2025-Q4|This Quarter]] · [[Periodic Notes/Yearly Notes/2025|This Year]]
 
