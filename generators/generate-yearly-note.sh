@@ -38,8 +38,13 @@ dry_run=0
 write_output() {
   dest=$1
   if [ "$dry_run" -eq 1 ]; then
-    printf 'ℹ️ DRY RUN start: %s\n' "$dest"
-    cat
+    if [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
+      printf 'ℹ️ DRY RUN start: %s -> %s\n' "$dest" "$dry_run_output_path"
+      cat | tee "$dry_run_output_path"
+    else
+      printf 'ℹ️ DRY RUN start: %s\n' "$dest"
+      cat
+    fi
     printf 'ℹ️ DRY RUN end: %s\n' "$dest"
   else
     cat >"$dest"
@@ -136,6 +141,8 @@ else
 fi
 
 note_path="${note_dir%/}/${target_year}.md"
+dry_run_primary_path=$note_path
+dry_run_output_path="${repo_root%/}/Yearly Note Sample.md"
 
 if [ "$dry_run" -eq 1 ]; then
   printf 'ℹ️ Dry run: would ensure directory exists: %s\n' "$note_dir"
@@ -191,14 +198,24 @@ where contains(tags, "due/${target_year}")
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'ℹ️ Dry run: yearly note would be written to %s\n' "$note_path"
+  printf 'ℹ️ Dry run: yearly note sample written to %s\n' "$dry_run_output_path"
 fi
 
+commit_work_tree=$vault_path
+commit_target_path=$note_path
+
 if [ "$dry_run" -eq 1 ]; then
-  printf 'ℹ️ Dry run: skipping commit helper\n'
-elif [ -x "$commit_helper" ]; then
+  commit_work_tree=$repo_root
+  commit_target_path=$dry_run_output_path
+fi
+
+if [ -x "$commit_helper" ]; then
   printf 'ℹ️ Invoking commit helper\n'
-  "$commit_helper" -c "yearly note" "$vault_path" "yearly note: $target_year" "$note_path"
+  if [ "$dry_run" -eq 1 ]; then
+    COMMIT_BARE_REPO="${repo_root%/}/.git" "$commit_helper" -c "yearly note" "$commit_work_tree" "yearly note: $target_year" "$commit_target_path"
+  else
+    "$commit_helper" -c "yearly note" "$commit_work_tree" "yearly note: $target_year" "$commit_target_path"
+  fi
 else
   printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
 fi

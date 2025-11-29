@@ -220,11 +220,21 @@ else
   log_info "Weekly note created: $note_path"
 fi
 
+commit_work_tree=$vault_path
+commit_target_path=$note_path
+
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: skipping commit helper"
-elif [ -x "$commit_helper" ]; then
+  commit_work_tree=$repo_root
+  commit_target_path=$dry_run_output_path
+fi
+
+if [ -x "$commit_helper" ]; then
   log_info "Invoking commit helper"
-  "$commit_helper" -c "weekly note" "$vault_path" "weekly note: $iso_week_tag" "$note_path"
+  if [ "$dry_run" -eq 1 ]; then
+    COMMIT_BARE_REPO="${repo_root%/}/.git" "$commit_helper" -c "weekly note" "$commit_work_tree" "weekly note: $iso_week_tag" "$commit_target_path"
+  else
+    "$commit_helper" -c "weekly note" "$commit_work_tree" "weekly note: $iso_week_tag" "$commit_target_path"
+  fi
 else
   log_info "Commit helper not found: $commit_helper"
   printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
