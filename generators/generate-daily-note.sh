@@ -336,17 +336,31 @@ if [ -r "$day_plan_script" ]; then
       /^# Daily Plan - / {in_today=1; next}
       in_today && /^## Preview of Tomorrow:/ {exit}
       in_today {
-        if (!day && /^## /) {
-          day=$0
+        # Capture first "## ..." as the day
+        if (!day && /^##[[:space:]]+/) {
+          line = $0
+          sub(/^##[[:space:]]+/, "", line)
+          day = line
           next
         }
-        if (!focus && /^### /) {
-          focus=$0
+        # Capture first "### ..." as the focus
+        if (!focus && /^###[[:space:]]+/) {
+          line = $0
+          sub(/^###[[:space:]]+/, "", line)
+          focus = line
         }
       }
       END {
-        if (day) print day;
-        if (focus) print focus;
+        if (day && focus) {
+          # Combined header, e.g. "## Thursday (Communication and Bills)"
+          printf("## %s (%s)\n", day, focus)
+        } else if (day) {
+          # Fallback if there is no focus line
+          printf("## %s\n", day)
+        } else if (focus) {
+          # Extreme fallback if somehow only focus exists
+          printf("## %s\n", focus)
+        }
       }
     ')
     if [ -n "$intro_lines" ]; then
