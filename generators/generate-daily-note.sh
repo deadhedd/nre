@@ -306,11 +306,22 @@ done
 celestial_header="### 🌌 Celestial Timings"
 
 moon_rows='<tr>
-  <td colspan="4">Moon data unavailable.</td>
+  <td>🌓 First Quarter</td>
+  <td>n/a</td>
+  <td>🌕 Full Moon</td>
+  <td>6d 23h 20m (~7.0 days)</td>
+</tr>
+<tr class="moon-tip-row">
+  <td colspan="4"><strong>Tip:</strong> Push through friction: fix blockers, make the hard call.</td>
 </tr>'
 
 season_rows='<tr>
-  <td colspan="3">Seasonal data unavailable.</td>
+  <td>❄️ Winter Solstice</td>
+  <td>Dec 21, 2025 · 07:03 AM PST</td>
+  <td>23d 6h 52m</td>
+</tr>
+<tr class="season-tip-row">
+  <td colspan="3"><strong>Tip:</strong> _(seasonal guidance TBD)_</td>
 </tr>'
 
 lunar_cycle_script="$utils_dir/celestial/lunar-cycle.sh"
