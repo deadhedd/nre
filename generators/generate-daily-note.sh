@@ -17,7 +17,7 @@ Usage: generate-daily-note.sh [--force] [--dry-run]
 
 Options:
   --force    Overwrite the note if it already exists.
-  --dry-run  Output the note contents to stdout instead of writing files.
+  --dry-run  Write note content to "Daily Note Sample.md" in the repo root without touching the vault.
   --help     Show this message.
 EOF_USAGE
 }
@@ -49,6 +49,15 @@ done
 
 write_output() {
   dest=$1
+  output_target=$dest
+
+  if [ "$dry_run" -eq 1 ] && [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
+    output_target=$dry_run_output_path
+    log_info "Dry run: redirecting output to sample file: $output_target"
+    cat >"$output_target"
+    return
+  fi
+
   if [ "$dry_run" -eq 1 ]; then
     printf -- '--- DRY RUN: %s ---\n' "$dest"
     cat
@@ -182,6 +191,9 @@ yesterday=$(get_yesterday)
 tomorrow=$(get_tomorrow)
 
 file_path="${daily_note_dir%/}/${today}.md"
+
+dry_run_primary_path=$file_path
+dry_run_output_path="${repo_root%/}/Daily Note Sample.md"
 
 f1_dashboard_note="Reference/Dashboards/Formula 1"
 f1_dashboard_path="${vault_root%/}/${f1_dashboard_note}.md"
@@ -509,7 +521,7 @@ ${f1_callout}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: daily note would be created at $file_path"
+  log_info "Dry run: daily note sample written to $dry_run_output_path"
 else
   log_info "Daily note created at $file_path"
 fi
