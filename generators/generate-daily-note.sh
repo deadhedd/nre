@@ -106,8 +106,9 @@ year=${current_date_parts%% *}
 month_day=${current_date_parts#* }
 month=${month_day%% *}
 day=${month_day#* }
-quarter=$(get_current_quarter)
 week_tag=$(get_current_week_tag)
+month_tag=$(get_current_month_tag)
+quarter_tag_iso=$(get_quarter_tag_iso)
 
 # --- Loan payoff countdown (pay on the 20th; payoff 2027-12-20) ---
 payoff_y=2027
@@ -174,11 +175,11 @@ log_info "Preparing time block navigation"
 time_blocks_nav=$(cat <<EOF_TB
 ### 🕑 Time Blocks
 
- [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Wake Up|Wake Up]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Morning|Morning]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Afternoon|Afternoon]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Evening|Evening]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Night|Night]]
+ [[Periodic Notes/Daily Notes/Subnotes/${today} - Wake Up|Wake Up]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Morning|Morning]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Afternoon|Afternoon]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Evening|Evening]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Night|Night]]
 
 ### 📅 Periodic Notes
 
-[[Periodic Notes/Weekly Notes/2025-W48|This Week]] · [[Periodic Notes/Monthly Notes/2025-11|This Month]] · [[Periodic Notes/Quarterly Notes/2025-Q4|This Quarter]] · [[Periodic Notes/Yearly Notes/2025|This Year]]
+[[Periodic Notes/Weekly Notes/${week_tag}|This Week]] · [[Periodic Notes/Monthly Notes/${month_tag}|This Month]] · [[Periodic Notes/Quarterly Notes/${quarter_tag_iso}|This Quarter]] · [[Periodic Notes/Yearly Notes/${year}|This Year]]
 
 ### 🔗 Links
 
