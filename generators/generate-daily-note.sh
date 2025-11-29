@@ -459,11 +459,11 @@ execution_callout=$(cat <<EOF_EXECUTION
 > [!todo]+ ✅ Execution
 > ### 🔁 Recurring Today
 > [[Recurring Tasks]]
-> ```tasks
+> \`\`\`tasks
 > not done
 > happens on or before today
 > sort by happens
-> ```
+> \`\`\`
 >
 > ### 📌 Focus Buckets
 >
