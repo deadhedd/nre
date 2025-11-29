@@ -245,18 +245,13 @@ else
   fi
 fi
 
-# Guard against accidental overwrites unless --force is supplied, but keep
-# generating subnotes even if the main note already exists.
-note_exists=0
-if [ -f "$file_path" ]; then
-  note_exists=1
-  if [ "$dry_run" -eq 1 ]; then
-    log_info "Dry run: note already exists; would skip overwrite: $file_path"
-  elif [ "$force" -ne 1 ]; then
-    log_warn "Daily note already exists; skipping overwrite: $file_path"
-  else
-    log_info "Daily note exists but will be overwritten due to --force"
-  fi
+# Guard against accidental overwrites unless --force is supplied.
+if [ "$dry_run" -eq 1 ]; then
+  log_info "Dry run: skipping overwrite guard for $file_path"
+elif [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
+  log_err "Refusing to overwrite existing file: $file_path"
+  printf '     Re-run with --force to overwrite.\n' >&2
+  exit 1
 fi
 
 # Time block subnote placeholders + content
@@ -514,13 +509,10 @@ f1_callout=$(cat <<EOF_F1
 EOF_F1
 )
 
-log_info "Preparing daily note content"
+log_info "Writing daily note content"
 
 # Compose note content with clearer grouping / order.
-if [ "$note_exists" -eq 1 ] && [ "$force" -ne 1 ] && [ "$dry_run" -ne 1 ]; then
-  log_info "Daily note already present; keeping existing content: $file_path"
-else
-  write_output "$file_path" <<EOF_NOTE
+write_output "$file_path" <<EOF_NOTE
 ---
 tags:
   - matter/daily-notes
@@ -541,12 +533,9 @@ ${finances_callout}
 
 ${f1_callout}
 EOF_NOTE
-fi
 
 if [ "$dry_run" -eq 1 ]; then
   log_info "Dry run: daily note sample written to $dry_run_output_path"
-elif [ "$note_exists" -eq 1 ] && [ "$force" -ne 1 ]; then
-  log_info "Daily note left unchanged at $file_path"
 else
   log_info "Daily note created at $file_path"
 fi
