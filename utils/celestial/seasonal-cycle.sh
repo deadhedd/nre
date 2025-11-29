@@ -9,6 +9,22 @@ log() {
 
 log "Starting pagan seasonal lookup"
 
+print_rows() {
+  event_label="$1"
+  datetime_label="$2"
+  time_until="$3"
+  tip_text="$4"
+
+  printf '<tr>\n'
+  printf '  <td>%s</td>\n' "$event_label"
+  printf '  <td>%s</td>\n' "$datetime_label"
+  printf '  <td>%s</td>\n' "$time_until"
+  printf '</tr>\n'
+  printf '<tr class="season-tip-row">\n'
+  printf '  <td colspan="3"><strong>Tip:</strong> %s</td>\n' "$tip_text"
+  printf '</tr>\n'
+}
+
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 UTILS_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 # shellcheck source=utils/celestial/celestial-timings-common.sh
@@ -32,10 +48,11 @@ season_icon() {
 }
 
 custom_rows="${PAGAN_TIMINGS_SEASON_ROWS:-}"
+season_tip_default="${PAGAN_TIMINGS_SEASON_TIP:-_(seasonal guidance TBD)_}"
 
 if [ "${OFFLINE:-0}" = "1" ] && [ -z "$custom_rows" ]; then
   log "Offline mode detected and no custom rows provided; exiting"
-  echo "Next seasonal turning: 🌀 **(offline)** in n/a"
+  print_rows "🌀 Offline" "n/a" "n/a" "$season_tip_default"
   exit 0
 fi
 
@@ -97,7 +114,7 @@ rows_count=$(printf '%s\n' "$canon_rows" | awk 'NF>0 {c++} END{print c+0}')
 log "Evaluating seasonal dataset ($rows_count candidate rows)"
 if [ -z "$canon_rows" ]; then
   log "No seasonal rows available after filtering"
-  echo "Next seasonal turning: 🌀 **(unavailable)**"
+  print_rows "🌀 Unavailable" "n/a" "n/a" "$season_tip_default"
   exit 0
 fi
 
@@ -114,7 +131,7 @@ choice=$(printf '%s\n' "$canon_rows" | awk -F'|' -v now="$NOW" '
 
 if [ "$choice" = "NONE" ] || [ -z "$choice" ]; then
   log "No future seasonal turning found in dataset"
-  echo "Next seasonal turning: 🌀 **(unavailable)**"
+  print_rows "🌀 Unavailable" "n/a" "n/a" "$season_tip_default"
   exit 0
 fi
 
@@ -129,7 +146,7 @@ EOF_ROW
 
 if [ -z "${epoch:-}" ] || [ -z "${iso:-}" ] || [ -z "${phen:-}" ]; then
   log "Failed to parse selected row: $choice"
-  echo "Next seasonal turning: 🌀 **(unavailable)**"
+  print_rows "🌀 Unavailable" "n/a" "n/a" "$season_tip_default"
   exit 0
 fi
 
@@ -148,7 +165,11 @@ esac
 left=$((epoch - NOW))
 log "Next seasonal turning is $next_name at $iso (epoch $epoch)"
 
-pretty=$(format_epoch_local "$epoch" "%b %e, %Y %I:%M %p %Z")
+pretty=$(format_epoch_local "$epoch" "%b %e, %Y · %I:%M %p %Z")
+pretty_clean=$(printf '%s' "$pretty" | sed 's/  */ /g')
 
-printf "Next seasonal turning: %s **%s** in %s  \n(%s)\n" \
-  "$(season_icon "$next_name")" "$next_name" "$(fmt_eta "$left")" "$pretty"
+print_rows \
+  "$(season_icon "$next_name") $next_name" \
+  "$pretty_clean" \
+  "$(fmt_eta "$left")" \
+  "$season_tip_default"

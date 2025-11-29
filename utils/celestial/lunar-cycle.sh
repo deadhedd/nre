@@ -97,8 +97,26 @@ format_utc_date() {
   printf "n/a\n"
 }
 
+print_rows() {
+  phase_label="$1"
+  illum_label="$2"
+  next_label="$3"
+  time_until="$4"
+  tip_text="$5"
+
+  printf '<tr>\n'
+  printf '  <td>%s</td>\n' "$phase_label"
+  printf '  <td>%s</td>\n' "$illum_label"
+  printf '  <td>%s</td>\n' "$next_label"
+  printf '  <td>%s</td>\n' "$time_until"
+  printf '</tr>\n'
+  printf '<tr class="moon-tip-row">\n'
+  printf '  <td colspan="4"><strong>Tip:</strong> %s</td>\n' "$tip_text"
+  printf '</tr>\n'
+}
+
 if [ "${OFFLINE:-0}" = "1" ]; then
-  echo "Moon: 🌙 **(offline)** (illumination n/a) — next 🌙 **Principal Phase** on n/a (in n/a; ~n/a days)"
+  print_rows "🌙 Offline" "n/a" "🌙 Principal Phase" "n/a" "Guidance unavailable."
   exit 0
 fi
 
@@ -107,7 +125,7 @@ t=$(date -u +%H:%M)
 url="https://aa.usno.navy.mil/api/celnav?date=${d}&time=${t}&coords=${LAT},${LON}"
 
 if ! json=$(curl_json "$url"); then
-  echo "Moon: 🌙 **(unavailable)** (illumination n/a) — next 🌙 **Principal Phase** on n/a (in n/a; ~n/a days)"
+  print_rows "🌙 Unavailable" "n/a" "🌙 Principal Phase" "n/a" "Guidance unavailable."
   exit 0
 fi
 
@@ -195,14 +213,15 @@ printf 'DEBUG phase=[%s]\n' "$phase" >&2
 printf 'DEBUG icon=[%s]\n' "$(moon_icon "$phase")" >&2
 
 guidance="$(moon_guidance "$phase")"
+illum_cell="$illum_str"
 
-# Build the message first, then append tip if available
-msg=$(printf "Moon: %s **%s** %s — next %s **%s** on %s (in %s; ~%s days)" \
-  "$(moon_icon "$phase")" "$phase" "$illum_str" \
-  "$(moon_icon "$nextname")" "$nextname" "$next_date" "$(fmt_eta "$left_secs")" "$days_count")
+case "$illum_cell" in
+  ""|"(illumination n/a)") illum_cell="n/a" ;;
+esac
 
-if [ -n "$guidance" ]; then
-  msg="$msg — tip: $guidance"
-fi
-
-printf "%s\n" "$msg"
+print_rows \
+  "$(moon_icon "$phase") $phase" \
+  "$illum_cell" \
+  "$(moon_icon "$nextname") $nextname" \
+  "$(fmt_eta "$left_secs") (~$days_count days)" \
+  "${guidance:-Guidance unavailable.}"
