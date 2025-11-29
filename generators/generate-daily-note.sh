@@ -245,7 +245,9 @@ else
 fi
 
 # Guard against accidental overwrites unless --force is supplied.
-if [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
+if [ "$dry_run" -eq 1 ]; then
+  log_info "Dry run: skipping overwrite guard for $file_path"
+elif [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
   log_err "Refusing to overwrite existing file: $file_path"
   printf '     Re-run with --force to overwrite.\n' >&2
   exit 1
