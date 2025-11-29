@@ -91,6 +91,8 @@ extract_day_section() {
       header = " " header " "
       if (index(header, " " day " ") > 0) {
         in_day = 1
+        # IMPORTANT: print the original header so emoji survive
+        print $0
         next
       } else if (in_day) {
         # We hit the next day header; stop this section.
@@ -183,8 +185,6 @@ fi
 
 # Legacy: full today + tomorrow
 printf '# Daily Plan - %s\n\n' "$today_name"
-printf '## %s\n' "$today_name"
 extract_day_section "$today_name" || true
 printf '\n## Preview of Tomorrow: %s\n' "$tomorrow_name"
-printf '## %s\n' "$tomorrow_name"
 extract_day_section "$tomorrow_name" || true
