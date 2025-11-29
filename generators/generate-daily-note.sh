@@ -541,20 +541,27 @@ else
 fi
 
 commit_work_tree=$vault_path
-commit_target_path=$file_path
 
 if [ "$dry_run" -eq 1 ]; then
   commit_work_tree=$repo_root
-  commit_target_path=$dry_run_output_path
 fi
 
 if [ -x "$commit_helper" ]; then
   log_info "Invoking commit helper"
+
   if [ "$dry_run" -eq 1 ]; then
-    COMMIT_BARE_REPO="${repo_root%/}/.git" "$commit_helper" -c "daily note" "$commit_work_tree" "daily note: $today" "$commit_target_path"
+    COMMIT_BARE_REPO="${repo_root%/}/.git" \
+      "$commit_helper" -c "daily note" \
+      "$commit_work_tree" \
+      "daily note: $today" \
+      "$@"
   else
-    "$commit_helper" -c "daily note" "$commit_work_tree" "daily note: $today" "$commit_target_path"
+    "$commit_helper" -c "daily note" \
+      "$commit_work_tree" \
+      "daily note: $today" \
+      "$@"
   fi
+
 else
   log_warn "Commit helper not found: $commit_helper"
 fi
