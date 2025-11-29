@@ -163,17 +163,15 @@ log_info "Generating note for date: $today"
 log_info "Preparing time block navigation"
 
 time_blocks_nav=$(cat <<EOF_TB
-
-## 🗺️ Navigation
 ### 🕑 Time Blocks
- 
+
  [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Wake Up|Wake Up]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Morning|Morning]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Afternoon|Afternoon]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Evening|Evening]] · [[Periodic Notes/Daily Notes/Subnotes/2025-11-28 - Night|Night]]
 
 ### 📅 Periodic Notes
 
 [[Periodic Notes/Weekly Notes/2025-W48|This Week]] · [[Periodic Notes/Monthly Notes/2025-11|This Month]] · [[Periodic Notes/Quarterly Notes/2025-Q4|This Quarter]] · [[Periodic Notes/Yearly Notes/2025|This Year]]
 
-###  🔗 Links
+### 🔗 Links
 
 [[Weekly Routine]] · [[Consider Johnie]] · [[Daily Note Template]] · [[Daily Plan]] · [[Workout Schedule]]
 EOF_TB
@@ -274,6 +272,8 @@ for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
 
 ## From Daily Plan
 ${block_section}
+
+## 🗺️ Navigation
 
 ${time_blocks_nav}
 
@@ -413,6 +413,76 @@ else
   daily_plan_intro_section=""
 fi
 
+navigation_callout=$(cat <<EOF_NAVIGATION
+> [!note]+ 🗺️ Navigation
+$(printf '%s\n' "$time_blocks_nav" | sed 's/^/> /')
+EOF_NAVIGATION
+)
+
+daily_context_callout=$(cat <<EOF_DAILY_CONTEXT
+> [!info]+ 🌅 Daily Context
+> ### Sleep
+> ![[Sleep Data/${today} Sleep Summary#Sleep Advice]]
+>
+> ### 🌤️ Yard Work Suitability
+> <!-- yard-work-check -->
+>
+$(printf '%s\n' "$pagan_timings_text" | sed 's/^/> /')
+EOF_DAILY_CONTEXT
+)
+
+direction_callout=$(cat <<EOF_DIRECTION
+> [!tip]+ 🎯 Direction & Intent
+> ### ![[Yearly theme]]
+>
+> ### ![[Season Theme]]
+>
+> ### ![[Periodic Notes/Weekly Notes/2025-W48#🎯 Weekly Goal]]
+EOF_DIRECTION
+)
+
+execution_callout=$(cat <<EOF_EXECUTION
+> [!todo]+ ✅ Execution
+> ### 🔁 Recurring Today
+> [[Recurring Tasks]]
+> ```tasks
+> not done
+> happens on or before today
+> sort by happens
+> ```
+>
+> ### 📌 Focus Buckets
+>
+> - [[Stand on Business]]
+> - [[Quick Wins]]
+> - [[Comms Queue]]
+> - [[Device Config]]
+> - [[Someday/Maybe]]
+EOF_EXECUTION
+)
+
+finances_callout=$(cat <<EOF_FINANCES
+> [!abstract]+ 💰 Finances
+> (this section should be an embed, but we need to configure a source note first)
+>
+$(printf '%s\n' "$loan_countdown_text" | sed 's/^/> /')
+>
+> ### 💳 Credit Card Payoff Countdown
+> (sample data)
+>
+> | Months left | Payments left (20ths) | Next payment | Target payoff |
+> |-------------|-----------------------|--------------|---------------|
+> | 18 | 18 | 2026-03-20 | 2027-06-20 |
+EOF_FINANCES
+)
+
+f1_callout=$(cat <<EOF_F1
+> [!info]+ 🏎️ F1 Info
+>
+> ![[Reference/Dashboards/Formula 1]]
+EOF_F1
+)
+
 log_info "Writing daily note content"
 
 # Compose note content with clearer grouping / order.
@@ -425,59 +495,17 @@ tags:
 
 ${daily_plan_intro_section}
 
-${time_blocks_nav}
+${navigation_callout}
 
-## 🌅 Daily Context
+${daily_context_callout}
 
-### Sleep
-![[Sleep Data/${today} Sleep Summary#Sleep Advice]]
+${direction_callout}
 
-### 🌤️ Yard Work Suitability
-<!-- yard-work-check -->
+${execution_callout}
 
-${pagan_timings_text}
+${finances_callout}
 
-## 🎯 Direction & Intent
-
-### ![[Yearly theme]]
-
-### ![[Season Theme]]
-
-### ![[Periodic Notes/Weekly Notes/2025-W48#🎯 Weekly Goal]]
-
-## ✅ Execution
-
-### 🔁 Recurring Today
-[[Recurring Tasks]]
-```tasks
-not done
-happens on or before today
-sort by happens
-```
-
-### 📌 Focus Buckets
-
-- [[Stand on Business]]
-- [[Quick Wins]]
-- [[Comms Queue]]
-- [[Device Config]]
-- [[Someday/Maybe]]
-
-## 💰 Finances
-(this section should be an embed, but we need to configure a source note first)
-
-${loan_countdown_text}
-
-### 💳 Credit Card Payoff Countdown
-(sample data)
-
-| Months left | Payments left (20ths) | Next payment | Target payoff |
-|-------------|-----------------------|--------------|---------------|
-| 18 | 18 | 2026-03-20 | 2027-06-20 |
-
-## 🏎️ F1 Info
-
-![[Reference/Dashboards/Formula 1]]
+${f1_callout}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
