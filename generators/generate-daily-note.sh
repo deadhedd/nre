@@ -150,11 +150,10 @@ fi
 next_payment_fmt="$(printf '%04d-%02d-%02d' "$np_y" "$np_m" 20)"
 
 loan_countdown_text=$(cat <<EOF_LC
-## 💰 Loan Payoff Countdown
-- **Months left:** ${months_left}
-- **Payments left (20ths):** ${payments_left}
-- **Next payment:** ${next_payment_fmt}
-- **Target payoff:** 2027-12-20
+### 🚗 Car Loan Payoff Countdown
+| Months left | Payments left (20ths) | Next payment | Target payoff |
+|-------------|-----------------------|--------------|---------------|
+| ${months_left} | ${payments_left} | ${next_payment_fmt} | 2027-12-20 |
 EOF_LC
 )
 
