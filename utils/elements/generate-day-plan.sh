@@ -77,20 +77,22 @@ if [ -n "$DAY_NAME" ]; then
 fi
 
 extract_day_section() {
-  awk -v pat="^## ${1}\$" '
+  # Allow extra text after the day header (e.g., "## Monday (Deep Work)").
+  awk -v pat="^##[[:space:]]*${1}([[:space:]]|$)" '
     $0 ~ pat {in_day=1; next}
-    in_day && /^## / {exit}
+    in_day && /^##[[:space:]]/ {exit}
     in_day {print}
   ' "$file"
 }
 
 extract_block_for_day() {
   day="$1"; block="$2"
-  awk -v d="^## ${day}$" -v b="^##### ${block}($| )" '
+  # Accept 4+ hash headers so the plan can use either #### or ##### levels.
+  awk -v d="^##[[:space:]]*${day}([[:space:]]|$)" -v b="^####+[[:space:]]*${block}([[:space:]]|$)" '
     $0 ~ d {in_day=1; next}
-    in_day && /^## / {in_day=0}
+    in_day && /^##[[:space:]]/ {in_day=0}
     in_day && $0 ~ b {in_blk=1; next}
-    in_blk && (/^##### / || /^## /) {exit}
+    in_blk && (/^####[[:space:]]/ || /^##[[:space:]]/) {exit}
     in_blk {print}
   ' "$file" | awk '
     {lines[++n]=$0}
