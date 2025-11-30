@@ -20,6 +20,7 @@ commit_helper="$repo_root/utils/core/commit.sh"
 day_plan_script="$elements_dir/generate-day-plan.sh"
 celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
 f1_script="$elements_dir/f1-schedule-and-standings.sh"
+f1_dashboard_helper="$elements_dir/update-f1-dashboard.sh"
 finances_callout_script="$finances_dir/daily-finances-callout.sh"
 
 . "$log_helper"
@@ -192,53 +193,17 @@ f1_dashboard_path="${vault_root%/}/${f1_dashboard_note}.md"
 
 log_info "Formula 1 dashboard note: $f1_dashboard_path"
 
-ensure_f1_dashboard() {
-  f1_dir=$(dirname -- "$f1_dashboard_path")
-  ensure_dir "$f1_dir"
-
-  if [ ! -f "$f1_dashboard_path" ]; then
-    if [ "$dry_run" -eq 1 ]; then
-      log_warn "Dry run: Formula 1 dashboard missing; would create placeholder at $f1_dashboard_path"
-    else
-      log_warn "Formula 1 dashboard missing; creating placeholder at $f1_dashboard_path"
-      cat >"$f1_dashboard_path" <<'EOF_F1_DASHBOARD'
-# 🏎️ Formula 1
-_This dashboard was created automatically. Populate it with race data or widgets for embeds._
-EOF_F1_DASHBOARD
-    fi
-  else
-    log_info "Formula 1 dashboard present: $f1_dashboard_path"
-  fi
-}
-
-refresh_f1_dashboard() {
+if [ -r "$f1_dashboard_helper" ]; then
   if [ "$dry_run" -eq 1 ]; then
-    log_info "Dry run: skipping Formula 1 dashboard refresh"
-    return
-  fi
-
-  if [ ! -r "$f1_script" ]; then
-    log_warn "Formula 1 script not found: $f1_script"
-    return
-  fi
-
-  if ! command -v jq >/dev/null 2>&1; then
-    log_warn "Skipping Formula 1 refresh; jq is unavailable"
-    return
-  fi
-
-  log_info "Refreshing Formula 1 dashboard content"
-  if output=$(sh "$f1_script" 2>/dev/null); then
-    printf '%s\n' "$output" | write_output "$f1_dashboard_path"
-    log_info "Formula 1 dashboard updated: $f1_dashboard_path"
+    sh "$f1_dashboard_helper" --dashboard-path "$f1_dashboard_path" \
+      --content-script "$f1_script" --dry-run
   else
-    status=$?
-    log_warn "Formula 1 dashboard refresh failed with exit code $status; leaving existing content"
+    sh "$f1_dashboard_helper" --dashboard-path "$f1_dashboard_path" \
+      --content-script "$f1_script"
   fi
-}
-
-ensure_f1_dashboard
-refresh_f1_dashboard
+else
+  log_warn "F1 dashboard helper not found: $f1_dashboard_helper"
+fi
 
 ###############################################################################
 # Overwrite guard for main daily note
@@ -475,7 +440,6 @@ if [ "$dry_run" -eq 1 ]; then
   log_info "Dry run: daily note sample written to $dry_run_output_path"
 else
   log_info "Daily note created at $file_path"
-end_if_dummy=0
 fi
 
 ###############################################################################
