@@ -12,6 +12,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
 elements_dir="$utils_dir/elements"
+finances_dir="$utils_dir/finances"
 
 log_helper="$repo_root/utils/core/log.sh"
 date_helper="$repo_root/utils/core/date-period-helpers.sh"
@@ -19,6 +20,7 @@ commit_helper="$repo_root/utils/core/commit.sh"
 day_plan_script="$elements_dir/generate-day-plan.sh"
 celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
 f1_script="$elements_dir/f1-schedule-and-standings.sh"
+finances_callout_script="$finances_dir/daily-finances-callout.sh"
 
 . "$log_helper"
 . "$date_helper"
@@ -143,63 +145,24 @@ log_info "Generating note for date: $today"
 log_info "Primary daily note path: $file_path"
 
 ###############################################################################
-# Loan payoff countdown (car loan)
+# Finances callout (car loan + credit cards)
 ###############################################################################
 
-build_loan_countdown_text() {
-  payoff_y=2027
-  payoff_m=12
-  payoff_d=20
+build_finances_callout() {
+  if [ ! -r "$finances_callout_script" ]; then
+    log_warn "Finances callout script not found: $finances_callout_script"
+    return
+  fi
 
-  ty=$year
-  tm=$month
-  td=$day
-
-  pad2() { [ "$1" -lt 10 ] && printf '0%d' "$1" || printf '%d' "$1"; }
-
-  months_base=$(( (payoff_y - ty)*12 + (payoff_m - tm) ))
-
-  if [ "$ty$(pad2 "$tm")$(pad2 "$td")" -gt "$payoff_y$(pad2 "$payoff_m")$(pad2 "$payoff_d")" ]; then
-    months_left=0
+  if output=$(sh "$finances_callout_script" "$year" "$month" "$day" 2>/dev/null); then
+    printf '%s' "$output"
   else
-    if [ "$td" -le "$payoff_d" ]; then
-      months_left=$(( months_base + 1 ))
-    else
-      months_left=$(( months_base ))
-    fi
-    [ "$months_left" -lt 0 ] && months_left=0
+    status=$?
+    log_warn "Finances callout script failed with exit code $status; skipping finances section"
   fi
-
-  np_y=$ty
-  np_m=$tm
-  np_d=20
-  if [ "$td" -gt 20 ]; then
-    if [ "$np_m" -eq 12 ]; then
-      np_m=1
-      np_y=$(( np_y + 1 ))
-    else
-      np_m=$(( np_m + 1 ))
-    fi
-  fi
-
-  if [ "$np_y$(pad2 "$np_m")" -gt "$payoff_y$(pad2 "$payoff_m")" ]; then
-    payments_left=0
-  else
-    payments_left=$(( (payoff_y - np_y)*12 + (payoff_m - np_m) + 1 ))
-    [ "$payments_left" -lt 0 ] && payments_left=0
-  fi
-
-  next_payment_fmt=$(printf '%04d-%02d-%02d' "$np_y" "$np_m" 20)
-
-  cat <<EOF_LC
-### 🚗 Car Loan Payoff Countdown
-| Months left | Payments left (20ths) | Next payment | Target payoff |
-|-------------|-----------------------|--------------|---------------|
-| ${months_left} | ${payments_left} | ${next_payment_fmt} | 2027-12-20 |
-EOF_LC
 }
 
-loan_countdown_text=$(build_loan_countdown_text)
+finances_callout=$(build_finances_callout)
 
 ###############################################################################
 # Time block navigation and periodic links
@@ -473,21 +436,6 @@ execution_callout=$(cat <<EOF_EXECUTION
 > - [[Device Config]]
 > - [[Someday/Maybe]]
 EOF_EXECUTION
-)
-
-finances_callout=$(cat <<EOF_FINANCES
-> [!abstract]+ 💰 Finances
-> (this section should be an embed, but we need to configure a source note first)
->
-$(printf '%s\n' "$loan_countdown_text" | sed 's/^/> /')
->
-> ### 💳 Credit Card Payoff Countdown
-> (sample data)
->
-> | Months left | Payments left (20ths) | Next payment | Target payoff |
-> |-------------|-----------------------|--------------|---------------|
-> | 18 | 18 | 2026-03-20 | 2027-06-20 |
-EOF_FINANCES
 )
 
 f1_callout=$(cat <<EOF_F1
