@@ -379,7 +379,7 @@ direction_callout=$(cat <<EOF_DIRECTION
 >
 > ### ![[Season Theme]]
 >
-> ### ![[Periodic Notes/Weekly Notes/2025-W48#🎯 Weekly Goal]]
+> ### ![[Periodic Notes/Weekly Notes/${week_tag}#🎯 Weekly Goal]]
 EOF_DIRECTION
 )
 
