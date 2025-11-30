@@ -383,7 +383,7 @@ direction_callout=$(cat <<EOF_DIRECTION
 EOF_DIRECTION
 )
 
-execution_callout=$(cat <<EOF_EXECUTION
+execution_callout=$(cat <<'EOF_EXECUTION'
 > [!todo]+ ✅ Execution
 > ### 🔁 Recurring Today
 > [[Recurring Tasks]]
