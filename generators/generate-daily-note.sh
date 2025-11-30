@@ -17,6 +17,7 @@ log_helper="$repo_root/utils/core/log.sh"
 date_helper="$repo_root/utils/core/date-period-helpers.sh"
 commit_helper="$repo_root/utils/core/commit.sh"
 day_plan_script="$elements_dir/generate-day-plan.sh"
+celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
 f1_script="$elements_dir/f1-schedule-and-standings.sh"
 
 . "$log_helper"
@@ -345,93 +346,24 @@ EOF_SUBNOTE
   fi
 done
 
-###############################################################################
-# Celestial timings (moon + seasonal)
-###############################################################################
+pagan_timings_text=""
 
-build_celestial_timings() {
-  celestial_header="### 🌌 Celestial Timings"
-
-  moon_rows='<tr>
-  <td>🌓 First Quarter</td>
-  <td>n/a</td>
-  <td>🌕 Full Moon</td>
-  <td>6d 23h 20m (~7.0 days)</td>
-</tr>
-<tr class="moon-tip-row">
-  <td colspan="4"><strong>Tip:</strong> Push through friction: fix blockers, make the hard call.</td>
-</tr>'
-
-  season_rows='<tr>
-  <td>❄️ Winter Solstice</td>
-  <td>Dec 21, 2025 · 07:03 AM PST</td>
-  <td>23d 6h 52m</td>
-</tr>
-<tr class="season-tip-row">
-  <td colspan="3"><strong>Tip:</strong> _(seasonal guidance TBD)_</td>
-</tr>'
-
-  lunar_cycle_script="$utils_dir/celestial/lunar-cycle.sh"
-  seasonal_cycle_script="$utils_dir/celestial/seasonal-cycle.sh"
-
-  if [ -r "$lunar_cycle_script" ]; then
-    log_info "Gathering lunar cycle data"
-    if output=$(sh "$lunar_cycle_script"); then
-      log_info "Lunar cycle data retrieved"
-      moon_rows=$output
-    else
-      status=$?
-      log_warn "Lunar cycle script failed with exit code $status, using fallback text"
-    fi
+if [ -r "$celestial_timings_script" ]; then
+  log_info "Generating celestial timings section"
+  if pagan_timings_text=$(sh "$celestial_timings_script"); then
+    log_info "Celestial timings section generated"
   else
-    log_warn "Lunar cycle script not found at $lunar_cycle_script, using fallback text"
+    status=$?
+    log_warn "Celestial timings script failed with exit code $status; using fallback text"
   fi
+else
+  log_warn "Celestial timings script not found: $celestial_timings_script"
+fi
 
-  if [ -r "$seasonal_cycle_script" ]; then
-    log_info "Gathering seasonal cycle data"
-    if output=$(sh "$seasonal_cycle_script"); then
-      log_info "Seasonal cycle data retrieved"
-      season_rows=$output
-    else
-      status=$?
-      log_warn "Seasonal cycle script failed with exit code $status, using fallback text"
-    fi
-  else
-    log_warn "Seasonal cycle script not found at $seasonal_cycle_script, using fallback text"
-  fi
-
-  cat <<EOF
-$celestial_header
-<table class="moon-table">
-  <thead>
-    <tr>
-      <th>Moon Phase</th>
-      <th>Illumination</th>
-      <th>Next Phase</th>
-      <th>Time Until</th>
-    </tr>
-  </thead>
-  <tbody>
-$moon_rows
-  </tbody>
-</table>
-
-<table class="season-table">
-  <thead>
-    <tr>
-      <th>Event</th>
-      <th>Date &amp; Time</th>
-      <th>Time Until</th>
-    </tr>
-  </thead>
-  <tbody>
-$season_rows
-  </tbody>
-</table>
-EOF
-}
-
-pagan_timings_text=$(build_celestial_timings)
+if [ -z "$pagan_timings_text" ]; then
+  pagan_timings_text="### 🌌 Celestial Timings
+_Celestial timings unavailable._"
+fi
 
 ###############################################################################
 # Daily plan intro (day + focus)
