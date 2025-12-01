@@ -8,9 +8,16 @@ To-Do List
 
   * [ ] Verify the *daily processor* script runs correctly and is scheduled.
 
+### Daily note embedding
+
+  * [ ] create a finance note for embedding in the daily note (requires at least some level of budgeting automation)
+  * [ ] check other periodic notes for embed opportunities
+
 High Priority
 
     * refactor daily note to utilize obsidian's embed feature wherever possible
+
+    * budgeting automation
     
     • Sleep Data Automation
 
@@ -27,7 +34,6 @@ Medium Priority
 
     • improve yardwork sutiability analysis to include precipitation and ideal time for work
 
-    • implement automated budget analysis
 
     - add leave for work checklist to daily notes
 
