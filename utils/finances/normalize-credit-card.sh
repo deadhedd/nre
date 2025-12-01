@@ -1,29 +1,63 @@
 #!/bin/sh
-# Normalize raw credit-card CSV export into a canonical, signed-amount CSV.
-# Usage:
-#   normalize-credit-card.sh raw.csv [output.csv]
+# Normalize raw Chase credit-card CSV export into a canonical, signed-amount CSV.
 #
-# Output columns:
+# Directory layout assumed:
+#   BASE_DIR=/home/obsidian
+#   RAW:      $BASE_DIR/inbox/finance/raw
+#   SANITIZED:$BASE_DIR/staging/finance/sanitized
+#
+# Usage examples:
+#   # 1) Input as basename (looked up in RAW), output as basename (written to SANITIZED):
+#   normalize-credit-card.sh \
+#     2025-03-01_chase_credit_txns_2025-02-01_to_2025-02-28.csv \
+#     2025-02_chase_credit.csv
+#
+#   # 2) Full paths (no directory magic, exact control):
+#   normalize-credit-card.sh \
+#     /home/obsidian/inbox/finance/raw/2025-03-01_chase_credit_txns_2025-02-01_to_2025-02-28.csv \
+#     /home/obsidian/staging/finance/sanitized/2025-02_chase_credit.csv
+#
+# Output columns (normalized):
 #   date,posted,amount_cents,kind,merchant,category,card,source
+#
+# Notes:
+#   - amount_cents is signed: purchases (Debit) are negative, payments (Credit) are positive.
+#   - kind is "purchase" or "payment".
+#   - source is literal "credit-card".
 
 set -eu
 
-in="${1:?need input csv}"
-out="${2:-credit-card.normalized.csv}"
+BASE_DIR="/home/obsidian"
+RAW_DIR="$BASE_DIR/inbox/finance/raw"
+SANITIZED_DIR="$BASE_DIR/staging/finance/sanitized"
+
+in_arg="${1:?need input csv (basename or full path)}"
+out_arg="${2:?need output sanitized filename (basename or full path)}"
+
+# Resolve input path
+case "$in_arg" in
+  /*) in="$in_arg" ;;
+  *)  in="$RAW_DIR/$in_arg" ;;
+esac
+
+# Resolve output path
+case "$out_arg" in
+  /*) out="$out_arg" ;;
+  *)  out="$SANITIZED_DIR/$out_arg" ;;
+esac
 
 tmp="$(mktemp)"
 
-# Strip UTF-8 BOM if present on first line
-# (your file has one on "Posting Date")
-# The octal codes 357 273 277 are the BOM bytes.
-sed '1s/^\xEF\xBB\xBF//' "$in" > "$tmp"
+# We don’t bother stripping BOM; we skip header row entirely in awk,
+# so any BOM lives only on that header line.
+cp "$in" "$tmp"
 
 {
-  # Header
+  # Header for normalized file
   printf '%s\n' "date,posted,amount_cents,kind,merchant,category,card,source"
 
   awk -F',' '
-    NR == 1 { next }  # skip original header
+    NR == 1 { next }  # skip original header line
 
     {
       posting   = $1   # Posting Date (MM/DD/YYYY)
@@ -51,24 +85,21 @@ sed '1s/^\xEF\xBB\xBF//' "$in" > "$tmp"
         pdate = posting
       }
 
-      # Determine sign from Credit/Debit
-      # Debit  = money spent  -> negative
+      # Debit  = money spent    -> negative
       # Credit = payment/refund -> positive
       sign = (indicator == "Debit") ? -1 : 1
 
-      # Convert to cents as signed integer
-      # Add 0.5 for rounding to nearest cent
+      # Convert to signed integer cents
       amount_num = amount + 0
       cents = int((amount_num * 100) + 0.5) * sign
 
       # Map type to kind
       kind = (type == "Payment") ? "payment" : "purchase"
 
-      # Escape embedded double quotes for CSV
+      # Escape embedded double quotes for CSV (defensive)
       gsub(/"/, "\"\"", desc)
       gsub(/"/, "\"\"", category)
 
-      # Print normalized line
       printf "%s,%s,%d,%s,\"%s\",\"%s\",%s,credit-card\n",
              tdate, pdate, cents, kind, desc, category, card
     }
@@ -76,4 +107,3 @@ sed '1s/^\xEF\xBB\xBF//' "$in" > "$tmp"
 } > "$out"
 
 rm -f "$tmp"
-
