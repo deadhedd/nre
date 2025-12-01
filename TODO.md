@@ -1,8 +1,7 @@
 To-Do List
 
 ## Current focuses
-* sleep data pipeline
-* daily note embed refactor
+* automated bugeting/finance review
 
 ### 💤 Sleep Data Pipeline TODO
 
