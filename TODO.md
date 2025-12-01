@@ -6,32 +6,7 @@ To-Do List
 
 ### 💤 Sleep Data Pipeline TODO
 
-* **Shortcuts**
-
-  * [ ] Create new *Sleep Data Backfill* shortcut to fetch fresh data.
-  * [x] Update and test *Daily Sleep Data Upload* shortcut.
-  * [x] Schedule both shortcuts to run automatically.
-  * [x] Update sleep data upload for 2 days instead of one.
-  * [x] Update sleep data upload to include today and yesterday's wake time via Data Jar.
-  * [x] Verify functionality of shortcut changes.
-  * [x] Repeat run safeguard is failing to allow the shortcut to run when conditions allow.
-  * [x] edit upload shortcut to trigger sleep processor script using the run script over ssh action
-
-* **Scripts**
-
-  * [ ] Run `backfill-into-raws.js` to generate daily raw files.
-  * [ ] Run `raws-into-summaries.js` to produce summaries.
   * [ ] Verify the *daily processor* script runs correctly and is scheduled.
-  * [x] Update daily processor to trim raw file using today and yesterday wake time.
-
-* **Integration**
-
-  * [x] Add analyzed sleep data to the daily note template by using obsidian's embed feature.
-  * [x] Confirm summaries appear correctly in Obsidian.
- 
-* **Embedding**
-
-  * [ ] create nightly snapshot script which converts all embedded text into static text for archival purposes
 
 High Priority
 
