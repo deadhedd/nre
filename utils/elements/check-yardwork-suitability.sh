@@ -44,7 +44,7 @@ early_unsuitable=$(
 )
 
 # Flag if ANY hour today reaches/exceeds the temperature cap.
-high_temp_unsuitable=$(
+high_temp_unsuitable=$( 
   echo "$data" | jq --arg today "$today" --argjson cap "$TEMP_CAP_F" '
     [ range(0; (.hourly.time|length)) as $i
       | select(.hourly.time[$i] | startswith($today + "T"))
@@ -65,7 +65,18 @@ if [ -f "$note_path" ]; then
   tmp=$(mktemp)
   # Replace the marker once; keep the rest of the file intact.
   sed "s/<!-- yard-work-check -->/$message/" "$note_path" > "$tmp"
-  mv "$tmp" "$note_path"
+
+  # Replace the original note with the temp file.
+  # We silence the harmless "set owner/group: Operation not permitted" noise
+  # that happens when mv crosses filesystems, but still let real errors kill
+  # the script via `set -e`.
+  mv "$tmp" "$note_path" 2>/dev/null
+
+  # Ensure the resulting file is readable by the git user (and others),
+  # so `git add` in commit_helper doesn't hit "Permission denied".
+  # First try group-writable (664), fall back to 644 if needed.
+  chmod 664 "$note_path" 2>/dev/null || chmod 644 "$note_path" 2>/dev/null || true
+
   echo "Yard work suitability check completed."
 
   if [ -x "$commit_helper" ]; then
