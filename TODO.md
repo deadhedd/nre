@@ -12,6 +12,10 @@ To-Do List
   * [ ] create a finance note for embedding in the daily note (requires at least some level of budgeting automation)
   * [ ] check other periodic notes for embed opportunities
 
+### Automated finances
+
+  * [ ] an edge case to be conserned with: if the transactions file download date is the 1st, there could be problems with transactions that occur before the 1st but are posted after
+
 High Priority
 
     * refactor daily note to utilize obsidian's embed feature wherever possible
