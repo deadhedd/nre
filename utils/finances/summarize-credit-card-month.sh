@@ -20,7 +20,9 @@ BASE_DIR="/home/obsidian"
 VAULT_ROOT="${VAULT_PATH:-$BASE_DIR/vaults/Main}"
 FINANCE_DIR="$VAULT_ROOT/Finance/Credit Card"
 
-COMMIT_HELPER="/home/obsidian/commit.sh"  # adjust if needed
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+utils_dir=$(dirname -- "$script_dir")
+COMMIT_HELPER="$utils_dir/core/commit.sh"
 COMMIT_CONTEXT="finance"
 
 # ---- input ----
