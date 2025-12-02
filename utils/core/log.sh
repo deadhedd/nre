@@ -231,6 +231,9 @@ log_update_rolling_note() {
   [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 0
 
   log_file=${LOG_FILE:-}
+  if [ "${LOG_FILE_MAPPED:-0}" -ne 1 ]; then
+    log_file=$(log__periodic_log_path "$log_file")
+  fi
   [ -n "$log_file" ] || return 0
 
   rolling_path=$(log__rolling_note_path "$log_file") || return 0
@@ -270,6 +273,9 @@ log_rotate() {
   keep_arg=${1:-}
   keep=${keep_arg:-${LOG_KEEP:-20}}
   log_file=${LOG_FILE:-}
+  if [ "${LOG_FILE_MAPPED:-0}" -ne 1 ]; then
+    log_file=$(log__periodic_log_path "$log_file")
+  fi
   job_name=${LOG_JOB_NAME:-}
 
   [ -n "$log_file" ] || return 0
