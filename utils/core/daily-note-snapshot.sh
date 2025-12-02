@@ -58,7 +58,7 @@ done
 
 # If no note path provided, default to today's daily note
 if [ -z "$NOTE" ]; then
-  DAILY_NOTE_DIR=${DAILY_NOTE_DIR:-"$VAULT_ROOT/daily"}
+  DAILY_NOTE_DIR=${DAILY_NOTE_DIR:-"$VAULT_ROOT/Periodic Notes/Daily Notes"}
   today=$(date +%Y-%m-%d)
   NOTE="$DAILY_NOTE_DIR/$today.md"
   log_info "No note path provided; defaulting to today's note: $NOTE"
