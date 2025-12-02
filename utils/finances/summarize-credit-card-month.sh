@@ -1,18 +1,37 @@
 #!/bin/sh
-# Summarize a sanitized monthly credit card CSV into markdown.
+# Summarize a sanitized monthly credit card CSV into an Obsidian markdown file
+# and commit it using commit.sh.
 #
 # Usage:
-#   summarize-credit-card-month.sh 2025-11_nfcu-credit-card.csv
+#   summarize-credit-card-month.sh staging/finance/sanitized/2025-11-nfcu-credit-card.csv
 #
-# Output:
-#   Obsidian-ready markdown summary
+# Outputs:
+#   /home/obsidian/vaults/Main/Finance/Credit Card/2025-11 Credit Card.md
+#
+# Commit context:
+#   context = finance
+#   message = "Update credit card summary for YYYY-MM"
 
 set -eu
+PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-file="${1:?need sanitized credit card csv}"
+# ---- configuration ----
+BASE_DIR="/home/obsidian"
+VAULT_ROOT="${VAULT_PATH:-$BASE_DIR/vaults/Main}"
+FINANCE_DIR="$VAULT_ROOT/Finance/Credit Card"
 
-month="$(basename "$file" | cut -c1-7)"
+COMMIT_HELPER="/home/obsidian/commit.sh"  # adjust if needed
+COMMIT_CONTEXT="finance"
 
+# ---- input ----
+csv="${1:?need sanitized credit card csv}"
+
+month="$(basename "$csv" | cut -c1-7)"
+note="$FINANCE_DIR/$month Credit Card.md"
+
+mkdir -p "$FINANCE_DIR"
+
+# ---- generate markdown ----
 awk -F',' -v MONTH="$month" '
   NR == 1 { next }  # skip header
 
@@ -22,14 +41,13 @@ awk -F',' -v MONTH="$month" '
     merch  = $5
 
     if (kind == "purchase") {
-      purchases += -amount   # amount is negative
+      purchases += -amount
     }
 
     if (kind == "payment") {
       payments += amount
     }
 
-    # crude but effective: detect interest explicitly
     if (kind == "purchase" && merch ~ /INTEREST CHARGE/) {
       interest += -amount
     }
@@ -38,8 +56,9 @@ awk -F',' -v MONTH="$month" '
   }
 
   END {
-    printf "## Credit Card Summary – %s\n\n", MONTH
+    printf "# Credit Card – %s\n\n", MONTH
 
+    printf "## Monthly Summary\n\n"
     printf "- Purchases: **$%.2f**\n", purchases / 100
     printf "- Payments:  **$%.2f**\n", payments / 100
 
@@ -57,5 +76,16 @@ awk -F',' -v MONTH="$month" '
       printf "> ⚖️ No net change.\n"
     }
   }
-' "$file"
+' "$csv" > "$note"
 
+# ---- commit ----
+if [ -x "$COMMIT_HELPER" ]; then
+  "$COMMIT_HELPER" \
+    -c "$COMMIT_CONTEXT" \
+    "$VAULT_ROOT" \
+    "Update credit card summary for $month" \
+    "$note" \
+  || printf 'WARN commit helper failed; file was written but not committed.\n' >&2
+else
+  printf 'WARN commit helper not found or not executable at %s\n' "$COMMIT_HELPER" >&2
+fi
