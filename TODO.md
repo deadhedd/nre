@@ -20,6 +20,8 @@ High Priority
 
     * refactor daily note to utilize obsidian's embed feature wherever possible
 
+    * script error notification system. catch non-zero exits and report in daily note
+
     * budgeting automation
     
     • Sleep Data Automation
