@@ -167,6 +167,105 @@ log__append_file() {
   printf '%s\n' "$line" >>"$log_file"
 }
 
+log__format_dir_segment() {
+  segment=$1
+  cleaned=$(printf '%s' "$segment" | tr '-' ' ')
+  printf '%s' "$cleaned" |
+    awk '{ for (i = 1; i <= NF; i++) { $i = toupper(substr($i,1,1)) substr($i,2) } printf "%s", $0 }'
+}
+
+log__rolling_note_path() {
+  [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 1
+
+  log_file=${1:-${LOG_FILE:-}}
+  [ -n "$log_file" ] || return 1
+
+  safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-}")
+
+  if [ -z "$safe_job" ]; then
+    base_name=${log_file##*/}
+    base_trimmed=${base_name%.log}
+    safe_job=$(log__safe_job_name "${base_trimmed%-*}")
+  fi
+
+  [ -n "$safe_job" ] || safe_job=log
+
+  mapped_root=${LOG_ROLLING_VAULT_ROOT%/}/Server Logs
+
+  case "$log_file" in
+    */logs/*)
+      rel_path=${log_file#*/logs/}
+      ;;
+    *)
+      rel_path=${log_file##*/}
+      ;;
+  esac
+
+  case "$rel_path" in
+    */*)
+      rel_dir=${rel_path%/*}
+      ;;
+    *)
+      rel_dir=
+      ;;
+  esac
+
+  mapped_dir=$mapped_root
+
+  if [ -n "$rel_dir" ]; then
+    old_ifs=$IFS
+    IFS='/'
+    set -- $rel_dir
+    IFS=$old_ifs
+
+    for segment in "$@"; do
+      formatted=$(log__format_dir_segment "$segment")
+      mapped_dir="$mapped_dir/$formatted"
+    done
+  fi
+
+  printf '%s/%s-latest.md' "$mapped_dir" "$safe_job"
+}
+
+log_update_rolling_note() {
+  [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 0
+
+  log_file=${LOG_FILE:-}
+  [ -n "$log_file" ] || return 0
+
+  rolling_path=$(log__rolling_note_path "$log_file") || return 0
+  [ -n "$rolling_path" ] || return 0
+
+  case "$rolling_path" in
+    */*)
+      rolling_dir=${rolling_path%/*}
+      if [ ! -d "$rolling_dir" ]; then
+        mkdir -p "$rolling_dir" || return 1
+      fi
+      ;;
+  esac
+
+  tmp_path="${rolling_path}.tmp"
+
+  ts=$(log__now 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || printf 'unknown')
+  job_title=${LOG_JOB_NAME:-Latest Log}
+
+  {
+    printf '# %s\n\n' "$job_title"
+    printf 'Source: `%s`\n' "$log_file"
+    printf 'Timestamp: %s\n\n' "$ts"
+    printf '```text\n'
+    if [ -n "${LOG_ROLLING_LINES:-}" ]; then
+      if ! tail -n "$LOG_ROLLING_LINES" "$log_file" 2>/dev/null; then
+        tail -"$LOG_ROLLING_LINES" "$log_file" 2>/dev/null || true
+      fi
+    else
+      cat "$log_file" 2>/dev/null || true
+    fi
+    printf '\n```\n'
+  } >"$tmp_path" && mv "$tmp_path" "$rolling_path"
+}
+
 log_rotate() {
   keep_arg=${1:-}
   keep=${keep_arg:-${LOG_KEEP:-20}}
