@@ -1,14 +1,11 @@
 #!/bin/sh
 # job-wrap.sh — minimal cron wrapper with simple logging
-# Usage: job-wrap.sh <job_name> <command_or_script> [args...]
+# Usage: job-wrap.sh <command_or_script> [args...]
 
 set -eu
 
-JOB_NAME="${1:-}"; shift || true
-[ -n "${JOB_NAME}" ] || { printf 'Usage: %s <job_name> <command_or_script> [args...]\n' "$0" >&2; exit 2; }
-[ $# -gt 0 ] || { printf 'Usage: %s <job_name> <command_or_script> [args...]\n' "$0" >&2; exit 2; }
-
-ORIGINAL_CMD="$1"
+ORIGINAL_CMD="${1:-}"
+[ -n "$ORIGINAL_CMD" ] || { printf 'Usage: %s <command_or_script> [args...]\n' "$0" >&2; exit 2; }
 shift || true
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -64,6 +61,9 @@ case "$ORIGINAL_CMD" in
 esac
 
 set -- "$RESOLVED_CMD" "$@"
+
+JOB_BASENAME=$(basename "$RESOLVED_CMD")
+JOB_NAME=${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}
 
 # Where to put logs (change if you like)
 HOME_DIR="${HOME:-/home/obsidian}"

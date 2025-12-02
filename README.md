@@ -7,12 +7,13 @@ This repository contains shell scripts that help automate common tasks in an
 ## Cron wrapper (`utils/core/job-wrap.sh`)
 
 `utils/core/job-wrap.sh` records structured logs for cron jobs and now resolves script
-names automatically. Provide the job label followed by the script or command
-name; the wrapper searches the repository root and `utils/` directory before
-falling back to the system `PATH`.
+names automatically. Provide the script or command name; the wrapper searches
+the repository root and `utils/` directory before falling back to the system
+`PATH`. The log-friendly job label defaults to the command basename without the
+file extension; override it by setting `JOB_WRAP_JOB_NAME`.
 
 ```sh
-/bin/sh utils/core/job-wrap.sh daily-note generate-daily-note.sh --dry-run
+/bin/sh utils/core/job-wrap.sh generate-daily-note.sh --dry-run
 ```
 
 Set `JOB_WRAP_SEARCH_PATH` to a colon-delimited list to customize the search
@@ -23,7 +24,7 @@ order when running from other directories.
 ### When run through `utils/core/job-wrap.sh`
 
 * Resolves the requested command name by checking `JOB_WRAP_SEARCH_PATH`, then searching the repository for executables, and finally falling back to `PATH`; unknown commands abort with exit 127.
-* Sanitizes the job label to derive the log folder (daily/weekly/periodic), falling back to `${HOME:-/home/obsidian}/logs/other` for non-periodic jobs; creates the folder and names each run log `<job>-<UTC timestamp>.log` alongside a `latest` symlink.
+* Sanitizes the derived job label (or `JOB_WRAP_JOB_NAME`, when set) to pick the log folder (daily/weekly/periodic), falling back to `${HOME:-/home/obsidian}/logs/other` for non-periodic jobs; creates the folder and names each run log `<job>-<UTC timestamp>.log` alongside a `latest` symlink.
 * Writes a header with start time, cwd, user, path, requested/resolved command, and argv, then appends all stdout/stderr from the invoked script, and finally records exit code, end time, and duration.
 * Rotates logs by keeping the newest `LOG_KEEP` (default 20) per job name, deleting older files after each run.
 
