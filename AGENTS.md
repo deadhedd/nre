@@ -67,10 +67,10 @@ PATH=/usr/local/bin:/usr/bin:/bin
 HOME=/home/obsidian
 MAILTO=obsidian
 
-10 0 * * * /bin/sh /home/obsidian/obsidian-note-tools/utils/core/job-wrap.sh daily-note \
+10 0 * * * /bin/sh /home/obsidian/obsidian-note-tools/utils/core/job-wrap.sh \
   generate-daily-note.sh >>/home/obsidian/logs/cron.log 2>&1
 
-8 0 * * 1 /bin/sh /home/obsidian/obsidian-note-tools/utils/core/job-wrap.sh weekly-note \
+8 0 * * 1 /bin/sh /home/obsidian/obsidian-note-tools/utils/core/job-wrap.sh \
   generate-weekly-note.sh >>/home/obsidian/logs/cron.log 2>&1
 ```
 
