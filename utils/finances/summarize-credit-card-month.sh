@@ -22,7 +22,6 @@ FINANCE_DIR="$VAULT_ROOT/Finance/Credit Card"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 utils_dir=$(dirname -- "$script_dir")
-COMMIT_HELPER="$utils_dir/core/commit.sh"
 COMMIT_CONTEXT="finance"
 
 # ---- input ----
@@ -81,13 +80,10 @@ awk -F',' -v MONTH="$month" '
 ' "$csv" > "$note"
 
 # ---- commit ----
-if [ -x "$COMMIT_HELPER" ]; then
-  "$COMMIT_HELPER" \
-    -c "$COMMIT_CONTEXT" \
-    "$VAULT_ROOT" \
-    "Update credit card summary for $month" \
-    "$note" \
-  || printf 'WARN commit helper failed; file was written but not committed.\n' >&2
-else
-  printf 'WARN commit helper not found or not executable at %s\n' "$COMMIT_HELPER" >&2
+if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
+  {
+    printf 'work_tree=%s\n' "$VAULT_ROOT"
+    printf 'message=%s\n' "Update credit card summary for $month"
+    printf 'path=%s\n' "$note"
+  } >"$JOB_WRAP_COMMIT_PLAN"
 fi

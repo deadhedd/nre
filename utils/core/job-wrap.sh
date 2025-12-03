@@ -11,6 +11,7 @@ shift || true
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 UTILS_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(cd "$UTILS_DIR/.." && pwd)
+COMMIT_HELPER="$SCRIPT_DIR/commit.sh"
 
 . "$SCRIPT_DIR/log.sh"
 
@@ -64,6 +65,8 @@ set -- "$RESOLVED_CMD" "$@"
 
 JOB_BASENAME=$(basename "$RESOLVED_CMD")
 JOB_NAME=${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}
+COMMIT_PLAN=$(mktemp)
+export JOB_WRAP_COMMIT_PLAN="$COMMIT_PLAN"
 
 # Where to put logs (change if you like)
 HOME_DIR="${HOME:-/home/obsidian}"
@@ -115,10 +118,70 @@ cleanup_temp_log() {
   rm -f -- "$1"
 }
 
+cleanup_commit_plan() {
+  [ -f "$COMMIT_PLAN" ] || return 0
+  rm -f -- "$COMMIT_PLAN"
+}
+
+perform_commit_if_requested() {
+  [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ] && return 0
+  [ -s "$COMMIT_PLAN" ] || return 0
+
+  if [ ! -x "$COMMIT_HELPER" ]; then
+    log_warn "Commit helper not executable: $COMMIT_HELPER"
+    return 0
+  fi
+
+  commit_work_tree=""
+  commit_message=""
+  commit_bare_repo=""
+  commit_paths=""
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      work_tree=*)
+        commit_work_tree=${line#work_tree=}
+        ;;
+      message=*)
+        commit_message=${line#message=}
+        ;;
+      bare_repo=*)
+        commit_bare_repo=${line#bare_repo=}
+        ;;
+      path=*)
+        path_value=${line#path=}
+        commit_paths=${commit_paths}${path_value}\n
+        ;;
+    esac
+  done <"$COMMIT_PLAN"
+
+  [ -n "$commit_work_tree" ] || { log_warn "Commit plan missing work_tree"; return 0; }
+  [ -n "$commit_message" ] || { log_warn "Commit plan missing message"; return 0; }
+
+  set --
+  while IFS= read -r path_line || [ -n "$path_line" ]; do
+    [ -n "$path_line" ] || continue
+    set -- "$@" "$path_line"
+  done <<EOF_COMMIT_PATHS
+$commit_paths
+EOF_COMMIT_PATHS
+
+  [ "$#" -gt 0 ] || { log_warn "Commit plan provided no paths"; return 0; }
+
+  log_info "Committing changes via job wrapper"
+
+  if [ -n "$commit_bare_repo" ]; then
+    COMMIT_BARE_REPO="$commit_bare_repo" \
+      "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" "$@"
+  else
+    "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" "$@"
+  fi
+}
+
 # Run and capture status + duration
 START_SEC="$(date -u +%s)"
 CMD_OUTPUT_FILE=$(mktemp)
-trap 'cleanup_temp_log "$CMD_OUTPUT_FILE"' EXIT HUP INT TERM
+trap 'cleanup_temp_log "$CMD_OUTPUT_FILE"; cleanup_commit_plan' EXIT HUP INT TERM
 set +e
 "$@" >"$CMD_OUTPUT_FILE" 2>&1
 STATUS=$?
@@ -130,6 +193,8 @@ done <"$CMD_OUTPUT_FILE"
 
 cleanup_temp_log "$CMD_OUTPUT_FILE"
 trap - EXIT HUP INT TERM
+
+perform_commit_if_requested
 
 END_SEC="$(date -u +%s)"
 DUR_SEC=$(( END_SEC - START_SEC ))
@@ -145,5 +210,7 @@ log_info "== ${SAFE_JOB_NAME} end =="
 ln -sf "$(basename "$RUNLOG")" "$LATEST" 2>/dev/null || true
 
 log_rotate
+
+cleanup_commit_plan
 
 exit "$STATUS"

@@ -8,7 +8,6 @@ PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
-commit_helper="$utils_dir/core/commit.sh"
 log_helper="$utils_dir/core/log.sh"
 
 . "$log_helper"
@@ -202,10 +201,14 @@ printf '%s' "$jq_output" | jq -c '.data[]' | while IFS= read -r item; do
 
   log_info "wrote $(basename -- "$output_path")"
 
-  if [ -x "$commit_helper" ]; then
-    "$commit_helper" "$vault_root" "sleep summary: $date_key" "$output_path" || log_warn "commit helper failed for $output_path"
+  if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
+    {
+      printf 'work_tree=%s\n' "$vault_root"
+      printf 'message=%s\n' "sleep summary: $date_key"
+      printf 'path=%s\n' "$output_path"
+    } >"$JOB_WRAP_COMMIT_PLAN"
   else
-    log_warn "commit helper not executable: $commit_helper"
+    log_info "JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata"
   fi
 
 done

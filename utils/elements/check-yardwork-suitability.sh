@@ -5,7 +5,6 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 core_dir=$(dirname -- "$script_dir")/core
-commit_helper="$core_dir/commit.sh"
 
 vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 vault_root="${vault_path%/}"
@@ -79,10 +78,12 @@ if [ -f "$note_path" ]; then
 
   echo "Yard work suitability check completed."
 
-  if [ -x "$commit_helper" ]; then
-    "$commit_helper" "$vault_root" "yard work suitability: $today" "$note_path"
-  else
-    printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+  if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
+    {
+      printf 'work_tree=%s\n' "$vault_root"
+      printf 'message=%s\n' "yard work suitability: $today"
+      printf 'path=%s\n' "$note_path"
+    } >"$JOB_WRAP_COMMIT_PLAN"
   fi
 else
   echo "Daily note not found: $note_path" >&2

@@ -16,7 +16,6 @@ finances_dir="$utils_dir/finances"
 
 log_helper="$repo_root/utils/core/log.sh"
 date_helper="$repo_root/utils/core/date-period-helpers.sh"
-commit_helper="$repo_root/utils/core/commit.sh"
 day_plan_script="$elements_dir/generate-day-plan.sh"
 celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
 f1_script="$elements_dir/f1-schedule-and-standings.sh"
@@ -446,25 +445,26 @@ fi
 # Commit changes
 ###############################################################################
 
-commit_work_tree=$vault_path
-if [ "$dry_run" -eq 1 ]; then
-  commit_work_tree=$repo_root
-fi
+if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
+  commit_work_tree=$vault_path
+  commit_message="daily note: $today"
+  commit_bare_repo=""
 
-if [ -x "$commit_helper" ]; then
-  log_info "Invoking commit helper"
   if [ "$dry_run" -eq 1 ]; then
-    COMMIT_BARE_REPO="${repo_root%/}/.git" \
-      "$commit_helper" -c "daily note" \
-      "$commit_work_tree" \
-      "daily note: $today" \
-      "$@"
-  else
-    "$commit_helper" -c "daily note" \
-      "$commit_work_tree" \
-      "daily note: $today" \
-      "$@"
+    commit_work_tree=$repo_root
+    commit_bare_repo="${repo_root%/}/.git"
   fi
+
+  {
+    printf 'work_tree=%s\n' "$commit_work_tree"
+    printf 'message=%s\n' "$commit_message"
+    if [ -n "$commit_bare_repo" ]; then
+      printf 'bare_repo=%s\n' "$commit_bare_repo"
+    fi
+    for target in "$@"; do
+      printf 'path=%s\n' "$target"
+    done
+  } >"$JOB_WRAP_COMMIT_PLAN"
 else
-  log_warn "Commit helper not found: $commit_helper"
+  log_info "JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata"
 fi

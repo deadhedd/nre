@@ -5,7 +5,6 @@
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-commit_helper="$script_dir/commit.sh"
 log_helper="$script_dir/log.sh"
 
 . "$log_helper"
@@ -258,11 +257,11 @@ else
   mv "$TMP" "$NOTE"
   log_info "Replaced $NOTE (backup at $BAK)"
 
-  if [ -x "$commit_helper" ]; then
-    if ! "$commit_helper" "$VAULT_ROOT" "daily snapshot: $NOTE_BASE" "$NOTE"; then
-      log_warn "commit helper failed for $NOTE"
-    fi
-  else
-    log_warn "commit helper not found: $commit_helper"
+  if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
+    {
+      printf 'work_tree=%s\n' "$VAULT_ROOT"
+      printf 'message=%s\n' "daily snapshot: $NOTE_BASE"
+      printf 'path=%s\n' "$NOTE"
+    } >"$JOB_WRAP_COMMIT_PLAN"
   fi
 fi

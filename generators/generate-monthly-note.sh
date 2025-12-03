@@ -8,7 +8,6 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
-commit_helper="$utils_dir/core/commit.sh"
 date_helper="$utils_dir/core/date-period-helpers.sh"
 log_helper="$utils_dir/core/log.sh"
 
@@ -307,13 +306,15 @@ if [ "$dry_run" -eq 1 ]; then
   commit_target_path=$dry_run_output_path
 fi
 
-if [ -x "$commit_helper" ]; then
-  printf 'ℹ️ Invoking commit helper\n'
-  if [ "$dry_run" -eq 1 ]; then
-    COMMIT_BARE_REPO="${repo_root%/}/.git" "$commit_helper" -c "monthly note" "$commit_work_tree" "monthly note: $month_tag" "$commit_target_path"
-  else
-    "$commit_helper" -c "monthly note" "$commit_work_tree" "monthly note: $month_tag" "$commit_target_path"
-  fi
+if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
+  {
+    printf 'work_tree=%s\n' "$commit_work_tree"
+    printf 'message=%s\n' "monthly note: $month_tag"
+    if [ "$dry_run" -eq 1 ]; then
+      printf 'bare_repo=%s\n' "${repo_root%/}/.git"
+    fi
+    printf 'path=%s\n' "$commit_target_path"
+  } >"$JOB_WRAP_COMMIT_PLAN"
 else
-  printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
+  printf 'ℹ️ JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata\n'
 fi
