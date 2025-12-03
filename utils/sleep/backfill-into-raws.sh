@@ -4,7 +4,6 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
 utils_dir="$repo_root/utils"
-commit_helper="$utils_dir/core/commit.sh"
 date_helpers="$utils_dir/core/date-period-helpers.sh"
 # shellcheck source=../core/date-period-helpers.sh
 . "$date_helpers"
@@ -55,6 +54,7 @@ printf '%s' "$entries" | jq -c '.[]' | while IFS= read -r obj; do
 done
 
 outputs=""
+commit_paths=""
 today=$(get_today)
 for offset in 0 1 2 3 4 5 6; do
   day_offset=$((0 - offset))
@@ -63,14 +63,20 @@ for offset in 0 1 2 3 4 5 6; do
     out="$sleepFolder/$day.txt"
     cat "$tmpdir/$day/stages" "$tmpdir/$day/durations" "$tmpdir/$day/starts" "$tmpdir/$day/ends" > "$out"
     outputs="$outputs\n-$out"
-    if [ -x "$commit_helper" ]; then
-      "$commit_helper" "$vaultRoot" "sleep raw: $day" "$out"
-    else
-      printf '⚠️ commit helper not found: %s\n' "$commit_helper" >&2
-    fi
+    commit_paths="$commit_paths\n$out"
   fi
 
 done
 
 echo "✅ Generated the following raw files for the past 7 days:"
 printf '%s\n' "$outputs" | sed '/^$/d'
+
+if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ] && [ -n "$commit_paths" ]; then
+  {
+    printf 'work_tree=%s\n' "$vaultRoot"
+    printf 'message=%s\n' "sleep raw backfill"
+    printf '%s\n' "$commit_paths" | sed '/^$/d' | while IFS= read -r path; do
+      printf 'path=%s\n' "$path"
+    done
+  } >"$JOB_WRAP_COMMIT_PLAN"
+fi

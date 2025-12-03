@@ -292,7 +292,6 @@ require_cmd date
 # Paths & helpers
 ###############################################################################
 
-commit_helper="$utils_dir/core/commit.sh"
 date_helpers="$utils_dir/core/date-period-helpers.sh"
 
 # shellcheck source=../core/date-period-helpers.sh
@@ -717,9 +716,12 @@ EOF
 printf '%s\n' "$md" > "$outputPath"
 log_info "wrote $(basename "$outputPath")"
 
-if [ -x "$commit_helper" ]; then
-  log_info "running commit helper"
-  "$commit_helper" "$vaultRoot" "sleep summary: $target_date" "$outputPath"
+if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
+  {
+    printf 'work_tree=%s\n' "$vaultRoot"
+    printf 'message=%s\n' "sleep summary: $target_date"
+    printf 'path=%s\n' "$outputPath"
+  } >"$JOB_WRAP_COMMIT_PLAN"
 else
-  log_warn "commit helper not found: $commit_helper"
+  log_info "JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata"
 fi
