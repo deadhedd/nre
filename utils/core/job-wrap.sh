@@ -124,6 +124,11 @@ cleanup_commit_plan() {
 }
 
 perform_commit_if_requested() {
+  if [ "${STATUS:-1}" -ne 0 ]; then
+    log_info "Skipping commit because job exit status=$STATUS"
+    return 0
+  fi
+
   [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ] && return 0
   [ -s "$COMMIT_PLAN" ] || return 0
 
