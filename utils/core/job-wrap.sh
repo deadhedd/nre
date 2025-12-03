@@ -150,7 +150,7 @@ perform_commit_if_requested() {
         ;;
       path=*)
         path_value=${line#path=}
-        commit_paths=${commit_paths}${path_value}\n
+        commit_paths=$(printf '%s\n%s' "$commit_paths" "$path_value")
         ;;
     esac
   done <"$COMMIT_PLAN"

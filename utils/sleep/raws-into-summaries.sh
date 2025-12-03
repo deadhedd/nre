@@ -137,6 +137,8 @@ format_decimal() {
 
 mkdir -p -- "$sleep_folder"
 
+commit_plan_initialized=0
+
 printf '%s' "$jq_output" | jq -c '.data[]' | while IFS= read -r item; do
   date_key=$(printf '%s' "$item" | jq -r '.date')
   total_min=$(printf '%s' "$item" | jq -r '.totalMin')
@@ -202,11 +204,14 @@ printf '%s' "$jq_output" | jq -c '.data[]' | while IFS= read -r item; do
   log_info "wrote $(basename -- "$output_path")"
 
   if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-    {
-      printf 'work_tree=%s\n' "$vault_root"
-      printf 'message=%s\n' "sleep summary: $date_key"
-      printf 'path=%s\n' "$output_path"
-    } >"$JOB_WRAP_COMMIT_PLAN"
+    if [ "$commit_plan_initialized" -eq 0 ]; then
+      {
+        printf 'work_tree=%s\n' "$vault_root"
+        printf 'message=%s\n' "sleep summaries"
+      } >"$JOB_WRAP_COMMIT_PLAN"
+      commit_plan_initialized=1
+    fi
+    printf 'path=%s\n' "$output_path" >>"$JOB_WRAP_COMMIT_PLAN"
   else
     log_info "JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata"
   fi
