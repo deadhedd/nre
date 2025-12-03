@@ -170,12 +170,33 @@ EOF_COMMIT_PATHS
 
   log_info "Committing changes via job wrapper"
 
+  commit_stdout=$(mktemp)
+  commit_stderr=$(mktemp)
+
+  set +e
   if [ -n "$commit_bare_repo" ]; then
     COMMIT_BARE_REPO="$commit_bare_repo" \
-      "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" "$@"
+      "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" "$@" \
+      >"$commit_stdout" 2>"$commit_stderr"
   else
-    "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" "$@"
+    "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" "$@" \
+      >"$commit_stdout" 2>"$commit_stderr"
   fi
+  commit_status=$?
+  set -e
+
+  while IFS= read -r commit_line || [ -n "$commit_line" ]; do
+    log_info "$commit_line"
+  done <"$commit_stdout"
+
+  while IFS= read -r commit_err_line || [ -n "$commit_err_line" ]; do
+    log_warn "$commit_err_line"
+  done <"$commit_stderr"
+
+  cleanup_temp_log "$commit_stdout"
+  cleanup_temp_log "$commit_stderr"
+
+  [ "$commit_status" -eq 0 ] || return "$commit_status"
 }
 
 # Run and capture status + duration
