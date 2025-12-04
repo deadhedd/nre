@@ -372,7 +372,7 @@ daily_context_callout=$(cat <<EOF_DAILY_CONTEXT
 > ![[Sleep Data/${today} Sleep Summary#Sleep Advice]]
 >
 > ### 🌤️ Yard Work Suitability
-> @-- yard-work-check --
+> <!-- yard-work-check -->
 >
 $(printf '%s\n' "$pagan_timings_text" | sed 's/^/> /')
 EOF_DAILY_CONTEXT
