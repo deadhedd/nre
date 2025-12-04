@@ -71,6 +71,7 @@ export JOB_WRAP_COMMIT_PLAN="$COMMIT_PLAN"
 # Where to put logs (change if you like)
 HOME_DIR="${HOME:-/home/obsidian}"
 LOG_ROOT="${HOME_DIR}/logs"
+LOG_ROLLING_VAULT_ROOT="${LOG_ROLLING_VAULT_ROOT:-${VAULT_PATH:-/home/obsidian/vaults/Main}}"
 
 # Group logs by note cadence; fall back to an "other" bucket for non-periodic jobs
 SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
@@ -236,6 +237,13 @@ log_info "== ${SAFE_JOB_NAME} end =="
 ln -sf "$(basename "$RUNLOG")" "$LATEST" 2>/dev/null || true
 
 log_rotate
+
+if log_update_rolling_note; then
+  rolling_note_path=$(log__rolling_note_path "$LOG_FILE" 2>/dev/null || printf '')
+  if [ -n "$rolling_note_path" ]; then
+    log_info "Rolling log updated: $rolling_note_path"
+  fi
+fi
 
 cleanup_commit_plan
 
