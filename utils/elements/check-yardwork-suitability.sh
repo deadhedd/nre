@@ -5,6 +5,12 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 core_dir=$(dirname -- "$script_dir")/core
+job_wrap="$core_dir/job-wrap.sh"
+script_path="$script_dir/$(basename "$0")"
+
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
+  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+fi
 
 vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 vault_root="${vault_path%/}"

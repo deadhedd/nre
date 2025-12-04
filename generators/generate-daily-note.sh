@@ -13,6 +13,12 @@ repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
 elements_dir="$utils_dir/elements"
 finances_dir="$utils_dir/finances"
+job_wrap="$repo_root/utils/core/job-wrap.sh"
+script_path="$script_dir/$(basename "$0")"
+
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
+  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+fi
 
 log_helper="$repo_root/utils/core/log.sh"
 date_helper="$repo_root/utils/core/date-period-helpers.sh"

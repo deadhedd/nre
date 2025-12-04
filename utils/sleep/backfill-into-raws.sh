@@ -5,6 +5,12 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
 utils_dir="$repo_root/utils"
 date_helpers="$utils_dir/core/date-period-helpers.sh"
+job_wrap="$utils_dir/core/job-wrap.sh"
+script_path="$script_dir/$(basename "$0")"
+
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
+  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+fi
 # shellcheck source=../core/date-period-helpers.sh
 . "$date_helpers"
 

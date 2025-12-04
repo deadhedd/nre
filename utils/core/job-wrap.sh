@@ -4,6 +4,8 @@
 
 set -eu
 
+export JOB_WRAP_ACTIVE=1
+
 ORIGINAL_CMD="${1:-}"
 [ -n "$ORIGINAL_CMD" ] || { printf 'Usage: %s <command_or_script> [args...]\n' "$0" >&2; exit 2; }
 shift || true
