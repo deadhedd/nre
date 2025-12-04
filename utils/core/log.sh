@@ -190,7 +190,7 @@ log__rolling_note_path() {
 
   [ -n "$safe_job" ] || safe_job=log
 
-  mapped_root=${LOG_ROLLING_VAULT_ROOT%/}/Server Logs
+  mapped_root="${LOG_ROLLING_VAULT_ROOT%/}/Server Logs"
 
   case "$log_file" in
     */logs/*)
