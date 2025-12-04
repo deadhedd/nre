@@ -17,6 +17,7 @@ log_helper="$script_dir/log.sh"
 
 . "$log_helper"
 log_init daily-note-snapshot
+log_info "Starting daily-note-snapshot (pid $$)"
 
 # Set this to your vault root or override via environment.
 VAULT_DEFAULT=${VAULT_PATH:-/home/obsidian/vaults/Main}
@@ -37,6 +38,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     -n|--dry-run)
       DRY_RUN=1
+      log_info "Flag detected: dry run enabled"
       ;;
     -h|--help)
       print_usage
@@ -58,6 +60,7 @@ while [ "$#" -gt 0 ]; do
         exit 1
       fi
       NOTE=$1
+      log_info "Flag detected: explicit note path provided ($NOTE)"
       ;;
   esac
   shift
@@ -70,6 +73,7 @@ if [ -z "$NOTE" ]; then
   NOTE="$DAILY_NOTE_DIR/$today.md"
   log_info "No note path provided; defaulting to today's note: $NOTE"
 fi
+log_info "Resolved note argument to: $NOTE"
 
 if [ ! -f "$NOTE" ]; then
   log_err "note not found: $NOTE"
@@ -153,6 +157,7 @@ expand_embed() {
       ;;
     *)
       if [ -z "$file" ]; then
+        log_info "Attempting recursive search for $path under $VAULT_ROOT"
         found=$(
           find "$VAULT_ROOT" -type f \( -name "$path" -o -name "$path.md" \) -print 2>/dev/null | head -n 1 || :
         )
