@@ -223,8 +223,6 @@ done <"$CMD_OUTPUT_FILE"
 cleanup_temp_log "$CMD_OUTPUT_FILE"
 trap - EXIT HUP INT TERM
 
-perform_commit_if_requested
-
 END_SEC="$(date -u +%s)"
 DUR_SEC=$(( END_SEC - START_SEC ))
 
@@ -246,6 +244,8 @@ if log_update_rolling_note; then
     log_info "Rolling log updated: $rolling_note_path"
   fi
 fi
+
+perform_commit_if_requested
 
 cleanup_commit_plan
 
