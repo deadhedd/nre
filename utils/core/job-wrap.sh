@@ -133,35 +133,56 @@ perform_commit_if_requested() {
   fi
 
   [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ] && return 0
-  [ -s "$COMMIT_PLAN" ] || return 0
 
   if [ ! -x "$COMMIT_HELPER" ]; then
     log_warn "Commit helper not executable: $COMMIT_HELPER"
     return 0
   fi
 
-  commit_work_tree=""
-  commit_message=""
-  commit_bare_repo=""
+  commit_work_tree=${JOB_WRAP_DEFAULT_WORK_TREE:-$REPO_ROOT}
+  commit_message=${JOB_WRAP_DEFAULT_COMMIT_MESSAGE:-"chore(${JOB_NAME}): auto-commit changes"}
+  commit_bare_repo=${COMMIT_BARE_REPO:-}
   commit_paths=""
 
-  while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in
-      work_tree=*)
-        commit_work_tree=${line#work_tree=}
-        ;;
-      message=*)
-        commit_message=${line#message=}
-        ;;
-      bare_repo=*)
-        commit_bare_repo=${line#bare_repo=}
-        ;;
-      path=*)
-        path_value=${line#path=}
-        commit_paths=$(printf '%s\n%s' "$commit_paths" "$path_value")
-        ;;
-    esac
-  done <"$COMMIT_PLAN"
+  if [ -s "$COMMIT_PLAN" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        work_tree=*)
+          commit_work_tree=${line#work_tree=}
+          ;;
+        message=*)
+          commit_message=${line#message=}
+          ;;
+        bare_repo=*)
+          commit_bare_repo=${line#bare_repo=}
+          ;;
+        path=*)
+          path_value=${line#path=}
+          commit_paths=$(printf '%s\n%s' "$commit_paths" "$path_value")
+          ;;
+      esac
+    done <"$COMMIT_PLAN"
+  fi
+
+  if [ -z "$commit_paths" ]; then
+    if ! command -v git >/dev/null 2>&1; then
+      log_warn "Git not available; skipping default commit"
+      return 0
+    fi
+
+    if ! git -C "$commit_work_tree" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      log_warn "Commit work tree is not a git repository: $commit_work_tree"
+      return 0
+    fi
+
+    status_output=$(git -C "$commit_work_tree" status --porcelain 2>/dev/null || true)
+    if [ -z "$status_output" ]; then
+      log_info "No changes detected for default commit"
+      return 0
+    fi
+
+    commit_paths="."
+  fi
 
   [ -n "$commit_work_tree" ] || { log_warn "Commit plan missing work_tree"; return 0; }
   [ -n "$commit_message" ] || { log_warn "Commit plan missing message"; return 0; }
