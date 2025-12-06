@@ -117,6 +117,11 @@ log_info "Starting daily note generation"
 
 vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 vault_root="${vault_path%/}"
+
+if [ -z "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
+  JOB_WRAP_DEFAULT_WORK_TREE=$vault_root
+fi
+export JOB_WRAP_DEFAULT_WORK_TREE
 periodic_dir="${vault_root}/Periodic Notes"
 daily_note_dir="${periodic_dir%/}/Daily Notes"
 

@@ -145,6 +145,11 @@ if ! current_quarter_tag=$(quarter_tag_for_utc_date "$date_arg" 2>/dev/null); th
 fi
 
 vault_root=${vault_path%/}
+if [ -z "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
+  JOB_WRAP_DEFAULT_WORK_TREE=$vault_root
+fi
+export JOB_WRAP_DEFAULT_WORK_TREE
+
 trimmed_outdir=$outdir
 while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
   trimmed_outdir=${trimmed_outdir#/}

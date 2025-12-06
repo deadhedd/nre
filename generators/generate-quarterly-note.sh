@@ -167,6 +167,11 @@ prev_link="Q${prev_quarter} ${prev_year}"
 next_link="Q${next_quarter} ${next_year}"
 
 vault_root="${vault_path%/}"
+if [ -z "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
+  JOB_WRAP_DEFAULT_WORK_TREE=$vault_root
+fi
+export JOB_WRAP_DEFAULT_WORK_TREE
+
 trimmed_outdir=$outdir
 while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
   trimmed_outdir=${trimmed_outdir#/}
