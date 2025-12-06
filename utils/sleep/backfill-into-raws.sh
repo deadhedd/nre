@@ -60,7 +60,6 @@ printf '%s' "$entries" | jq -c '.[]' | while IFS= read -r obj; do
 done
 
 outputs=""
-commit_paths=""
 today=$(get_today)
 for offset in 0 1 2 3 4 5 6; do
   day_offset=$((0 - offset))
@@ -69,20 +68,9 @@ for offset in 0 1 2 3 4 5 6; do
     out="$sleepFolder/$day.txt"
     cat "$tmpdir/$day/stages" "$tmpdir/$day/durations" "$tmpdir/$day/starts" "$tmpdir/$day/ends" > "$out"
     outputs="$outputs\n-$out"
-    commit_paths="$commit_paths\n$out"
   fi
 
 done
 
 echo "✅ Generated the following raw files for the past 7 days:"
 printf '%s\n' "$outputs" | sed '/^$/d'
-
-if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ] && [ -n "$commit_paths" ]; then
-  {
-    printf 'work_tree=%s\n' "$vaultRoot"
-    printf 'message=%s\n' "sleep raw backfill"
-    printf '%s\n' "$commit_paths" | sed '/^$/d' | while IFS= read -r path; do
-      printf 'path=%s\n' "$path"
-    done
-  } >"$JOB_WRAP_COMMIT_PLAN"
-fi

@@ -447,30 +447,3 @@ else
   log_info "Daily note created at $file_path"
 fi
 
-###############################################################################
-# Commit changes
-###############################################################################
-
-if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-  commit_work_tree=$vault_path
-  commit_message="daily note: $today"
-  commit_bare_repo=""
-
-  if [ "$dry_run" -eq 1 ]; then
-    commit_work_tree=$repo_root
-    commit_bare_repo="${repo_root%/}/.git"
-  fi
-
-  {
-    printf 'work_tree=%s\n' "$commit_work_tree"
-    printf 'message=%s\n' "$commit_message"
-    if [ -n "$commit_bare_repo" ]; then
-      printf 'bare_repo=%s\n' "$commit_bare_repo"
-    fi
-    for target in "$@"; do
-      printf 'path=%s\n' "$target"
-    done
-  } >"$JOB_WRAP_COMMIT_PLAN"
-else
-  log_info "JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata"
-fi

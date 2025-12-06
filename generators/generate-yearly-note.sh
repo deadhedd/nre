@@ -206,23 +206,3 @@ if [ "$dry_run" -eq 1 ]; then
   printf 'ℹ️ Dry run: yearly note sample written to %s\n' "$dry_run_output_path"
 fi
 
-commit_work_tree=$vault_path
-commit_target_path=$note_path
-
-if [ "$dry_run" -eq 1 ]; then
-  commit_work_tree=$repo_root
-  commit_target_path=$dry_run_output_path
-fi
-
-if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-  {
-    printf 'work_tree=%s\n' "$commit_work_tree"
-    printf 'message=%s\n' "yearly note: $target_year"
-    if [ "$dry_run" -eq 1 ]; then
-      printf 'bare_repo=%s\n' "${repo_root%/}/.git"
-    fi
-    printf 'path=%s\n' "$commit_target_path"
-  } >"$JOB_WRAP_COMMIT_PLAN"
-else
-  printf 'ℹ️ JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata\n'
-fi
