@@ -1,6 +1,5 @@
 #!/bin/sh
-# Summarize a sanitized monthly credit card CSV into an Obsidian markdown file
-# and commit it using commit.sh.
+# Summarize a sanitized monthly credit card CSV into an Obsidian markdown file.
 #
 # Usage:
 #   summarize-credit-card-month.sh staging/finance/sanitized/2025-11-nfcu-credit-card.csv
@@ -8,10 +7,6 @@
 # Outputs:
 #   /home/obsidian/vaults/Main/Finance/Credit Card/2025-11 Credit Card.md
 #
-# Commit context:
-#   context = finance
-#   message = "Update credit card summary for YYYY-MM"
-
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
@@ -19,10 +14,6 @@ PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 BASE_DIR="/home/obsidian"
 VAULT_ROOT="${VAULT_PATH:-$BASE_DIR/vaults/Main}"
 FINANCE_DIR="$VAULT_ROOT/Finance/Credit Card"
-
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-utils_dir=$(dirname -- "$script_dir")
-COMMIT_CONTEXT="finance"
 
 # ---- input ----
 csv="${1:?need sanitized credit card csv}"
@@ -78,12 +69,3 @@ awk -F',' -v MONTH="$month" '
     }
   }
 ' "$csv" > "$note"
-
-# ---- commit ----
-if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-  {
-    printf 'work_tree=%s\n' "$VAULT_ROOT"
-    printf 'message=%s\n' "Update credit card summary for $month"
-    printf 'path=%s\n' "$note"
-  } >"$JOB_WRAP_COMMIT_PLAN"
-fi

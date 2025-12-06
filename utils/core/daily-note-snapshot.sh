@@ -269,12 +269,4 @@ else
   cp "$NOTE" "$BAK"
   mv "$TMP" "$NOTE"
   log_info "Replaced $NOTE (backup at $BAK)"
-
-  if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-    {
-      printf 'work_tree=%s\n' "$VAULT_ROOT"
-      printf 'message=%s\n' "daily snapshot: $NOTE_BASE"
-      printf 'path=%s\n' "$NOTE"
-    } >"$JOB_WRAP_COMMIT_PLAN"
-  fi
 fi

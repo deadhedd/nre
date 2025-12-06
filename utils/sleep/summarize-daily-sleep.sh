@@ -716,18 +716,8 @@ $entriesLines
 EOF
 
 ###############################################################################
-# Write file & optional commit
+# Write file
 ###############################################################################
 
 printf '%s\n' "$md" > "$outputPath"
 log_info "wrote $(basename "$outputPath")"
-
-if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-  {
-    printf 'work_tree=%s\n' "$vaultRoot"
-    printf 'message=%s\n' "sleep summary: $target_date"
-    printf 'path=%s\n' "$outputPath"
-  } >"$JOB_WRAP_COMMIT_PLAN"
-else
-  log_info "JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata"
-fi

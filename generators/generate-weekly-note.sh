@@ -145,6 +145,11 @@ if ! current_quarter_tag=$(quarter_tag_for_utc_date "$date_arg" 2>/dev/null); th
 fi
 
 vault_root=${vault_path%/}
+if [ -z "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
+  JOB_WRAP_DEFAULT_WORK_TREE=$vault_root
+fi
+export JOB_WRAP_DEFAULT_WORK_TREE
+
 trimmed_outdir=$outdir
 while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
   trimmed_outdir=${trimmed_outdir#/}
@@ -225,23 +230,3 @@ else
   log_info "Weekly note created: $note_path"
 fi
 
-commit_work_tree=$vault_path
-commit_target_path=$note_path
-
-if [ "$dry_run" -eq 1 ]; then
-  commit_work_tree=$repo_root
-  commit_target_path=$dry_run_output_path
-fi
-
-if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-  {
-    printf 'work_tree=%s\n' "$commit_work_tree"
-    printf 'message=%s\n' "weekly note: $iso_week_tag"
-    if [ "$dry_run" -eq 1 ]; then
-      printf 'bare_repo=%s\n' "${repo_root%/}/.git"
-    fi
-    printf 'path=%s\n' "$commit_target_path"
-  } >"$JOB_WRAP_COMMIT_PLAN"
-else
-  log_info "JOB_WRAP_COMMIT_PLAN not set; skipping commit metadata"
-fi

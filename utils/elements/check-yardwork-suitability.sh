@@ -83,14 +83,6 @@ if [ -f "$note_path" ]; then
   chmod 664 "$note_path" 2>/dev/null || chmod 644 "$note_path" 2>/dev/null || true
 
   echo "Yard work suitability check completed."
-
-  if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-    {
-      printf 'work_tree=%s\n' "$vault_root"
-      printf 'message=%s\n' "yard work suitability: $today"
-      printf 'path=%s\n' "$note_path"
-    } >"$JOB_WRAP_COMMIT_PLAN"
-  fi
 else
   echo "Daily note not found: $note_path" >&2
   exit 1
