@@ -242,6 +242,21 @@ if log_update_rolling_note; then
   rolling_note_path=$(log__rolling_note_path "$LOG_FILE" 2>/dev/null || printf '')
   if [ -n "$rolling_note_path" ]; then
     log_info "Rolling log updated: $rolling_note_path"
+
+    if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
+      commit_work_tree=${LOG_ROLLING_VAULT_ROOT:-${VAULT_PATH:-/home/obsidian/vaults/Main}}
+      commit_job=$(log__safe_job_name "${LOG_JOB_NAME:-$SAFE_JOB_NAME}")
+
+      if ! grep -q '^work_tree=' "$JOB_WRAP_COMMIT_PLAN"; then
+        printf 'work_tree=%s\n' "$commit_work_tree" >>"$JOB_WRAP_COMMIT_PLAN"
+      fi
+
+      if ! grep -q '^message=' "$JOB_WRAP_COMMIT_PLAN"; then
+        printf 'message=%s\n' "logs: update ${commit_job:-log} rolling note" >>"$JOB_WRAP_COMMIT_PLAN"
+      fi
+
+      printf 'path=%s\n' "$rolling_note_path" >>"$JOB_WRAP_COMMIT_PLAN"
+    fi
   fi
 fi
 
