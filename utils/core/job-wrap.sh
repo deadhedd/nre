@@ -76,47 +76,7 @@ job_wrap__default_work_tree() {
     return 0
   fi
 
-  if [ -n "${JOB_WRAP_WORK_TREE_MAP:-}" ]; then
-    OLD_IFS=${IFS}
-    IFS=:
-    for entry in $JOB_WRAP_WORK_TREE_MAP; do
-      case "$entry" in
-        *=*)
-          prefix=${entry%%=*}
-          mapped=${entry#*=}
-
-          [ -n "$prefix" ] && [ -n "$mapped" ] || continue
-
-          case "$prefix" in
-            /*)
-              prefix_path=$prefix
-              ;;
-            *)
-              prefix_path="$REPO_ROOT/$prefix"
-              ;;
-          esac
-
-          case "$RESOLVED_CMD" in
-            "$prefix_path"/*)
-              IFS=$OLD_IFS
-              printf '%s\n' "$mapped"
-              return 0
-              ;;
-          esac
-          ;;
-      esac
-    done
-    IFS=$OLD_IFS
-  fi
-
-  case "$RESOLVED_CMD" in
-    "$REPO_ROOT"/generators/*)
-      printf '%s\n' "${VAULT_PATH:-/home/obsidian/vaults/Main}"
-      return 0
-      ;;
-  esac
-
-  printf '%s\n' "$REPO_ROOT"
+  printf '%s\n' "${VAULT_PATH:-/home/obsidian/vaults/Main}"
 }
 
 DEFAULT_COMMIT_WORK_TREE=$(job_wrap__default_work_tree)
