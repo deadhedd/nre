@@ -12,17 +12,19 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
-log_helper="$utils_dir/core/log.sh"
 job_wrap="$utils_dir/core/job-wrap.sh"
 script_path="$script_dir/$(basename "$0")"
+
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
+log_debug() { [ "${LOG_DEBUG:-0}" -ne 0 ] && printf 'DEBUG %s\n' "$*"; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-. "$log_helper"
-log_init sleep-summary
 : "${LOG_DEBUG:=0}"
 
 require_cmd() {

@@ -34,29 +34,11 @@ order when running from other directories.
 * The daily note script pins `PATH` to `/usr/local/bin:/usr/bin:/bin:${PATH:-}` before doing any work and logs high-level milestones like vault path selection or missing folder warnings.
 * Without the wrapper, these logs remain on the calling terminal; when invoked through `job-wrap.sh`, the same messages are captured in the run log alongside the wrapper's header/footer metadata.
 
-### Shared logging helper (`utils/core/log.sh`)
+### Simple inline log helpers
 
-Source `utils/core/log.sh` to standardize log output across scripts:
-
-```sh
-. "$(cd -- "$(dirname -- "$0")" && pwd -P)/../core/log.sh"
-log_init my-job-name  # idempotent; sets LOG_FILE/LOG_ROOT if missing
-log_info "Starting"      # -> "2025-02-14T00:00:00Z INFO Starting"
-log_warn "Missing file"  # stderr
-LOG_DEBUG=1 log_debug "Verbose details"
-```
-
-Defaults favor ASCII-only lines for cron safety and append to a log file when
-`LOG_FILE` is set (parents are created automatically). `log_init` will export
-`LOG_FILE`, `LOG_ROOT`, `LOG_RUN_TS`, and `LOG_JOB_NAME`, creating a
-timestamped log path under `${LOG_ROOT:-${HOME:-/home/obsidian}/logs}` when the
-wrapper has not set `LOG_FILE`; repeated calls are safe no-ops. Environment
-toggles:
-
-* `LOG_FILE` — Path to append every log line (unset = no file output).
-* `LOG_TIMESTAMP` — `1` (default) to include UTC timestamps, `0` to omit.
-* `LOG_DEBUG` — `1` enables `log_debug` output; `0` suppresses it.
-* `LOG_ASCII_ONLY` — `1` (default) strips non-ASCII characters; set to `0` to allow them.
+Generators and utilities define lightweight `log_info`/`log_warn`/`log_err` wrappers locally so they can emit clear status
+messages without sourcing shared helpers. When run under `job-wrap.sh`, these lines are captured alongside the wrapper's
+structured header/footer output.
 
 ## `generators/generate-daily-note.sh`
 
