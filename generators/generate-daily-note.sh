@@ -16,11 +16,14 @@ finances_dir="$utils_dir/finances"
 job_wrap="$repo_root/utils/core/job-wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
+
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
 
-log_helper="$repo_root/utils/core/log.sh"
 date_helper="$repo_root/utils/core/date-period-helpers.sh"
 day_plan_script="$elements_dir/generate-day-plan.sh"
 celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
@@ -28,10 +31,7 @@ f1_script="$elements_dir/f1-schedule-and-standings.sh"
 f1_dashboard_helper="$elements_dir/update-f1-dashboard.sh"
 finances_callout_script="$finances_dir/daily-finances-callout.sh"
 
-. "$log_helper"
 . "$date_helper"
-
-log_init daily-note
 
 # Ensure common tools are found even under cron (put /usr/local/bin first)
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"

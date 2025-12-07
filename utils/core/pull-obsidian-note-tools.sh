@@ -10,14 +10,13 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)
 JOB_WRAP="$REPO_ROOT/utils/core/job-wrap.sh"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "$0")"
 
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
+
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$JOB_WRAP" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$JOB_WRAP" "$SCRIPT_PATH" "$@"
 fi
-
-. "$SCRIPT_DIR/log.sh"
-
-LOG_JOB_NAME=${LOG_JOB_NAME:-pull-obsidian-note-tools}
-log_init "$LOG_JOB_NAME"
 
 HOME_DIR=${HOME:-/home/obsidian}
 DEFAULT_REPO_DIR=$HOME_DIR/obsidian-note-tools

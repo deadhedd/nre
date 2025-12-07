@@ -7,9 +7,9 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
 
-log_helper="$repo_root/utils/core/log.sh"
-
-. "$log_helper"
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 usage() {
   cat <<'EOF_USAGE'
@@ -58,8 +58,6 @@ if [ -z "$dashboard_path" ]; then
   usage >&2
   exit 2
 fi
-
-log_init f1-dashboard
 
 ensure_dir() {
   dir=$1

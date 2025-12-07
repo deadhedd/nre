@@ -9,14 +9,14 @@ repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
 job_wrap="$repo_root/utils/core/job-wrap.sh"
 script_path="$script_dir/$(basename -- "$0")"
 
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
+
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
 
-log_helper="$script_dir/log.sh"
-
-. "$log_helper"
-log_init daily-note-snapshot
 log_info "Starting daily-note-snapshot (pid $$)"
 
 # Set this to your vault root or override via environment.
