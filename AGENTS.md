@@ -18,6 +18,7 @@ This file tells AI assistants how to propose, implement, and verify changes in *
 5. **Don’t leak secrets:** Never print tokens/paths that reveal private info; use env vars.
 6. **Ship diffs:** Provide unified diffs (`git apply` compatible) and any new file contents.
 7. **Verify:** Include commands to lint, shellcheck, dry-run, and schedule via cron wrapper.
+8. **No hacks:** Default to clean, correct implementations—no fallbacks or ad-hoc workarounds unless explicitly requested.
 
 ---
 
@@ -80,6 +81,10 @@ MAILTO=obsidian
 ---
 
 ## Coding standards
+
+### Clean coding & correctness
+
+This repository prioritizes correctness and clean implementations. Avoid shortcuts, implicit fallbacks, or “best-effort” behavior unless a task explicitly calls for them. Prefer failing fast with clear errors over silently masking problems.
 
 * POSIX `sh` only. Test with `dash` or OpenBSD `ksh -p`.
 * File header example:
