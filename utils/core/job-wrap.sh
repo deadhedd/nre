@@ -70,6 +70,57 @@ JOB_NAME=${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}
 COMMIT_PLAN=$(mktemp)
 export JOB_WRAP_COMMIT_PLAN="$COMMIT_PLAN"
 
+job_wrap__default_work_tree() {
+  if [ -n "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
+    printf '%s\n' "$JOB_WRAP_DEFAULT_WORK_TREE"
+    return 0
+  fi
+
+  if [ -n "${JOB_WRAP_WORK_TREE_MAP:-}" ]; then
+    OLD_IFS=${IFS}
+    IFS=:
+    for entry in $JOB_WRAP_WORK_TREE_MAP; do
+      case "$entry" in
+        *=*)
+          prefix=${entry%%=*}
+          mapped=${entry#*=}
+
+          [ -n "$prefix" ] && [ -n "$mapped" ] || continue
+
+          case "$prefix" in
+            /*)
+              prefix_path=$prefix
+              ;;
+            *)
+              prefix_path="$REPO_ROOT/$prefix"
+              ;;
+          esac
+
+          case "$RESOLVED_CMD" in
+            "$prefix_path"/*)
+              IFS=$OLD_IFS
+              printf '%s\n' "$mapped"
+              return 0
+              ;;
+          esac
+          ;;
+      esac
+    done
+    IFS=$OLD_IFS
+  fi
+
+  case "$RESOLVED_CMD" in
+    "$REPO_ROOT"/generators/*)
+      printf '%s\n' "${VAULT_PATH:-/home/obsidian/vaults/Main}"
+      return 0
+      ;;
+  esac
+
+  printf '%s\n' "$REPO_ROOT"
+}
+
+DEFAULT_COMMIT_WORK_TREE=$(job_wrap__default_work_tree)
+
 # Where to put logs (change if you like)
 HOME_DIR="${HOME:-/home/obsidian}"
 LOG_ROOT="${HOME_DIR}/logs"
@@ -113,6 +164,7 @@ log_info "user=$(id -un 2>/dev/null || printf unknown)"
 log_info "path=${PATH:-}"
 log_info "requested_cmd=$ORIGINAL_CMD"
 log_info "resolved_cmd=$RESOLVED_CMD"
+log_info "default_commit_work_tree=$DEFAULT_COMMIT_WORK_TREE"
 log_info "argv=$(printf '%s ' "$@")"
 log_info "------------------------------"
 
@@ -139,7 +191,7 @@ perform_commit_if_requested() {
     return 0
   fi
 
-  commit_work_tree=${JOB_WRAP_DEFAULT_WORK_TREE:-$REPO_ROOT}
+  commit_work_tree=${DEFAULT_COMMIT_WORK_TREE:-$REPO_ROOT}
   commit_message=${JOB_WRAP_DEFAULT_COMMIT_MESSAGE:-"chore(${JOB_NAME}): auto-commit changes"}
   commit_bare_repo=${COMMIT_BARE_REPO:-}
   commit_paths=""
@@ -163,6 +215,8 @@ perform_commit_if_requested() {
       esac
     done <"$COMMIT_PLAN"
   fi
+
+  log_info "commit_work_tree=$commit_work_tree"
 
   if [ -z "$commit_paths" ]; then
     if ! command -v git >/dev/null 2>&1; then
