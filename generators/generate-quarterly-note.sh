@@ -45,13 +45,13 @@ write_output() {
   dest=$1
   if [ "$dry_run" -eq 1 ]; then
     if [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
-      printf 'ℹ️ DRY RUN start: %s -> %s\n' "$dest" "$dry_run_output_path"
+      log_info "DRY RUN start: $dest -> $dry_run_output_path"
       cat | tee "$dry_run_output_path"
     else
-      printf 'ℹ️ DRY RUN start: %s\n' "$dest"
+      log_info "DRY RUN start: $dest"
       cat
     fi
-    printf 'ℹ️ DRY RUN end: %s\n' "$dest"
+    log_info "DRY RUN end: $dest"
   else
     cat >"$dest"
   fi
@@ -61,7 +61,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --vault)
       if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --vault" >&2
+        log_err "Missing value for --vault"
         usage
         exit 2
       fi
@@ -70,7 +70,7 @@ while [ $# -gt 0 ]; do
       ;;
     --outdir)
       if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --outdir" >&2
+        log_err "Missing value for --outdir"
         usage
         exit 2
       fi
@@ -79,7 +79,7 @@ while [ $# -gt 0 ]; do
       ;;
     --date)
       if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --date" >&2
+        log_err "Missing value for --date"
         usage
         exit 2
       fi
@@ -99,7 +99,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "❌ Unknown option: $1" >&2
+      log_err "Unknown option: $1"
       usage
       exit 2
       ;;
@@ -117,18 +117,18 @@ if [ -n "$date_arg" ]; then
       fi
       ;;
     *)
-      echo "❌ --date must use the format YYYY-QN (e.g., 2025-Q3)" >&2
+      log_err "--date must use the format YYYY-QN (e.g., 2025-Q3)"
       exit 2
       ;;
   esac
 else
   if ! utc_today=$(get_today_utc); then
-    printf '❌ Failed to determine current UTC date\n' >&2
+    log_err "Failed to determine current UTC date"
     exit 1
   fi
 
   if ! quarter_info=$(quarter_tag_for_utc_date "$utc_today"); then
-    printf '❌ Failed to determine current quarter\n' >&2
+    log_err "Failed to determine current quarter"
     exit 1
   fi
 
@@ -140,14 +140,14 @@ fi
 tag="${target_year}-Q${target_quarter}"
 
 if [ "$target_quarter" -lt 1 ] || [ "$target_quarter" -gt 4 ]; then
-  echo "❌ Quarter must be between 1 and 4" >&2
+  log_err "Quarter must be between 1 and 4"
   exit 2
 fi
 
 start_month=$(( (target_quarter - 1) * 3 + 1 ))
 
 if ! set -- $(add_months "$target_year" "$start_month" -3); then
-  printf '❌ Failed to compute previous quarter\n' >&2
+  log_err "Failed to compute previous quarter"
   exit 1
 fi
 prev_year=$1
@@ -156,7 +156,7 @@ prev_month=$((prev_month + 0))
 prev_quarter=$(( (prev_month + 2) / 3 ))
 
 if ! set -- $(add_months "$target_year" "$start_month" 3); then
-  printf '❌ Failed to compute next quarter\n' >&2
+  log_err "Failed to compute next quarter"
   exit 1
 fi
 next_year=$1
@@ -188,14 +188,14 @@ dry_run_primary_path=$note_path
 dry_run_output_path="${repo_root%/}/Quarterly Note Sample.md"
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'ℹ️ Dry run: would ensure directory exists: %s\n' "$note_dir"
+  log_info "Dry run: would ensure directory exists: $note_dir"
 else
   mkdir -p "$note_dir"
 fi
 
 if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
-  echo "❌ Refusing to overwrite existing file: $note_path" >&2
-  echo "   Re-run with --force to overwrite." >&2
+  log_err "Refusing to overwrite existing file: $note_path"
+  log_err "Re-run with --force to overwrite."
   exit 1
 fi
 
@@ -237,6 +237,6 @@ tag includes due/${tag}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'ℹ️ Dry run: quarterly note sample written to %s\n' "$dry_run_output_path"
+  log_info "Dry run: quarterly note sample written to $dry_run_output_path"
 fi
 
