@@ -139,13 +139,6 @@ cleanup_commit_plan() {
 }
 
 perform_commit_if_requested() {
-  if [ "${STATUS:-1}" -ne 0 ]; then
-    log_info "Skipping commit because job exit status=$STATUS"
-    return 0
-  fi
-
-  [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ] && return 0
-
   if [ ! -x "$COMMIT_HELPER" ]; then
     log_warn "Commit helper not executable: $COMMIT_HELPER"
     return 0
@@ -179,22 +172,6 @@ perform_commit_if_requested() {
   log_info "commit_work_tree=$commit_work_tree"
 
   if [ -z "$commit_paths" ]; then
-    if ! command -v git >/dev/null 2>&1; then
-      log_warn "Git not available; skipping default commit"
-      return 0
-    fi
-
-    if ! git -C "$commit_work_tree" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-      log_warn "Commit work tree is not a git repository: $commit_work_tree"
-      return 0
-    fi
-
-    status_output=$(git -C "$commit_work_tree" status --porcelain 2>/dev/null || true)
-    if [ -z "$status_output" ]; then
-      log_info "No changes detected for default commit"
-      return 0
-    fi
-
     commit_paths="."
   fi
 
