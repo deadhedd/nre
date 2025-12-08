@@ -2,6 +2,12 @@
 # Print current moon phase details.
 set -eu
 
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
+
+log_info "Starting lunar cycle lookup"
+
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 # shellcheck source=utils/celestial/celestial-timings-common.sh
 . "$SCRIPT_DIR/celestial-timings-common.sh"
