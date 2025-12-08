@@ -56,7 +56,7 @@ get_month_name() {
   target=$2
 
   if ! epoch=$(epoch_for_utc_date "$target"); then
-    printf '❌ Failed to compute epoch for %s\n' "$target" >&2
+    log_err "Failed to compute epoch for $target"
     return 1
   fi
 
@@ -73,7 +73,7 @@ get_month_name() {
     return 0
   fi
 
-  printf '❌ Failed to format month name for %s\n' "$target" >&2
+  log_err "Failed to format month name for $target"
   return 1
 }
 
@@ -88,13 +88,13 @@ write_output() {
   dest=$1
   if [ "$dry_run" -eq 1 ]; then
     if [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
-      printf 'ℹ️ DRY RUN start: %s -> %s\n' "$dest" "$dry_run_output_path"
+      log_info "DRY RUN start: $dest -> $dry_run_output_path"
       cat | tee "$dry_run_output_path"
     else
-      printf 'ℹ️ DRY RUN start: %s\n' "$dest"
+      log_info "DRY RUN start: $dest"
       cat
     fi
-    printf 'ℹ️ DRY RUN end: %s\n' "$dest"
+    log_info "DRY RUN end: $dest"
   else
     cat >"$dest"
   fi
@@ -104,7 +104,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --vault)
       if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --vault" >&2
+        log_err "Missing value for --vault"
         usage
         exit 2
       fi
@@ -113,7 +113,7 @@ while [ $# -gt 0 ]; do
       ;;
     --outdir)
       if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --outdir" >&2
+        log_err "Missing value for --outdir"
         usage
         exit 2
       fi
@@ -122,7 +122,7 @@ while [ $# -gt 0 ]; do
       ;;
     --date)
       if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --date" >&2
+        log_err "Missing value for --date"
         usage
         exit 2
       fi
@@ -131,7 +131,7 @@ while [ $# -gt 0 ]; do
       ;;
     --locale)
       if [ $# -lt 2 ]; then
-        echo "❌ Missing value for --locale" >&2
+        log_err "Missing value for --locale"
         usage
         exit 2
       fi
@@ -151,7 +151,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "❌ Unknown option: $1" >&2
+      log_err "Unknown option: $1"
       usage
       exit 2
       ;;
@@ -167,7 +167,7 @@ case "$date_arg" in
     :
     ;;
   *)
-    echo "❌ --date must be in YYYY-MM format" >&2
+    log_err "--date must be in YYYY-MM format"
     exit 2
     ;;
 esac
@@ -179,7 +179,7 @@ if [ -z "$month_number" ]; then
   month_number=0
 fi
 if [ "$month_number" -lt 1 ] || [ "$month_number" -gt 12 ]; then
-  echo "❌ Invalid month supplied: $month_part" >&2
+  log_err "Invalid month supplied: $month_part"
   exit 2
 fi
 
@@ -189,19 +189,19 @@ quarter=$(( (month_number + 2) / 3 ))
 quarter_tag="${year}-Q${quarter}"
 
 if ! set -- $(add_months "$year" "$month" -1); then
-  printf '❌ Failed to compute previous month for %s-%s\n' "$year" "$month" >&2
+  log_err "Failed to compute previous month for $year-$month"
   exit 1
 fi
 prev_tag=$(printf '%04d-%02d' "$1" "$2")
 
 if ! set -- $(add_months "$year" "$month" 1); then
-  printf '❌ Failed to compute next month for %s-%s\n' "$year" "$month" >&2
+  log_err "Failed to compute next month for $year-$month"
   exit 1
 fi
 next_tag=$(printf '%04d-%02d' "$1" "$2")
 
 if ! month_name=$(get_month_name "$locale" "${year}-${month}-01"); then
-  printf '❌ Failed to determine localized month name\n' >&2
+  log_err "Failed to determine localized month name"
   exit 1
 fi
 
@@ -226,14 +226,14 @@ dry_run_primary_path=$note_path
 dry_run_output_path="${repo_root%/}/Monthly Note Sample.md"
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'ℹ️ Dry run: would ensure directory exists: %s\n' "$note_dir"
+  log_info "Dry run: would ensure directory exists: $note_dir"
 else
   mkdir -p "$note_dir"
 fi
 
 if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
-  echo "❌ Refusing to overwrite existing file: $note_path" >&2
-  echo "   Re-run with --force to overwrite." >&2
+  log_err "Refusing to overwrite existing file: $note_path"
+  log_err "Re-run with --force to overwrite."
   exit 1
 fi
 
@@ -303,6 +303,6 @@ tag includes due/${month_tag}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'ℹ️ Dry run: monthly note sample written to %s\n' "$dry_run_output_path"
+  log_info "Dry run: monthly note sample written to $dry_run_output_path"
 fi
 
