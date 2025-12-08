@@ -163,8 +163,44 @@ set +e
 STATUS=$?
 set -e
 
+job_wrap__emit_line() {
+  line=$1
+
+  set -- $line
+
+  level=""
+  msg="$line"
+
+  if [ $# -gt 0 ]; then
+    case "$1" in
+      INFO|WARN|ERR|DEBUG)
+        level=$1
+        shift
+        msg=$*
+        ;;
+    esac
+  fi
+
+  if [ -z "$level" ] && [ $# -gt 1 ]; then
+    case "$2" in
+      INFO|WARN|ERR|DEBUG)
+        level=$2
+        shift 2
+        msg=$*
+        ;;
+    esac
+  fi
+
+  case "$level" in
+    WARN) log_warn "$msg" ;;
+    ERR) log_err "$msg" ;;
+    DEBUG) log_debug "$msg" ;;
+    *) log_info "$line" ;;
+  esac
+}
+
 while IFS= read -r line || [ -n "$line" ]; do
-  log_info "$line"
+  job_wrap__emit_line "$line"
 done <"$CMD_OUTPUT_FILE"
 
 cleanup_temp_log "$CMD_OUTPUT_FILE"
