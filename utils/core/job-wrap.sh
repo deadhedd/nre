@@ -132,19 +132,26 @@ cleanup_temp_log() {
 }
 
 perform_commit() {
+  [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ] && return 0
+
   if [ ! -x "$COMMIT_HELPER" ]; then
     log_err "Commit helper not executable: $COMMIT_HELPER"
     return 1
   fi
 
   commit_work_tree=${DEFAULT_COMMIT_WORK_TREE:-$REPO_ROOT}
-  commit_message=${JOB_WRAP_DEFAULT_COMMIT_MESSAGE:-"chore(${JOB_NAME}): auto-commit changes"}
+  commit_message=${JOB_WRAP_DEFAULT_COMMIT_MESSAGE:-"job-wrap(${JOB_NAME}): auto-commit (exit=${STATUS:-unknown})"}
 
   log_info "Committing changes via job wrapper"
   log_info "commit_work_tree=$commit_work_tree"
 
+  set +e
   "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" \
     .
+  commit_status=$?
+  set -e
+
+  return "$commit_status"
 }
 
 # Run and capture status + duration
