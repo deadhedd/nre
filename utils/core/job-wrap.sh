@@ -67,8 +67,6 @@ set -- "$RESOLVED_CMD" "$@"
 
 JOB_BASENAME=$(basename "$RESOLVED_CMD")
 JOB_NAME=${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}
-COMMIT_PLAN=$(mktemp)
-export JOB_WRAP_COMMIT_PLAN="$COMMIT_PLAN"
 
 job_wrap__default_work_tree() {
   if [ -n "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
@@ -133,96 +131,26 @@ cleanup_temp_log() {
   rm -f -- "$1"
 }
 
-cleanup_commit_plan() {
-  [ -f "$COMMIT_PLAN" ] || return 0
-  rm -f -- "$COMMIT_PLAN"
-}
-
-perform_commit_if_requested() {
+perform_commit() {
   if [ ! -x "$COMMIT_HELPER" ]; then
-    log_warn "Commit helper not executable: $COMMIT_HELPER"
-    return 0
+    log_err "Commit helper not executable: $COMMIT_HELPER"
+    return 1
   fi
 
   commit_work_tree=${DEFAULT_COMMIT_WORK_TREE:-$REPO_ROOT}
   commit_message=${JOB_WRAP_DEFAULT_COMMIT_MESSAGE:-"chore(${JOB_NAME}): auto-commit changes"}
-  commit_bare_repo=${COMMIT_BARE_REPO:-}
-  commit_paths=""
-
-  if [ -s "$COMMIT_PLAN" ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-      case "$line" in
-        work_tree=*)
-          commit_work_tree=${line#work_tree=}
-          ;;
-        message=*)
-          commit_message=${line#message=}
-          ;;
-        bare_repo=*)
-          commit_bare_repo=${line#bare_repo=}
-          ;;
-        path=*)
-          path_value=${line#path=}
-          commit_paths=$(printf '%s\n%s' "$commit_paths" "$path_value")
-          ;;
-      esac
-    done <"$COMMIT_PLAN"
-  fi
-
-  log_info "commit_work_tree=$commit_work_tree"
-
-  if [ -z "$commit_paths" ]; then
-    commit_paths="."
-  fi
-
-  [ -n "$commit_work_tree" ] || { log_warn "Commit plan missing work_tree"; return 0; }
-  [ -n "$commit_message" ] || { log_warn "Commit plan missing message"; return 0; }
-
-  set --
-  while IFS= read -r path_line || [ -n "$path_line" ]; do
-    [ -n "$path_line" ] || continue
-    set -- "$@" "$path_line"
-  done <<EOF_COMMIT_PATHS
-$commit_paths
-EOF_COMMIT_PATHS
-
-  [ "$#" -gt 0 ] || { log_warn "Commit plan provided no paths"; return 0; }
 
   log_info "Committing changes via job wrapper"
+  log_info "commit_work_tree=$commit_work_tree"
 
-  commit_stdout=$(mktemp)
-  commit_stderr=$(mktemp)
-
-  set +e
-  if [ -n "$commit_bare_repo" ]; then
-    COMMIT_BARE_REPO="$commit_bare_repo" \
-      "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" "$@" \
-      >"$commit_stdout" 2>"$commit_stderr"
-  else
-    "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" "$@" \
-      >"$commit_stdout" 2>"$commit_stderr"
-  fi
-  commit_status=$?
-  set -e
-
-  while IFS= read -r commit_line || [ -n "$commit_line" ]; do
-    log_info "$commit_line"
-  done <"$commit_stdout"
-
-  while IFS= read -r commit_err_line || [ -n "$commit_err_line" ]; do
-    log_warn "$commit_err_line"
-  done <"$commit_stderr"
-
-  cleanup_temp_log "$commit_stdout"
-  cleanup_temp_log "$commit_stderr"
-
-  [ "$commit_status" -eq 0 ] || return "$commit_status"
+  "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" \
+    .
 }
 
 # Run and capture status + duration
 START_SEC="$(date -u +%s)"
 CMD_OUTPUT_FILE=$(mktemp)
-trap 'cleanup_temp_log "$CMD_OUTPUT_FILE"; cleanup_commit_plan' EXIT HUP INT TERM
+trap 'cleanup_temp_log "$CMD_OUTPUT_FILE"' EXIT HUP INT TERM
 set +e
 "$@" >"$CMD_OUTPUT_FILE" 2>&1
 STATUS=$?
@@ -254,26 +182,17 @@ if log_update_rolling_note; then
   rolling_note_path=$(log__rolling_note_path "$LOG_FILE" 2>/dev/null || printf '')
   if [ -n "$rolling_note_path" ]; then
     log_info "Rolling log updated: $rolling_note_path"
-
-    if [ -n "${JOB_WRAP_COMMIT_PLAN:-}" ]; then
-      commit_work_tree=${LOG_ROLLING_VAULT_ROOT:-${VAULT_PATH:-/home/obsidian/vaults/Main}}
-      commit_job=$(log__safe_job_name "${LOG_JOB_NAME:-$SAFE_JOB_NAME}")
-
-      if ! grep -q '^work_tree=' "$JOB_WRAP_COMMIT_PLAN"; then
-        printf 'work_tree=%s\n' "$commit_work_tree" >>"$JOB_WRAP_COMMIT_PLAN"
-      fi
-
-      if ! grep -q '^message=' "$JOB_WRAP_COMMIT_PLAN"; then
-        printf 'message=%s\n' "logs: update ${commit_job:-log} rolling note" >>"$JOB_WRAP_COMMIT_PLAN"
-      fi
-
-      printf 'path=%s\n' "$rolling_note_path" >>"$JOB_WRAP_COMMIT_PLAN"
-    fi
   fi
 fi
 
-perform_commit_if_requested
+commit_status=0
+if ! perform_commit; then
+  commit_status=$?
+  log_err "Commit failed with status $commit_status"
+fi
 
-cleanup_commit_plan
+if [ "$STATUS" -eq 0 ] && [ "$commit_status" -ne 0 ]; then
+  exit "$commit_status"
+fi
 
 exit "$STATUS"
