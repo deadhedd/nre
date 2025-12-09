@@ -82,26 +82,16 @@ DEFAULT_COMMIT_WORK_TREE=$(job_wrap__default_work_tree)
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_JOB_NAME=${SAFE_JOB_NAME}
 LOG_RUN_TS=${LOG_RUN_TS:-$TS}
+LOG_RUN_START_SEC=${LOG_RUN_START_SEC:-$(date -u +%s)}
 
-log_init "$SAFE_JOB_NAME"
-
-# Header
-log_info "== ${SAFE_JOB_NAME} start =="
-log_info "utc_start=$TS"
-log_info "cwd=$(pwd)"
-log_info "user=$(id -un 2>/dev/null || printf unknown)"
-log_info "path=${PATH:-}"
-log_info "requested_cmd=$ORIGINAL_CMD"
-log_info "resolved_cmd=$RESOLVED_CMD"
-log_info "default_commit_work_tree=$DEFAULT_COMMIT_WORK_TREE"
-log_info "argv=$(printf '%s ' "$@")"
-log_info "log_file=${LOG_FILE:-unknown}"
-log_info "------------------------------"
-
-cleanup_temp_log() {
-  [ -f "$1" ] || return 0
-  rm -f -- "$1"
-}
+log_start_job "$SAFE_JOB_NAME" \
+  "cwd=$(pwd)" \
+  "user=$(id -un 2>/dev/null || printf unknown)" \
+  "path=${PATH:-}" \
+  "requested_cmd=$ORIGINAL_CMD" \
+  "resolved_cmd=$RESOLVED_CMD" \
+  "default_commit_work_tree=$DEFAULT_COMMIT_WORK_TREE" \
+  "argv=$(printf '%s ' "$@")"
 
 perform_commit() {
   [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ] && return 0
@@ -126,79 +116,12 @@ perform_commit() {
   return "$commit_status"
 }
 
-# Run and capture status + duration
-START_SEC="$(date -u +%s)"
-CMD_OUTPUT_FILE=$(mktemp)
-trap 'cleanup_temp_log "$CMD_OUTPUT_FILE"' EXIT HUP INT TERM
-set +e
-"$@" >"$CMD_OUTPUT_FILE" 2>&1
-STATUS=$?
-set -e
-
-job_wrap__emit_line() {
-  line=$1
-
-  set -- $line
-
-  level=""
-  msg="$line"
-
-  if [ $# -gt 0 ]; then
-    case "$1" in
-      INFO|WARN|ERR|DEBUG)
-        level=$1
-        shift
-        msg=$*
-        ;;
-    esac
-  fi
-
-  if [ -z "$level" ] && [ $# -gt 1 ]; then
-    case "$2" in
-      INFO|WARN|ERR|DEBUG)
-        level=$2
-        shift 2
-        msg=$*
-        ;;
-    esac
-  fi
-
-  case "$level" in
-    WARN) log_warn "$msg" ;;
-    ERR) log_err "$msg" ;;
-    DEBUG) log_debug "$msg" ;;
-    *) log_info "$line" ;;
-  esac
-}
-
-while IFS= read -r line || [ -n "$line" ]; do
-  job_wrap__emit_line "$line"
-done <"$CMD_OUTPUT_FILE"
-
-cleanup_temp_log "$CMD_OUTPUT_FILE"
-trap - EXIT HUP INT TERM
-
-END_SEC="$(date -u +%s)"
-DUR_SEC=$(( END_SEC - START_SEC ))
-
-# Footer
-log_info "------------------------------"
-log_info "exit=$STATUS"
-log_info "utc_end=$(date -u +%Y%m%dT%H%M%SZ)"
-log_info "duration_seconds=$DUR_SEC"
-log_info "== ${SAFE_JOB_NAME} end =="
-
-# Update latest symlink (best-effort)
-log_update_latest_link
-
-log_rotate
-
-if log_update_rolling_note; then
-  rolling_note_path=$(log__rolling_note_path "$LOG_FILE" 2>/dev/null || printf '')
-  if [ -n "$rolling_note_path" ]; then
-    log_info "Rolling log updated: $rolling_note_path"
-  fi
+STATUS=0
+if ! log_run_with_capture "$@"; then
+  STATUS=$?
 fi
+
+log_finish_job "$STATUS"
 
 commit_status=0
 if ! perform_commit; then
