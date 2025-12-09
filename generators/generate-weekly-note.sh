@@ -107,6 +107,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+printf 'INFO %s\n' "Starting weekly note generation"
+
 if [ -z "$date_arg" ]; then
   date_arg=$(get_today_utc)
 fi
@@ -162,6 +164,11 @@ note_path="${note_dir%/}/${iso_week_tag}.md"
 
 dry_run_primary_path=$note_path
 dry_run_output_path="${repo_root%/}/Weekly Note Sample.md"
+
+printf 'INFO %s\n' "Vault path: $vault_root"
+printf 'INFO %s\n' "Weekly note directory: $note_dir"
+printf 'INFO %s\n' "Target week/date: ${iso_week_tag} (source date: $date_arg)"
+printf 'INFO %s\n' "Primary weekly note path: $note_path"
 
 if [ "$dry_run" -eq 1 ]; then
   printf 'INFO %s\n' "Dry run: would ensure directory exists: $note_dir"
