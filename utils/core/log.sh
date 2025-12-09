@@ -493,6 +493,66 @@ log_run_with_capture() {
   return "$status"
 }
 
+log_run_job() {
+  job_name=${1:-}
+  shift
+
+  [ -n "$job_name" ] || {
+    log_err "log_run_job: missing job name"
+    return 2
+  }
+
+  context_args=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --)
+        shift
+        break
+        ;;
+      *)
+        if [ -n "$context_args" ]; then
+          context_args="$context_args|$1"
+        else
+          context_args="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ $# -eq 0 ]; then
+    log_err "log_run_job: missing command to run"
+    return 2
+  fi
+
+  command_args=$(printf '%s\n' "$@")
+
+  if [ -n "$context_args" ]; then
+    old_IFS=$IFS
+    IFS='|'
+    set -- $context_args
+    IFS=$old_IFS
+    log_start_job "$job_name" "$@"
+  else
+    log_start_job "$job_name"
+  fi
+
+  old_IFS=$IFS
+  IFS='\n'
+  set -- $command_args
+  IFS=$old_IFS
+
+  status=0
+  if ! log_run_with_capture "$@"; then
+    status=$?
+  fi
+
+  log_finish_job "$status"
+
+  return "$status"
+}
+
 log__emit() {
   level=$1
   stream=$2

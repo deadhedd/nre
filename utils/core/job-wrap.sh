@@ -78,14 +78,6 @@ job_wrap__default_work_tree() {
 }
 
 DEFAULT_COMMIT_WORK_TREE=$(job_wrap__default_work_tree)
-log_start_job "$JOB_NAME" \
-  "cwd=$(pwd)" \
-  "user=$(id -un 2>/dev/null || printf unknown)" \
-  "path=${PATH:-}" \
-  "requested_cmd=$ORIGINAL_CMD" \
-  "resolved_cmd=$RESOLVED_CMD" \
-  "default_commit_work_tree=$DEFAULT_COMMIT_WORK_TREE" \
-  "argv=$(printf '%s ' "$@")"
 
 perform_commit() {
   [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ] && return 0
@@ -111,11 +103,18 @@ perform_commit() {
 }
 
 STATUS=0
-if ! log_run_with_capture "$@"; then
+if ! log_run_job "$JOB_NAME" \
+  "cwd=$(pwd)" \
+  "user=$(id -un 2>/dev/null || printf unknown)" \
+  "path=${PATH:-}" \
+  "requested_cmd=$ORIGINAL_CMD" \
+  "resolved_cmd=$RESOLVED_CMD" \
+  "default_commit_work_tree=$DEFAULT_COMMIT_WORK_TREE" \
+  "argv=$(printf '%s ' "$@")" \
+  -- \
+  "$@"; then
   STATUS=$?
 fi
-
-log_finish_job "$STATUS"
 
 commit_status=0
 if ! perform_commit; then
