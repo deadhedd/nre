@@ -57,6 +57,29 @@ log__latest_link_path() {
   printf '%s/%s-latest.log' "$base_dir" "$safe_job"
 }
 
+log_start_job() {
+  job_arg=${1:-${LOG_JOB_NAME:-job}}
+  shift 2>/dev/null || true
+
+  safe_job=$(log__safe_job_name "$job_arg")
+  LOG_JOB_NAME=${LOG_JOB_NAME:-$safe_job}
+  LOG_RUN_TS=${LOG_RUN_TS:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || log__now 2>/dev/null || printf 'run')}
+  LOG_RUN_START_SEC=${LOG_RUN_START_SEC:-$(date -u +%s 2>/dev/null || printf '')}
+
+  log_init "$safe_job"
+
+  log_info "== ${safe_job} start =="
+  log_info "utc_start=$LOG_RUN_TS"
+
+  while [ $# -gt 0 ]; do
+    log_info "$1"
+    shift
+  done
+
+  log_info "log_file=${LOG_FILE:-unknown}"
+  log_info "------------------------------"
+}
+
 log_init() {
   job_arg=${1:-}
 
@@ -345,11 +368,129 @@ log_update_latest_link() {
       ;;
   esac
 
+  target_path=$log_file
   if [ "${LOG_LATEST_RELATIVE:-1}" -ne 0 ]; then
-    ln -sf "$(basename "$log_file")" "$link_path" 2>/dev/null || true
-  else
-    ln -sf "$log_file" "$link_path" 2>/dev/null || true
+    case "$log_file" in
+      */*) log_dir=${log_file%/*} ;;
+      *) log_dir="." ;;
+    esac
+
+    case "$link_path" in
+      */*) link_dir=${link_path%/*} ;;
+      *) link_dir="." ;;
+    esac
+
+    if [ "$log_dir" = "$link_dir" ]; then
+      target_path=$(basename "$log_file")
+    fi
   fi
+
+  ln -sf "$target_path" "$link_path" 2>/dev/null || true
+}
+
+log_finish_job() {
+  status=$1
+  start_sec=${2:-${LOG_RUN_START_SEC:-}}
+
+  end_ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || log__now 2>/dev/null || printf 'unknown')
+  duration=""
+
+  if [ -n "$start_sec" ]; then
+    end_sec=$(date -u +%s 2>/dev/null || printf '')
+
+    if [ -n "$end_sec" ]; then
+      duration=$(( end_sec - start_sec ))
+    fi
+  fi
+
+  safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-job}")
+
+  log_info "------------------------------"
+  log_info "exit=$status"
+  log_info "utc_end=$end_ts"
+  if [ -n "$duration" ]; then
+    log_info "duration_seconds=$duration"
+  fi
+  log_info "== ${safe_job} end =="
+
+  log_update_latest_link
+  log_rotate
+
+  if log_update_rolling_note; then
+    rolling_note_path=$(log__rolling_note_path "$LOG_FILE" 2>/dev/null || printf '')
+    if [ -n "$rolling_note_path" ]; then
+      log_info "Rolling log updated: $rolling_note_path"
+    fi
+  fi
+}
+
+log__emit_line() {
+  line=$1
+
+  set -- $line
+
+  level=""
+  msg="$line"
+
+  if [ $# -gt 0 ]; then
+    case "$1" in
+      INFO|WARN|ERR|DEBUG)
+        level=$1
+        shift
+        msg=$*
+        ;;
+    esac
+  fi
+
+  if [ -z "$level" ] && [ $# -gt 1 ]; then
+    case "$2" in
+      INFO|WARN|ERR|DEBUG)
+        level=$2
+        shift 2
+        msg=$*
+        ;;
+    esac
+  fi
+
+  case "$level" in
+    WARN) log_warn "$msg" ;;
+    ERR) log_err "$msg" ;;
+    DEBUG) log_debug "$msg" ;;
+    *) log_info "$line" ;;
+  esac
+}
+
+log_stream_file() {
+  log_source=$1
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    log__emit_line "$line"
+  done <"$log_source"
+}
+
+log_run_with_capture() {
+  tmp_log=$(mktemp)
+
+  cleanup_tmp_log() {
+    [ -f "$tmp_log" ] || return 0
+    rm -f -- "$tmp_log"
+  }
+
+  trap 'cleanup_tmp_log' EXIT HUP INT TERM
+
+  status=0
+
+  set +e
+  "$@" >"$tmp_log" 2>&1
+  status=$?
+  set -e
+
+  log_stream_file "$tmp_log"
+
+  cleanup_tmp_log
+  trap - EXIT HUP INT TERM
+
+  return "$status"
 }
 
 log__emit() {
