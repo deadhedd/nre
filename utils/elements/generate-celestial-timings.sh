@@ -4,8 +4,6 @@
 # License: MIT
 set -eu
 
-log_info() { printf 'INFO %s\n' "$*" >&2; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 utils_dir=$(dirname -- "$script_dir")
@@ -42,29 +40,29 @@ EOF
 )
 
 if [ -r "$lunar_cycle_script" ]; then
-  log_info "Gathering lunar cycle data"
+  printf 'INFO %s\n' "Gathering lunar cycle data"
   if output=$(sh "$lunar_cycle_script"); then
-    log_info "Lunar cycle data retrieved"
+    printf 'INFO %s\n' "Lunar cycle data retrieved"
     moon_rows=$output
   else
     status=$?
-    log_warn "Lunar cycle script failed with exit code $status, using fallback text"
+    printf 'WARN %s\n' "Lunar cycle script failed with exit code $status, using fallback text" >&2
   fi
 else
-  log_warn "Lunar cycle script not found at $lunar_cycle_script, using fallback text"
+  printf 'WARN %s\n' "Lunar cycle script not found at $lunar_cycle_script, using fallback text" >&2
 fi
 
 if [ -r "$seasonal_cycle_script" ]; then
-  log_info "Gathering seasonal cycle data"
+  printf 'INFO %s\n' "Gathering seasonal cycle data"
   if output=$(sh "$seasonal_cycle_script"); then
-    log_info "Seasonal cycle data retrieved"
+    printf 'INFO %s\n' "Seasonal cycle data retrieved"
     season_rows=$output
   else
     status=$?
-    log_warn "Seasonal cycle script failed with exit code $status, using fallback text"
+    printf 'WARN %s\n' "Seasonal cycle script failed with exit code $status, using fallback text" >&2
   fi
 else
-  log_warn "Seasonal cycle script not found at $seasonal_cycle_script, using fallback text"
+  printf 'WARN %s\n' "Seasonal cycle script not found at $seasonal_cycle_script, using fallback text" >&2
 fi
 
 cat <<EOF

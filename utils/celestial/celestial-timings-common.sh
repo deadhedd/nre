@@ -3,9 +3,6 @@
 
 # shellcheck shell=sh
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 # Guard against multiple sourcing.
 if [ "${PAGAN_TIMINGS_COMMON_SOURCED:-0}" = "1" ]; then
@@ -20,7 +17,7 @@ LC_ALL=C
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
-    log_err "missing dependency: $1"
+    printf 'ERR  %s\n' "missing dependency: $1" >&2
     exit 1
   }
 }

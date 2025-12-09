@@ -9,15 +9,12 @@ repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
 job_wrap="$repo_root/utils/core/job-wrap.sh"
 script_path="$script_dir/$(basename -- "$0")"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
 
-log_info "Starting daily-note-snapshot (pid $$)"
+printf 'INFO %s\n' "Starting daily-note-snapshot (pid $$)"
 
 # Set this to your vault root or override via environment.
 VAULT_DEFAULT=${VAULT_PATH:-/home/obsidian/vaults/Main}
@@ -38,7 +35,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     -n|--dry-run)
       DRY_RUN=1
-      log_info "Flag detected: dry run enabled"
+      printf 'INFO %s\n' "Flag detected: dry run enabled"
       ;;
     -h|--help)
       print_usage
@@ -60,7 +57,7 @@ while [ "$#" -gt 0 ]; do
         exit 1
       fi
       NOTE=$1
-      log_info "Flag detected: explicit note path provided ($NOTE)"
+      printf 'INFO %s\n' "Flag detected: explicit note path provided ($NOTE)"
       ;;
   esac
   shift
@@ -71,12 +68,12 @@ if [ -z "$NOTE" ]; then
   DAILY_NOTE_DIR=${DAILY_NOTE_DIR:-"$VAULT_ROOT/Periodic Notes/Daily Notes"}
   today=$(date +%Y-%m-%d)
   NOTE="$DAILY_NOTE_DIR/$today.md"
-  log_info "No note path provided; defaulting to today's note: $NOTE"
+  printf 'INFO %s\n' "No note path provided; defaulting to today's note: $NOTE"
 fi
-log_info "Resolved note argument to: $NOTE"
+printf 'INFO %s\n' "Resolved note argument to: $NOTE"
 
 if [ ! -f "$NOTE" ]; then
-  log_err "note not found: $NOTE"
+  printf 'ERR  %s\n' "note not found: $NOTE" >&2
   exit 1
 fi
 
@@ -92,12 +89,12 @@ TEST_NOTE=$NOTE.dryrun
 # Clean up temp file on exit or common signals (0 is the POSIX "EXIT" pseudo-signal)
 trap 'rm -f "$TMP"' 0 HUP INT TERM
 
-log_info "Vault root: $VAULT_ROOT"
-log_info "Note: $NOTE"
+printf 'INFO %s\n' "Vault root: $VAULT_ROOT"
+printf 'INFO %s\n' "Note: $NOTE"
 if [ "$DRY_RUN" -eq 1 ]; then
-  log_info "Mode: dry run (writing to $TEST_NOTE)"
+  printf 'INFO %s\n' "Mode: dry run (writing to $TEST_NOTE)"
 else
-  log_info "Mode: replace note in place with backup $BAK"
+  printf 'INFO %s\n' "Mode: replace note in place with backup $BAK"
 fi
 
 expand_embed() {
@@ -105,13 +102,13 @@ expand_embed() {
   line=$2
 
   embed_total=$((embed_total + 1))
-  log_info "Processing embed: $link"
+  printf 'INFO %s\n' "Processing embed: $link"
 
   # Strip alias part: "path#heading|Alias" -> "path#heading"
   case "$link" in
     *'|'*)
       link_no_alias=${link%%'|'*}
-      log_info "Alias stripped: $link_no_alias"
+      printf 'INFO %s\n' "Alias stripped: $link_no_alias"
       ;;
     *)
       link_no_alias=$link
@@ -123,12 +120,12 @@ expand_embed() {
     *'#'*)
       path=${link_no_alias%%'#'*}
       heading=${link_no_alias#*'#'}
-      log_info "Parsed path: $path (heading: $heading)"
+      printf 'INFO %s\n' "Parsed path: $path (heading: $heading)"
       ;;
     *)
       path=$link_no_alias
       heading=
-      log_info "Parsed path: $path (full file)"
+      printf 'INFO %s\n' "Parsed path: $path (full file)"
       ;;
   esac
 
@@ -157,7 +154,7 @@ expand_embed() {
       ;;
     *)
       if [ -z "$file" ]; then
-        log_info "Attempting recursive search for $path under $VAULT_ROOT"
+        printf 'INFO %s\n' "Attempting recursive search for $path under $VAULT_ROOT"
         found=$(
           find "$VAULT_ROOT" -type f \( -name "$path" -o -name "$path.md" \) -print 2>/dev/null | head -n 1 || :
         )
@@ -171,17 +168,17 @@ expand_embed() {
 
   if [ -z "$file" ]; then
     # Cannot resolve, leave embed as-is
-    log_warn "embed not resolved (missing file?): $link"
+    printf 'WARN %s\n' "embed not resolved (missing file?): $link" >&2
     embed_unresolved=$((embed_unresolved + 1))
     printf '%s\n' "$line"
     return
   fi
 
-  log_info "Resolved embed to $file ($resolve_hint)"
+  printf 'INFO %s\n' "Resolved embed to $file ($resolve_hint)"
 
   if [ -z "$heading" ]; then
     # Whole file
-    log_info "Expanding entire file for embed"
+    printf 'INFO %s\n' "Expanding entire file for embed"
     embed_resolved=$((embed_resolved + 1))
     cat "$file"
     return
@@ -231,11 +228,11 @@ expand_embed() {
   ' "$file"
   then
     # Heading not found: leave embed as-is
-    log_warn "embed not resolved (missing heading): $link"
+    printf 'WARN %s\n' "embed not resolved (missing heading): $link" >&2
     embed_unresolved=$((embed_unresolved + 1))
     printf '%s\n' "$line"
   else
-    log_info "Expanded heading \"$heading\" from $file"
+    printf 'INFO %s\n' "Expanded heading \"$heading\" from $file"
     embed_resolved=$((embed_resolved + 1))
   fi
 }
@@ -258,15 +255,15 @@ while IFS= read -r line; do
   esac
 done < "$NOTE"
 
-log_info "Embeds processed: $embed_total (resolved: $embed_resolved, unresolved: $embed_unresolved)"
+printf 'INFO %s\n' "Embeds processed: $embed_total (resolved: $embed_resolved, unresolved: $embed_unresolved)"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   # Dry run: keep original note; write result to NOTE.dryrun
   mv "$TMP" "$TEST_NOTE"
-  log_info "Dry run: wrote expanded note to $TEST_NOTE"
+  printf 'INFO %s\n' "Dry run: wrote expanded note to $TEST_NOTE"
 else
   # Backup and replace original note
   cp "$NOTE" "$BAK"
   mv "$TMP" "$NOTE"
-  log_info "Replaced $NOTE (backup at $BAK)"
+  printf 'INFO %s\n' "Replaced $NOTE (backup at $BAK)"
 fi

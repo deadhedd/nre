@@ -10,9 +10,6 @@
 
 set -eu
 
-log_info() { printf 'INFO %s\n' "$*" >&2; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err()  { printf 'ERR %s\n'  "$*" >&2; }
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 core_dir=$(dirname -- "$script_dir")/core
@@ -24,7 +21,7 @@ vault_base="${vault_base%/}"
 relative_path='000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Templates/Daily Plan.md'
 file="${vault_base}/${relative_path}"
 
-die(){ log_err "$*"; exit 1; }
+die(){ printf 'ERR  %s\n' "$*" >&2; exit 1; }
 
 if [ ! -f "$file" ]; then
   die "Missing template: $file"
@@ -59,7 +56,7 @@ EOT
   esac
 done
 
-log_info "Using day plan file: $file"
+printf 'INFO %s\n' "Using day plan file: $file"
 
 today_date=$(get_today)
 today_index=$(weekday_for_utc_date "$today_date") || die "Unable to resolve today's weekday"
@@ -76,17 +73,17 @@ dow_from_date() {
 
 if [ -n "$DATE_IN" ]; then
   day_resolved=$(dow_from_date "$DATE_IN")
-  log_info "Resolved weekday from --date $DATE_IN: $day_resolved"
+  printf 'INFO %s\n' "Resolved weekday from --date $DATE_IN: $day_resolved"
 else
   day_resolved="$today_name"
 fi
 
 if [ -n "$DAY_NAME" ]; then
   day_resolved="$DAY_NAME"
-  log_info "Using explicit --day override: $day_resolved"
+  printf 'INFO %s\n' "Using explicit --day override: $day_resolved"
 fi
 
-log_info "Target day: $day_resolved"
+printf 'INFO %s\n' "Target day: $day_resolved"
 
 extract_day_section() {
   day="$1"
@@ -187,18 +184,18 @@ print_block() {
     printf '%s\n' "$out"
     return 0
   fi
-  log_warn "Block '$b' not found for $d"
+  printf 'WARN %s\n' "Block '$b' not found for $d" >&2
   return 0
 }
 
 if [ -n "$BLOCK" ]; then
-  log_info "Extracting block '$BLOCK' for $day_resolved"
+  printf 'INFO %s\n' "Extracting block '$BLOCK' for $day_resolved"
   print_block "$day_resolved" "$BLOCK"
   exit 0
 fi
 
 # Legacy: full today + tomorrow
-log_info "Printing full plan for $today_name with preview for $tomorrow_name"
+printf 'INFO %s\n' "Printing full plan for $today_name with preview for $tomorrow_name"
 printf '# Daily Plan - %s\n\n' "$today_name"
 extract_day_section "$today_name" || true
 printf '\n## Preview of Tomorrow: %s\n' "$tomorrow_name"

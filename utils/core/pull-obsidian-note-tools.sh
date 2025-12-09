@@ -10,9 +10,6 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)
 JOB_WRAP="$REPO_ROOT/utils/core/job-wrap.sh"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "$0")"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$JOB_WRAP" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$JOB_WRAP" "$SCRIPT_PATH" "$@"
@@ -46,29 +43,29 @@ fi
 
 GIT_BIN=$RESOLVED_GIT_BIN
 
-log_info "repo_dir_source=$REPO_DIR_SOURCE"
-log_info "repo_dir=$REPO_DIR"
-log_info "git_bin=$GIT_BIN"
+printf 'INFO %s\n' "repo_dir_source=$REPO_DIR_SOURCE"
+printf 'INFO %s\n' "repo_dir=$REPO_DIR"
+printf 'INFO %s\n' "git_bin=$GIT_BIN"
 
 if [ ! -d "$REPO_DIR" ]; then
-  log_err "Repo dir not found: $REPO_DIR"
+  printf 'ERR  %s\n' "Repo dir not found: $REPO_DIR" >&2
   exit 1
 fi
 
 if [ ! -x "$GIT_BIN" ]; then
-  log_err "git binary not executable: $GIT_BIN"
+  printf 'ERR  %s\n' "git binary not executable: $GIT_BIN" >&2
   exit 1
 fi
 
 if ! cd "$REPO_DIR"; then
-  log_err "Failed to enter repo dir: $REPO_DIR"
+  printf 'ERR  %s\n' "Failed to enter repo dir: $REPO_DIR" >&2
   exit 1
 fi
 
-log_info "Running git pull --ff-only"
+printf 'INFO %s\n' "Running git pull --ff-only"
 if ! "$GIT_BIN" pull --ff-only; then
-  log_err "git pull failed"
+  printf 'ERR  %s\n' "git pull failed" >&2
   exit 1
 fi
 
-log_info "git pull completed"
+printf 'INFO %s\n' "git pull completed"

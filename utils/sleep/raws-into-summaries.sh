@@ -11,9 +11,6 @@ utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 job_wrap="$utils_dir/core/job-wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
@@ -92,12 +89,12 @@ jq_program='
 '
 
 if [ ! -f "$input_path" ]; then
-  log_err "input file not found: $input_path"
+  printf 'ERR  %s\n' "input file not found: $input_path" >&2
   exit 1
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  log_err "jq is required but not found in PATH"
+  printf 'ERR  %s\n' "jq is required but not found in PATH" >&2
   exit 1
 fi
 
@@ -108,21 +105,21 @@ jq_output=$(printf '%s' "$raw_data" | jq -R -s "$jq_program")
 error_type=$(printf '%s' "$jq_output" | jq -r '.error // ""')
 if [ -n "$error_type" ]; then
   line_count=$(printf '%s' "$jq_output" | jq -r '.lines // 0')
-  log_err "raw input line count $line_count is not divisible by 4"
+  printf 'ERR  %s\n' "raw input line count $line_count is not divisible by 4" >&2
   exit 1
 fi
 
 data_count=$(printf '%s' "$jq_output" | jq '.data | length')
 if [ "$data_count" -eq 0 ]; then
-  log_warn "no summaries generated from $input_path"
+  printf 'WARN %s\n' "no summaries generated from $input_path" >&2
   exit 0
 fi
 
 skipped_count=$(printf '%s' "$jq_output" | jq '.skipped | length')
 if [ "$skipped_count" -gt 0 ]; then
-  log_warn "skipped $skipped_count entries with unparseable timestamps"
+  printf 'WARN %s\n' "skipped $skipped_count entries with unparseable timestamps" >&2
   printf '%s' "$jq_output" | jq -r '.skipped[]' | while IFS= read -r skipped; do
-    [ -n "$skipped" ] && log_warn "  skipped: $skipped"
+    [ -n "$skipped" ] && printf 'WARN %s\n' "  skipped: $skipped" >&2
   done
 fi
 
@@ -205,6 +202,6 @@ printf '%s' "$jq_output" | jq -c '.data[]' | while IFS= read -r item; do
     fi
   } > "$output_path"
 
-  log_info "wrote $(basename -- "$output_path")"
+  printf 'INFO %s\n' "wrote $(basename -- "$output_path")"
 
 done

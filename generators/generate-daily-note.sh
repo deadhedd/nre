@@ -16,9 +16,6 @@ finances_dir="$utils_dir/finances"
 job_wrap="$repo_root/utils/core/job-wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
@@ -69,7 +66,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      log_err "Unknown option: $1"
+      printf 'ERR  %s\n' "Unknown option: $1" >&2
       usage >&2
       exit 2
       ;;
@@ -86,7 +83,7 @@ write_output() {
 
   if [ "$dry_run" -eq 1 ] && [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
     output_target=$dry_run_output_path
-    log_info "Dry run: redirecting output to sample file: $output_target"
+    printf 'INFO %s\n' "Dry run: redirecting output to sample file: $output_target"
     cat >"$output_target"
     return
   fi
@@ -103,7 +100,7 @@ write_output() {
 ensure_dir() {
   dir=$1
   if [ "$dry_run" -eq 1 ]; then
-    log_info "Dry run: would ensure directory exists: $dir"
+    printf 'INFO %s\n' "Dry run: would ensure directory exists: $dir"
   else
     mkdir -p "$dir"
   fi
@@ -113,19 +110,19 @@ ensure_dir() {
 # Vault paths and basic date info
 ###############################################################################
 
-log_info "Starting daily note generation"
+printf 'INFO %s\n' "Starting daily note generation"
 
 vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
 vault_root="${vault_path%/}"
 periodic_dir="${vault_root}/Periodic Notes"
 daily_note_dir="${periodic_dir%/}/Daily Notes"
 
-log_info "Vault path: $vault_root"
-log_info "Daily note directory: $daily_note_dir"
+printf 'INFO %s\n' "Vault path: $vault_root"
+printf 'INFO %s\n' "Daily note directory: $daily_note_dir"
 
 if [ ! -d "$daily_note_dir" ]; then
-  log_err "Periodic notes folder does not exist: $daily_note_dir"
-  log_err "Edit generate-daily-note.sh to match your vault structure."
+  printf 'ERR  %s\n' "Periodic notes folder does not exist: $daily_note_dir" >&2
+  printf 'ERR  %s\n' "Edit generate-daily-note.sh to match your vault structure." >&2
   exit 1
 fi
 
@@ -147,8 +144,8 @@ file_path="${daily_note_dir%/}/${today}.md"
 dry_run_primary_path=$file_path
 dry_run_output_path="${repo_root%/}/Daily Note Sample.md"
 
-log_info "Generating note for date: $today"
-log_info "Primary daily note path: $file_path"
+printf 'INFO %s\n' "Generating note for date: $today"
+printf 'INFO %s\n' "Primary daily note path: $file_path"
 
 ###############################################################################
 # Finances callout (car loan + credit cards)
@@ -156,7 +153,7 @@ log_info "Primary daily note path: $file_path"
 
 build_finances_callout() {
   if [ ! -r "$finances_callout_script" ]; then
-    log_warn "Finances callout script not found: $finances_callout_script"
+    printf 'WARN %s\n' "Finances callout script not found: $finances_callout_script" >&2
     return
   fi
 
@@ -164,7 +161,7 @@ build_finances_callout() {
     printf '%s' "$output"
   else
     status=$?
-    log_warn "Finances callout script failed with exit code $status; skipping finances section"
+    printf 'WARN %s\n' "Finances callout script failed with exit code $status; skipping finances section" >&2
   fi
 }
 
@@ -196,7 +193,7 @@ EOF_TB
 f1_dashboard_note="Reference/Dashboards/Formula 1"
 f1_dashboard_path="${vault_root%/}/${f1_dashboard_note}.md"
 
-log_info "Formula 1 dashboard note: $f1_dashboard_path"
+printf 'INFO %s\n' "Formula 1 dashboard note: $f1_dashboard_path"
 
 if [ -r "$f1_dashboard_helper" ]; then
   if [ "$dry_run" -eq 1 ]; then
@@ -207,7 +204,7 @@ if [ -r "$f1_dashboard_helper" ]; then
       --content-script "$f1_script"
   fi
 else
-  log_warn "F1 dashboard helper not found: $f1_dashboard_helper"
+  printf 'WARN %s\n' "F1 dashboard helper not found: $f1_dashboard_helper" >&2
 fi
 
 ###############################################################################
@@ -215,9 +212,9 @@ fi
 ###############################################################################
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: skipping overwrite guard for $file_path"
+  printf 'INFO %s\n' "Dry run: skipping overwrite guard for $file_path"
 elif [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
-  log_err "Refusing to overwrite existing file: $file_path"
+  printf 'ERR  %s\n' "Refusing to overwrite existing file: $file_path" >&2
   printf '     Re-run with --force to overwrite.\n' >&2
   exit 1
 fi
@@ -238,7 +235,7 @@ populate_block() {
   fi
 }
 
-log_info "Preparing time block subnotes"
+printf 'INFO %s\n' "Preparing time block subnotes"
 # We'll use positional params solely as commit targets from this point.
 set -- "$file_path"
 # F1 dashboard may or may not exist in dry-run; we still pass it for parity.
@@ -246,7 +243,7 @@ set -- "$@" "$f1_dashboard_path"
 
 for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
   subnote_path="${time_block_subnotes_dir%/}/${today} - ${subnote}.md"
-  log_info "Generating subnote for block: $subnote"
+  printf 'INFO %s\n' "Generating subnote for block: $subnote"
 
   block_content=$(populate_block "$subnote" || true)
 
@@ -273,24 +270,24 @@ EOF_SUBNOTE
   set -- "$@" "$subnote_path"
 
   if [ "$dry_run" -eq 1 ]; then
-    log_info "Dry run: would update subnote: $subnote_path"
+    printf 'INFO %s\n' "Dry run: would update subnote: $subnote_path"
   else
-    log_info "Subnote updated: $subnote_path"
+    printf 'INFO %s\n' "Subnote updated: $subnote_path"
   fi
 done
 
 pagan_timings_text=""
 
 if [ -r "$celestial_timings_script" ]; then
-  log_info "Generating celestial timings section"
+  printf 'INFO %s\n' "Generating celestial timings section"
   if pagan_timings_text=$(sh "$celestial_timings_script"); then
-    log_info "Celestial timings section generated"
+    printf 'INFO %s\n' "Celestial timings section generated"
   else
     status=$?
-    log_warn "Celestial timings script failed with exit code $status; using fallback text"
+    printf 'WARN %s\n' "Celestial timings script failed with exit code $status; using fallback text" >&2
   fi
 else
-  log_warn "Celestial timings script not found: $celestial_timings_script"
+  printf 'WARN %s\n' "Celestial timings script not found: $celestial_timings_script" >&2
 fi
 
 if [ -z "$pagan_timings_text" ]; then
@@ -304,13 +301,13 @@ fi
 
 build_daily_plan_intro() {
   if [ ! -r "$day_plan_script" ]; then
-    log_warn "Daily plan script not found, skipping intro"
+    printf 'WARN %s\n' "Daily plan script not found, skipping intro" >&2
     return 0
   fi
 
-  log_info "Loading daily plan intro"
+  printf 'INFO %s\n' "Loading daily plan intro"
   if ! day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
-    log_warn "Daily plan script failed, skipping intro"
+    printf 'WARN %s\n' "Daily plan script failed, skipping intro" >&2
     return 0
   fi
 
@@ -342,10 +339,10 @@ build_daily_plan_intro() {
   ')
 
   if [ -n "$intro_lines" ]; then
-    log_info "Daily plan intro captured"
+    printf 'INFO %s\n' "Daily plan intro captured"
     printf '%s\n' "$intro_lines"
   else
-    log_warn "Daily plan intro not found in output"
+    printf 'WARN %s\n' "Daily plan intro not found in output" >&2
   fi
 }
 
@@ -419,7 +416,7 @@ EOF_F1
 # Write main daily note
 ###############################################################################
 
-log_info "Writing daily note content"
+printf 'INFO %s\n' "Writing daily note content"
 
 write_output "$file_path" <<EOF_NOTE
 ---
@@ -442,8 +439,8 @@ ${f1_callout}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: daily note sample written to $dry_run_output_path"
+  printf 'INFO %s\n' "Dry run: daily note sample written to $dry_run_output_path"
 else
-  log_info "Daily note created at $file_path"
+  printf 'INFO %s\n' "Daily note created at $file_path"
 fi
 

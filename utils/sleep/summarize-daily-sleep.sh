@@ -15,9 +15,6 @@ utils_dir=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 job_wrap="$utils_dir/core/job-wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 log_debug() { [ "${LOG_DEBUG:-0}" -ne 0 ] && printf 'DEBUG %s\n' "$*"; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
@@ -29,7 +26,7 @@ PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    log_err "missing required command: $1"
+    printf 'ERR  %s\n' "missing required command: $1" >&2
     exit 1
   fi
 }
@@ -104,7 +101,7 @@ timestamp_to_epoch() {
     esac
   done
   IFS=$old_ifs
-  log_warn "timestamp_to_epoch: FAILED to parse '$trimmed'"
+  printf 'WARN %s\n' "timestamp_to_epoch: FAILED to parse '$trimmed'" >&2
   return 1
 }
 
@@ -204,7 +201,7 @@ apply_wake_window() {
     end_epoch=$(timestamp_to_epoch "$end_raw" || true)
 
     if [ -z "${start_epoch:-}" ] || [ -z "${end_epoch:-}" ]; then
-      log_warn "apply_wake_window: FAILED to parse epochs for stage='$stage' start='$start_raw' end='$end_raw'"
+      printf 'WARN %s\n' "apply_wake_window: FAILED to parse epochs for stage='$stage' start='$start_raw' end='$end_raw'" >&2
       trim_error=1
       break
     fi
@@ -277,7 +274,7 @@ apply_wake_window() {
   rm -f "$entries_tmp"
 
   if [ "$trim_error" -ne 0 ]; then
-    log_warn "apply_wake_window: trim_error=1, aborting without trimmed entries"
+    printf 'WARN %s\n' "apply_wake_window: trim_error=1, aborting without trimmed entries" >&2
     rm -f "$trimmed_tmp"
     return 1
   fi
@@ -316,7 +313,7 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     -*)
-      log_err "unknown option: $1"
+      printf 'ERR  %s\n' "unknown option: $1" >&2
       exit 1
       ;;
     *)
@@ -332,12 +329,12 @@ target_date="${explicit_date:-$(get_today)}"
 inputPath="$sleepFolder/$target_date.txt"
 outputPath="$sleepFolder/$target_date Sleep Summary.md"
 
-log_info "summarizing sleep for $target_date"
-log_info "input: $inputPath"
-log_info "output: $outputPath"
+printf 'INFO %s\n' "summarizing sleep for $target_date"
+printf 'INFO %s\n' "input: $inputPath"
+printf 'INFO %s\n' "output: $outputPath"
 
 if [ ! -f "$inputPath" ]; then
-  log_err "no input file for $target_date"
+  printf 'ERR  %s\n' "no input file for $target_date" >&2
   exit 1
 fi
 
@@ -395,7 +392,7 @@ process_date() {
     err=$(cat "$err_file")
     rm -f "$err_file"
     rm -f "$stage_tmp" "$meta_tmp"
-    log_warn "process_date: failed to process $file: ${err:-jq parsing error}"
+    printf 'WARN %s\n' "process_date: failed to process $file: ${err:-jq parsing error}" >&2
     return 1
   fi
   rm -f "$err_file" "$stage_tmp"
@@ -410,19 +407,19 @@ process_date() {
   t_meta=$(read_wake_metadata_value "$meta_tmp" "TODAY_WAKE" || true)
 
   if [ -z "${y_meta:-}" ] || [ -z "${t_meta:-}" ]; then
-    log_err "process_date: missing wake metadata for ds=$ds (Y=${y_meta:-unset}, T=${t_meta:-unset})"
+    printf 'ERR  %s\n' "process_date: missing wake metadata for ds=$ds (Y=${y_meta:-unset}, T=${t_meta:-unset})" >&2
     rm -f "$meta_tmp"
     return 1
   fi
 
   if ! y_epoch=$(timestamp_to_epoch "$y_meta"); then
-    log_err "process_date: failed to parse YESTERDAY_WAKE for ds=$ds raw='$y_meta'"
+    printf 'ERR  %s\n' "process_date: failed to parse YESTERDAY_WAKE for ds=$ds raw='$y_meta'" >&2
     rm -f "$meta_tmp"
     return 1
   fi
 
   if ! t_epoch=$(timestamp_to_epoch "$t_meta"); then
-    log_err "process_date: failed to parse TODAY_WAKE for ds=$ds raw='$t_meta'"
+    printf 'ERR  %s\n' "process_date: failed to parse TODAY_WAKE for ds=$ds raw='$t_meta'" >&2
     rm -f "$meta_tmp"
     return 1
   fi
@@ -430,14 +427,14 @@ process_date() {
   log_debug "process_date: y_meta='$y_meta' y_epoch=$y_epoch t_meta='$t_meta' t_epoch=$t_epoch"
 
   if [ "$t_epoch" -le "$y_epoch" ]; then
-    log_err "process_date: invalid wake window order for ds=$ds (y='$y_meta' t='$t_meta')"
+    printf 'ERR  %s\n' "process_date: invalid wake window order for ds=$ds (y='$y_meta' t='$t_meta')" >&2
     rm -f "$meta_tmp"
     return 1
   fi
 
   entries_before=$(printf '%s\n' "$entries" | jq 'length')
   if ! trimmed=$(apply_wake_window "$entries" "$y_epoch" "$t_epoch"); then
-    log_err "process_date: failed to apply wake window for ds=$ds"
+    printf 'ERR  %s\n' "process_date: failed to apply wake window for ds=$ds" >&2
     rm -f "$meta_tmp"
     return 1
   fi
@@ -466,7 +463,7 @@ if ! entries=$(
 ); then
   err=$(cat "$entries_err")
   rm -f "$entries_err" "$stage_block" "$meta_block"
-  log_err "failed to parse $inputPath: ${err:-jq parsing error}"
+  printf 'ERR  %s\n' "failed to parse $inputPath: ${err:-jq parsing error}" >&2
   exit 1
 fi
 rm -f "$entries_err"
@@ -494,19 +491,19 @@ fi
 log_debug "main: yesterday_wake_raw='${yesterday_wake_raw:-}' today_wake_raw='${today_wake_raw:-}'"
 
 if [ -z "${yesterday_wake_raw:-}" ] || [ -z "${today_wake_raw:-}" ]; then
-  log_err "missing wake timestamps for target date (Y=${yesterday_wake_raw:-unset}, T=${today_wake_raw:-unset})"
+  printf 'ERR  %s\n' "missing wake timestamps for target date (Y=${yesterday_wake_raw:-unset}, T=${today_wake_raw:-unset})" >&2
   rm -f "$stage_block" "$meta_block"
   exit 1
 fi
 
 if ! yesterday_epoch=$(timestamp_to_epoch "$yesterday_wake_raw"); then
-  log_err "failed to parse YESTERDAY_WAKE for target date raw='${yesterday_wake_raw:-}'"
+  printf 'ERR  %s\n' "failed to parse YESTERDAY_WAKE for target date raw='${yesterday_wake_raw:-}'" >&2
   rm -f "$stage_block" "$meta_block"
   exit 1
 fi
 
 if ! today_epoch=$(timestamp_to_epoch "$today_wake_raw"); then
-  log_err "failed to parse TODAY_WAKE for target date raw='${today_wake_raw:-}'"
+  printf 'ERR  %s\n' "failed to parse TODAY_WAKE for target date raw='${today_wake_raw:-}'" >&2
   rm -f "$stage_block" "$meta_block"
   exit 1
 fi
@@ -514,14 +511,14 @@ fi
 log_debug "main: yesterday_epoch=$yesterday_epoch today_epoch=$today_epoch"
 
 if [ "$today_epoch" -le "$yesterday_epoch" ]; then
-  log_err "invalid wake window (${yesterday_wake_raw:-?} to ${today_wake_raw:-?})"
+  printf 'ERR  %s\n' "invalid wake window (${yesterday_wake_raw:-?} to ${today_wake_raw:-?})" >&2
   rm -f "$stage_block" "$meta_block"
   exit 1
 fi
 
 before_count=$(printf '%s\n' "$entries" | jq 'length')
 if ! trimmed_entries=$(apply_wake_window "$entries" "$yesterday_epoch" "$today_epoch"); then
-  log_err "failed to trim entries with wake window for target date"
+  printf 'ERR  %s\n' "failed to trim entries with wake window for target date" >&2
   rm -f "$stage_block" "$meta_block"
   exit 1
 fi
@@ -574,7 +571,7 @@ for offset in 6 5 4 3 2 1 0; do
   d=$(shift_utc_date_by_days "$target_date" "$day_offset")
   log_debug "main: computing process_date for d=$d (offset=$day_offset)"
   if ! t=$(process_date "$d"); then
-    log_err "main: failed process_date for d=$d"
+    printf 'ERR  %s\n' "main: failed process_date for d=$d" >&2
     rm -f "$pastTotals_file"
     exit 1
   fi
@@ -596,7 +593,7 @@ if [ "$count" -gt 0 ]; then
   if ! sum7=$(printf '%s\n' "$cleanTotals" | paste -sd+ - | bc -l 2>"$bc_err"); then
     err=$(cat "$bc_err")
     rm -f "$bc_err"
-    log_err "failed to compute running average with bc: ${err:-bc error (no stderr captured)}"
+    printf 'ERR  %s\n' "failed to compute running average with bc: ${err:-bc error (no stderr captured)}" >&2
     exit 1
   else
     rm -f "$bc_err"
@@ -696,8 +693,8 @@ ${sleep_advice}
 EOF
 )
 
-log_info "total minutes (excl. Awake): $totalMin"
-log_info "7-day running average (minutes): $avgMin"
+printf 'INFO %s\n' "total minutes (excl. Awake): $totalMin"
+printf 'INFO %s\n' "7-day running average (minutes): $avgMin"
 
 while IFS="$(printf '\t')" read -r stage mins; do
   [ -z "$stage" ] && continue
@@ -722,4 +719,4 @@ EOF
 ###############################################################################
 
 printf '%s\n' "$md" > "$outputPath"
-log_info "wrote $(basename "$outputPath")"
+printf 'INFO %s\n' "wrote $(basename "$outputPath")"
