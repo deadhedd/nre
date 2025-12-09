@@ -539,7 +539,9 @@ log_run_job() {
   fi
 
   old_IFS=$IFS
-  IFS='\n'
+  NL='
+'
+  IFS=$NL
   set -- $command_args
   IFS=$old_IFS
 
