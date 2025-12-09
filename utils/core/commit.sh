@@ -5,6 +5,10 @@
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin"
 
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err()  { printf 'ERR %s\n'  "$*" >&2; }
+
 context='changes'
 
 print_usage() {
@@ -60,14 +64,14 @@ shift
 
 # Determine logging prefix for errors.
 if [ "$context" = 'changes' ]; then
-  prefix='WARN Failed to commit changes:'
+  prefix='Failed to commit changes'
 else
-  prefix="WARN Failed to commit $context:"
+  prefix="Failed to commit $context"
 fi
 
 # Resolve work tree root to an absolute path.
 if ! work_root=$(cd "$work_input" 2>/dev/null && pwd -P); then
-  printf 'WARN Failed to commit %s: %s\n' "$context" "invalid work tree root: $work_input" >&2
+  log_warn "$prefix: invalid work tree root: $work_input"
   exit 1
 fi
 
@@ -76,12 +80,12 @@ BARE_REPO_DEFAULT='/home/git/vaults/Main.git'
 bare_repo_input=${COMMIT_BARE_REPO:-$BARE_REPO_DEFAULT}
 
 if ! BARE_REPO=$(resolve_path "$bare_repo_input"); then
-  printf '%s invalid bare repository path: %s\n' "$prefix" "$bare_repo_input" >&2
+  log_err "$prefix: invalid bare repository path: $bare_repo_input"
   exit 1
 fi
 
 if [ ! -d "$BARE_REPO" ]; then
-  printf '%s bare repository not found: %s\n' "$prefix" "$BARE_REPO" >&2
+  log_err "$prefix: bare repository not found: $BARE_REPO"
   exit 1
 fi
 
@@ -95,7 +99,7 @@ run_git() {
 
 # --- Ensure the bare repo exists and is usable ---
 if ! run_git rev-parse --git-dir >/dev/null 2>&1; then
-  printf '%s bare repository not accessible at %s\n' "$prefix" "$BARE_REPO" >&2
+  log_err "$prefix: bare repository not accessible at $BARE_REPO"
   exit 1
 fi
 
@@ -107,14 +111,14 @@ for file in "$@"; do
   esac
 
   if ! run_git add -- "$abs_path"; then
-    printf '%s git add failed for %s\n' "$prefix" "$file" >&2
+    log_err "$prefix: git add failed for $file"
     exit 1
   fi
 done
 
 # ---- Commit (if there is anything staged) ----
 if run_git diff --cached --quiet; then
-  printf 'WARN No changes to commit for %s.\n' "$context" >&2
+  log_warn "No changes to commit for $context."
   exit 0
 fi
 
@@ -125,12 +129,12 @@ if [ "$commit_status" -ne 0 ]; then
   case $commit_output in
     *'nothing to commit'*|*'no changes added to commit'*)
       [ -n "$commit_output" ] && printf '%s\n' "$commit_output" >&2
-      printf 'WARN No changes to commit for %s.\n' "$context" >&2
+      log_warn "No changes to commit for $context."
       exit 0
       ;;
     *)
       [ -n "$commit_output" ] && printf '%s\n' "$commit_output" >&2
-      printf '%s %s\n' "$prefix" "$commit_output" >&2
+      log_err "$prefix: $commit_output"
       exit "$commit_status"
       ;;
   esac
@@ -141,7 +145,7 @@ fi
 # ---- Optional: push to upstream if configured ----
 if run_git remote get-url origin >/dev/null 2>&1; then
   if ! run_git push origin master; then
-    printf 'WARN push to origin/master failed for %s (manual intervention required).\n' "$context" >&2
+    log_warn "push to origin/master failed for $context (manual intervention required)."
     exit 1
   fi
 fi
