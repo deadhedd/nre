@@ -19,7 +19,7 @@ fi
 
 LOG_JOB_NAME=${LOG_JOB_NAME:-commit}
 log_init "$LOG_JOB_NAME"
-log_info "Starting commit helper"
+printf 'INFO %s\n' "Starting commit helper"
 
 context='changes'
 
@@ -74,8 +74,8 @@ shift
 message=$1
 shift
 
-log_info "Commit context: $context"
-log_info "Commit message: $message"
+printf 'INFO %s\n' "Commit context: $context"
+printf 'INFO %s\n' "Commit message: $message"
 
 # Determine logging prefix for errors.
 if [ "$context" = 'changes' ]; then
@@ -86,25 +86,25 @@ fi
 
 # Resolve work tree root to an absolute path.
 if ! work_root=$(cd "$work_input" 2>/dev/null && pwd -P); then
-  log_warn "$prefix: invalid work tree root: $work_input"
+  printf 'WARN %s\n' "$prefix: invalid work tree root: $work_input" >&2
   exit 1
 fi
-log_info "Work tree root: $work_root"
+printf 'INFO %s\n' "Work tree root: $work_root"
 
 # Central bare repository path (override with COMMIT_BARE_REPO).
 BARE_REPO_DEFAULT='/home/git/vaults/Main.git'
 bare_repo_input=${COMMIT_BARE_REPO:-$BARE_REPO_DEFAULT}
 
 if ! BARE_REPO=$(resolve_path "$bare_repo_input"); then
-  log_err "$prefix: invalid bare repository path: $bare_repo_input"
+  printf 'ERR  %s\n' "$prefix: invalid bare repository path: $bare_repo_input" >&2
   exit 1
 fi
 
 if [ ! -d "$BARE_REPO" ]; then
-  log_err "$prefix: bare repository not found: $BARE_REPO"
+  printf 'ERR  %s\n' "$prefix: bare repository not found: $BARE_REPO" >&2
   exit 1
 fi
-log_info "Bare repository: $BARE_REPO"
+printf 'INFO %s\n' "Bare repository: $BARE_REPO"
 
 # Convenience wrapper to run git as the git user against the bare repo + work tree
 run_git() {
@@ -116,7 +116,7 @@ run_git() {
 
 # --- Ensure the bare repo exists and is usable ---
 if ! run_git rev-parse --git-dir >/dev/null 2>&1; then
-  log_err "$prefix: bare repository not accessible at $BARE_REPO"
+  printf 'ERR  %s\n' "$prefix: bare repository not accessible at $BARE_REPO" >&2
   exit 1
 fi
 
@@ -127,34 +127,34 @@ for file in "$@"; do
     *)    abs_path="$work_root/$file" ;;
   esac
 
-  log_info "Staging file: $abs_path"
+  printf 'INFO %s\n' "Staging file: $abs_path"
 
   if ! run_git add -- "$abs_path"; then
-    log_err "$prefix: git add failed for $file"
+    printf 'ERR  %s\n' "$prefix: git add failed for $file" >&2
     exit 1
   fi
 done
 
 # ---- Commit (if there is anything staged) ----
 if run_git diff --cached --quiet; then
-  log_warn "No changes to commit for $context."
+  printf 'WARN %s\n' "No changes to commit for $context." >&2
   exit 0
 fi
 
 commit_status=0
-log_info "Running git commit"
+printf 'INFO %s\n' "Running git commit"
 commit_output=$(run_git commit -m "$message" 2>&1) || commit_status=$?
 
 if [ "$commit_status" -ne 0 ]; then
   case $commit_output in
     *'nothing to commit'*|*'no changes added to commit'*)
       [ -n "$commit_output" ] && printf '%s\n' "$commit_output" >&2
-      log_warn "No changes to commit for $context."
+      printf 'WARN %s\n' "No changes to commit for $context." >&2
       exit 0
       ;;
     *)
       [ -n "$commit_output" ] && printf '%s\n' "$commit_output" >&2
-      log_err "$prefix: $commit_output"
+      printf 'ERR  %s\n' "$prefix: $commit_output" >&2
       exit "$commit_status"
       ;;
   esac
@@ -164,11 +164,11 @@ fi
 
 # ---- Optional: push to upstream if configured ----
 if run_git remote get-url origin >/dev/null 2>&1; then
-  log_info "Pushing to origin/master"
+  printf 'INFO %s\n' "Pushing to origin/master"
   if ! run_git push origin master; then
-    log_warn "push to origin/master failed for $context (manual intervention required)."
+    printf 'WARN %s\n' "push to origin/master failed for $context (manual intervention required)." >&2
     exit 1
   fi
 else
-  log_info "Remote 'origin' not configured; skipping push"
+  printf 'INFO %s\n' "Remote 'origin' not configured; skipping push"
 fi

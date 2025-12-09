@@ -7,9 +7,6 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 usage() {
   cat <<'EOF_USAGE'
@@ -46,7 +43,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      log_err "Unknown option: $1"
+      printf 'ERR  %s\n' "Unknown option: $1" >&2
       usage >&2
       exit 2
       ;;
@@ -54,7 +51,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$dashboard_path" ]; then
-  log_err "--dashboard-path is required"
+  printf 'ERR  %s\n' "--dashboard-path is required" >&2
   usage >&2
   exit 2
 fi
@@ -62,7 +59,7 @@ fi
 ensure_dir() {
   dir=$1
   if [ "$dry_run" -eq 1 ]; then
-    log_info "Dry run: would ensure directory exists: $dir"
+    printf 'INFO %s\n' "Dry run: would ensure directory exists: $dir"
     return 0
   fi
 
@@ -73,7 +70,7 @@ write_output() {
   dest=$1
 
   if [ "$dry_run" -eq 1 ]; then
-    log_info "Dry run: would write dashboard content to $dest"
+    printf 'INFO %s\n' "Dry run: would write dashboard content to $dest"
     cat >/dev/null
     return 0
   fi
@@ -81,45 +78,45 @@ write_output() {
   cat >"$dest"
 }
 
-log_info "Formula 1 dashboard note: $dashboard_path"
+printf 'INFO %s\n' "Formula 1 dashboard note: $dashboard_path"
 
 dashboard_dir=$(dirname -- "$dashboard_path")
 ensure_dir "$dashboard_dir"
 
 if [ ! -f "$dashboard_path" ]; then
   if [ "$dry_run" -eq 1 ]; then
-    log_warn "Dry run: Formula 1 dashboard missing; would create placeholder at $dashboard_path"
+    printf 'WARN %s\n' "Dry run: Formula 1 dashboard missing; would create placeholder at $dashboard_path" >&2
   else
-    log_warn "Formula 1 dashboard missing; creating placeholder at $dashboard_path"
+    printf 'WARN %s\n' "Formula 1 dashboard missing; creating placeholder at $dashboard_path" >&2
     cat >"$dashboard_path" <<'EOF_F1_DASHBOARD'
 # 🏎️ Formula 1
 _This dashboard was created automatically. Populate it with race data or widgets for embeds._
 EOF_F1_DASHBOARD
   fi
 else
-  log_info "Formula 1 dashboard present: $dashboard_path"
+  printf 'INFO %s\n' "Formula 1 dashboard present: $dashboard_path"
 fi
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: skipping Formula 1 dashboard refresh"
+  printf 'INFO %s\n' "Dry run: skipping Formula 1 dashboard refresh"
   exit 0
 fi
 
 if [ ! -r "$content_script" ]; then
-  log_warn "Formula 1 script not found: $content_script"
+  printf 'WARN %s\n' "Formula 1 script not found: $content_script" >&2
   exit 0
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  log_warn "Skipping Formula 1 refresh; jq is unavailable"
+  printf 'WARN %s\n' "Skipping Formula 1 refresh; jq is unavailable" >&2
   exit 0
 fi
 
-log_info "Refreshing Formula 1 dashboard content"
+printf 'INFO %s\n' "Refreshing Formula 1 dashboard content"
 if output=$(sh "$content_script" 2>/dev/null); then
   printf '%s\n' "$output" | write_output "$dashboard_path"
-  log_info "Formula 1 dashboard updated: $dashboard_path"
+  printf 'INFO %s\n' "Formula 1 dashboard updated: $dashboard_path"
 else
   status=$?
-  log_warn "Formula 1 dashboard refresh failed with exit code $status; leaving existing content"
+  printf 'WARN %s\n' "Formula 1 dashboard refresh failed with exit code $status; leaving existing content" >&2
 fi

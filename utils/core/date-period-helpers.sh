@@ -3,9 +3,6 @@
 
 set -eu
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err()  { printf 'ERR %s\n'  "$*" >&2; }
 
 awk_common='
 function floor(x) {
@@ -160,20 +157,20 @@ get_current_date_parts() {
 
 parse_utc_date() {
   if [ -z "${1:-}" ]; then
-    log_err "parse_utc_date: missing date"
+    printf 'ERR  %s\n' "parse_utc_date: missing date" >&2
     return 1
   fi
   input=$1
   year=${input%%-*}
   rest=${input#*-}
   if [ "$rest" = "$input" ]; then
-    log_err "parse_utc_date: invalid format '$input'"
+    printf 'ERR  %s\n' "parse_utc_date: invalid format '$input'" >&2
     return 1
   fi
   month=${rest%%-*}
   day=${rest#*-}
   if [ "$day" = "$rest" ]; then
-    log_err "parse_utc_date: invalid format '$input'"
+    printf 'ERR  %s\n' "parse_utc_date: invalid format '$input'" >&2
     return 1
   fi
   printf '%s %s %s\n' "$year" "$month" "$day"
@@ -181,7 +178,7 @@ parse_utc_date() {
 
 parse_utc_time() {
   if [ -z "${1:-}" ]; then
-    log_err "parse_utc_time: missing time"
+    printf 'ERR  %s\n' "parse_utc_time: missing time" >&2
     return 1
   fi
 
@@ -200,7 +197,7 @@ parse_utc_time() {
     }
     printf "%d %d\n", h, m
   }'); then
-    log_err "parse_utc_time: invalid format '$1'"
+    printf 'ERR  %s\n' "parse_utc_time: invalid format '$1'" >&2
     return 1
   fi
 
@@ -363,12 +360,12 @@ is_valid_utc_date() {
 
 epoch_for_utc_date() {
   if [ -z "${1:-}" ]; then
-    log_err "epoch_for_utc_date: missing date"
+    printf 'ERR  %s\n' "epoch_for_utc_date: missing date" >&2
     return 1
   fi
 
   if ! parts=$(parse_utc_date "$1"); then
-    log_err "epoch_for_utc_date: invalid date format"
+    printf 'ERR  %s\n' "epoch_for_utc_date: invalid date format" >&2
     return 1
   fi
 
@@ -381,14 +378,14 @@ epoch_for_utc_date() {
     days = days_from_civil(y, m, d)
     printf "%.0f\n", days * 86400
   }' -v year="$1" -v month="$2" -v day="$3" || {
-    log_err "epoch_for_utc_date: invalid date"
+    printf 'ERR  %s\n' "epoch_for_utc_date: invalid date" >&2
     return 1
   }
 }
 
 epoch_for_utc_datetime() {
   if [ -z "${1:-}" ]; then
-    log_err "epoch_for_utc_datetime: missing datetime"
+    printf 'ERR  %s\n' "epoch_for_utc_datetime: missing datetime" >&2
     return 1
   fi
 
@@ -396,17 +393,17 @@ epoch_for_utc_datetime() {
   date_part=${input% *}
   time_part=${input#* }
   if [ "$date_part" = "$input" ] || [ -z "$time_part" ]; then
-    log_err "epoch_for_utc_datetime: invalid datetime format"
+    printf 'ERR  %s\n' "epoch_for_utc_datetime: invalid datetime format" >&2
     return 1
   fi
 
   if ! date_fields=$(parse_utc_date "$date_part"); then
-    log_err "epoch_for_utc_datetime: invalid date"
+    printf 'ERR  %s\n' "epoch_for_utc_datetime: invalid date" >&2
     return 1
   fi
 
   if ! time_fields=$(parse_utc_time "$time_part"); then
-    log_err "epoch_for_utc_datetime: invalid time"
+    printf 'ERR  %s\n' "epoch_for_utc_datetime: invalid time" >&2
     return 1
   fi
 
@@ -425,7 +422,7 @@ epoch_for_utc_datetime() {
 
 utc_date_for_epoch() {
   if [ -z "${1:-}" ]; then
-    log_err "utc_date_for_epoch: missing epoch"
+    printf 'ERR  %s\n' "utc_date_for_epoch: missing epoch" >&2
     return 1
   fi
 
@@ -439,7 +436,7 @@ utc_date_for_epoch() {
 
 shift_epoch_by_days() {
   if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
-    log_err "shift_epoch_by_days: requires epoch and day offset"
+    printf 'ERR  %s\n' "shift_epoch_by_days: requires epoch and day offset" >&2
     return 1
   fi
 
@@ -452,7 +449,7 @@ shift_epoch_by_days() {
 
 shift_utc_date_by_days() {
   if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
-    log_err "shift_utc_date_by_days: requires date and day offset"
+    printf 'ERR  %s\n' "shift_utc_date_by_days: requires date and day offset" >&2
     return 1
   fi
 
@@ -463,7 +460,7 @@ shift_utc_date_by_days() {
 
 format_epoch_local() {
   if [ -z "${1:-}" ]; then
-    log_err "format_epoch_local: missing epoch"
+    printf 'ERR  %s\n' "format_epoch_local: missing epoch" >&2
     return 1
   fi
 
@@ -479,7 +476,7 @@ format_epoch_local() {
 
 epoch_for_local_datetime() {
   if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
-    log_err "epoch_for_local_datetime: requires date and time"
+    printf 'ERR  %s\n' "epoch_for_local_datetime: requires date and time" >&2
     return 1
   fi
 
@@ -487,12 +484,12 @@ epoch_for_local_datetime() {
   time_part=$2
 
   if ! date_fields=$(parse_utc_date "$date_part"); then
-    log_err "epoch_for_local_datetime: invalid date"
+    printf 'ERR  %s\n' "epoch_for_local_datetime: invalid date" >&2
     return 1
   fi
 
   if ! time_fields=$(parse_utc_time "$time_part"); then
-    log_err "epoch_for_local_datetime: invalid time"
+    printf 'ERR  %s\n' "epoch_for_local_datetime: invalid time" >&2
     return 1
   fi
 
@@ -532,7 +529,7 @@ epoch_for_local_datetime() {
         continue
       fi
 
-      log_err "epoch_for_local_datetime: failed to compare localized date"
+      printf 'ERR  %s\n' "epoch_for_local_datetime: failed to compare localized date" >&2
       return 1
     fi
 
@@ -548,13 +545,13 @@ epoch_for_local_datetime() {
     iterations=$(( iterations + 1 ))
   done
 
-  log_err "epoch_for_local_datetime: failed to converge"
+  printf 'ERR  %s\n' "epoch_for_local_datetime: failed to converge" >&2
   return 1
 }
 
 week_tag_for_epoch() {
   if [ -z "${1:-}" ]; then
-    log_err "week_tag_for_epoch: missing epoch"
+    printf 'ERR  %s\n' "week_tag_for_epoch: missing epoch" >&2
     return 1
   fi
 
@@ -573,7 +570,7 @@ week_tag_for_utc_date() {
 
 week_nav_tags_for_utc_date() {
   if [ -z "${1:-}" ]; then
-    log_err "week_nav_tags_for_utc_date: missing date"
+    printf 'ERR  %s\n' "week_nav_tags_for_utc_date: missing date" >&2
     return 1
   fi
 
@@ -589,7 +586,7 @@ week_nav_tags_for_utc_date() {
 
 month_tag_for_epoch() {
   if [ -z "${1:-}" ]; then
-    log_err "month_tag_for_epoch: missing epoch"
+    printf 'ERR  %s\n' "month_tag_for_epoch: missing epoch" >&2
     return 1
   fi
 
@@ -608,7 +605,7 @@ month_tag_for_utc_date() {
 
 year_for_epoch() {
   if [ -z "${1:-}" ]; then
-    log_err "year_for_epoch: missing epoch"
+    printf 'ERR  %s\n' "year_for_epoch: missing epoch" >&2
     return 1
   fi
 
@@ -627,7 +624,7 @@ year_for_utc_date() {
 
 quarter_tag_for_epoch() {
   if [ -z "${1:-}" ]; then
-    log_err "quarter_tag_for_epoch: missing epoch"
+    printf 'ERR  %s\n' "quarter_tag_for_epoch: missing epoch" >&2
     return 1
   fi
 
@@ -665,7 +662,7 @@ if [ "${0##*/}" = "date-period-helpers.sh" ] && [ $# -gt 0 ]; then
     getYesterday) get_yesterday;;
     getTomorrow) get_tomorrow;;
     *)
-      log_err "Usage: $0 {getCurrentYear|getPrevYear|getNextYear|getCurrentQuarter|getQuarterTag|getQuarterTagISO|getToday|getCurrentDateParts|getCurrentMonthTag|getPrevMonthTag|getNextMonthTag|getCurrentWeekTag|getPrevWeekTag|getNextWeekTag|getYesterday|getTomorrow}"
+      printf 'ERR  %s\n' "Usage: $0 {getCurrentYear|getPrevYear|getNextYear|getCurrentQuarter|getQuarterTag|getQuarterTagISO|getToday|getCurrentDateParts|getCurrentMonthTag|getPrevMonthTag|getNextMonthTag|getCurrentWeekTag|getPrevWeekTag|getNextWeekTag|getYesterday|getTomorrow}" >&2
       exit 1
       ;;
   esac

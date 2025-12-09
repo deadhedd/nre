@@ -11,9 +11,6 @@ date_helper="$utils_dir/core/date-period-helpers.sh"
 job_wrap="$utils_dir/core/job-wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
@@ -45,13 +42,13 @@ write_output() {
   dest=$1
   if [ "$dry_run" -eq 1 ]; then
     if [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
-      log_info "DRY RUN start: $dest -> $dry_run_output_path"
+      printf 'INFO %s\n' "DRY RUN start: $dest -> $dry_run_output_path"
       cat | tee "$dry_run_output_path"
     else
-      log_info "DRY RUN start: $dest"
+      printf 'INFO %s\n' "DRY RUN start: $dest"
       cat
     fi
-    log_info "DRY RUN end: $dest"
+    printf 'INFO %s\n' "DRY RUN end: $dest"
   else
     cat >"$dest"
   fi
@@ -61,7 +58,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --vault)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --vault"
+        printf 'ERR  %s\n' "Missing value for --vault" >&2
         usage
         exit 2
       fi
@@ -70,7 +67,7 @@ while [ $# -gt 0 ]; do
       ;;
     --outdir)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --outdir"
+        printf 'ERR  %s\n' "Missing value for --outdir" >&2
         usage
         exit 2
       fi
@@ -79,7 +76,7 @@ while [ $# -gt 0 ]; do
       ;;
     --year)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --year"
+        printf 'ERR  %s\n' "Missing value for --year" >&2
         usage
         exit 2
       fi
@@ -99,7 +96,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      log_err "Unknown option: $1"
+      printf 'ERR  %s\n' "Unknown option: $1" >&2
       usage
       exit 2
       ;;
@@ -112,18 +109,18 @@ if [ -n "$year_arg" ]; then
       target_year=$year_arg
       ;;
     *)
-      log_err "--year must use the format YYYY (e.g., 2025)"
+      printf 'ERR  %s\n' "--year must use the format YYYY (e.g., 2025)" >&2
       exit 2
       ;;
   esac
 else
   if ! utc_today=$(get_today_utc); then
-    log_err "Failed to determine current UTC date"
+    printf 'ERR  %s\n' "Failed to determine current UTC date" >&2
     exit 1
   fi
 
   if ! target_year=$(year_for_utc_date "$utc_today"); then
-    log_err "Failed to determine current year"
+    printf 'ERR  %s\n' "Failed to determine current year" >&2
     exit 1
   fi
 fi
@@ -152,14 +149,14 @@ dry_run_primary_path=$note_path
 dry_run_output_path="${repo_root%/}/Yearly Note Sample.md"
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: would ensure directory exists: $note_dir"
+  printf 'INFO %s\n' "Dry run: would ensure directory exists: $note_dir"
 else
   mkdir -p "$note_dir"
 fi
 
 if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
-  log_err "Refusing to overwrite existing file: $note_path"
-  log_err "Re-run with --force to overwrite."
+  printf 'ERR  %s\n' "Refusing to overwrite existing file: $note_path" >&2
+  printf 'ERR  %s\n' "Re-run with --force to overwrite." >&2
   exit 1
 fi
 
@@ -205,6 +202,6 @@ where contains(tags, "due/${target_year}")
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: yearly note sample written to $dry_run_output_path"
+  printf 'INFO %s\n' "Dry run: yearly note sample written to $dry_run_output_path"
 fi
 

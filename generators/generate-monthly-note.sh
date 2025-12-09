@@ -12,9 +12,6 @@ date_helper="$utils_dir/core/date-period-helpers.sh"
 job_wrap="$utils_dir/core/job-wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
@@ -56,7 +53,7 @@ get_month_name() {
   target=$2
 
   if ! epoch=$(epoch_for_utc_date "$target"); then
-    log_err "Failed to compute epoch for $target"
+    printf 'ERR  %s\n' "Failed to compute epoch for $target" >&2
     return 1
   fi
 
@@ -73,7 +70,7 @@ get_month_name() {
     return 0
   fi
 
-  log_err "Failed to format month name for $target"
+  printf 'ERR  %s\n' "Failed to format month name for $target" >&2
   return 1
 }
 
@@ -88,13 +85,13 @@ write_output() {
   dest=$1
   if [ "$dry_run" -eq 1 ]; then
     if [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
-      log_info "DRY RUN start: $dest -> $dry_run_output_path"
+      printf 'INFO %s\n' "DRY RUN start: $dest -> $dry_run_output_path"
       cat | tee "$dry_run_output_path"
     else
-      log_info "DRY RUN start: $dest"
+      printf 'INFO %s\n' "DRY RUN start: $dest"
       cat
     fi
-    log_info "DRY RUN end: $dest"
+    printf 'INFO %s\n' "DRY RUN end: $dest"
   else
     cat >"$dest"
   fi
@@ -104,7 +101,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --vault)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --vault"
+        printf 'ERR  %s\n' "Missing value for --vault" >&2
         usage
         exit 2
       fi
@@ -113,7 +110,7 @@ while [ $# -gt 0 ]; do
       ;;
     --outdir)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --outdir"
+        printf 'ERR  %s\n' "Missing value for --outdir" >&2
         usage
         exit 2
       fi
@@ -122,7 +119,7 @@ while [ $# -gt 0 ]; do
       ;;
     --date)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --date"
+        printf 'ERR  %s\n' "Missing value for --date" >&2
         usage
         exit 2
       fi
@@ -131,7 +128,7 @@ while [ $# -gt 0 ]; do
       ;;
     --locale)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --locale"
+        printf 'ERR  %s\n' "Missing value for --locale" >&2
         usage
         exit 2
       fi
@@ -151,7 +148,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      log_err "Unknown option: $1"
+      printf 'ERR  %s\n' "Unknown option: $1" >&2
       usage
       exit 2
       ;;
@@ -167,7 +164,7 @@ case "$date_arg" in
     :
     ;;
   *)
-    log_err "--date must be in YYYY-MM format"
+    printf 'ERR  %s\n' "--date must be in YYYY-MM format" >&2
     exit 2
     ;;
 esac
@@ -179,7 +176,7 @@ if [ -z "$month_number" ]; then
   month_number=0
 fi
 if [ "$month_number" -lt 1 ] || [ "$month_number" -gt 12 ]; then
-  log_err "Invalid month supplied: $month_part"
+  printf 'ERR  %s\n' "Invalid month supplied: $month_part" >&2
   exit 2
 fi
 
@@ -189,19 +186,19 @@ quarter=$(( (month_number + 2) / 3 ))
 quarter_tag="${year}-Q${quarter}"
 
 if ! set -- $(add_months "$year" "$month" -1); then
-  log_err "Failed to compute previous month for $year-$month"
+  printf 'ERR  %s\n' "Failed to compute previous month for $year-$month" >&2
   exit 1
 fi
 prev_tag=$(printf '%04d-%02d' "$1" "$2")
 
 if ! set -- $(add_months "$year" "$month" 1); then
-  log_err "Failed to compute next month for $year-$month"
+  printf 'ERR  %s\n' "Failed to compute next month for $year-$month" >&2
   exit 1
 fi
 next_tag=$(printf '%04d-%02d' "$1" "$2")
 
 if ! month_name=$(get_month_name "$locale" "${year}-${month}-01"); then
-  log_err "Failed to determine localized month name"
+  printf 'ERR  %s\n' "Failed to determine localized month name" >&2
   exit 1
 fi
 
@@ -226,14 +223,14 @@ dry_run_primary_path=$note_path
 dry_run_output_path="${repo_root%/}/Monthly Note Sample.md"
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: would ensure directory exists: $note_dir"
+  printf 'INFO %s\n' "Dry run: would ensure directory exists: $note_dir"
 else
   mkdir -p "$note_dir"
 fi
 
 if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
-  log_err "Refusing to overwrite existing file: $note_path"
-  log_err "Re-run with --force to overwrite."
+  printf 'ERR  %s\n' "Refusing to overwrite existing file: $note_path" >&2
+  printf 'ERR  %s\n' "Re-run with --force to overwrite." >&2
   exit 1
 fi
 
@@ -303,6 +300,6 @@ tag includes due/${month_tag}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: monthly note sample written to $dry_run_output_path"
+  printf 'INFO %s\n' "Dry run: monthly note sample written to $dry_run_output_path"
 fi
 

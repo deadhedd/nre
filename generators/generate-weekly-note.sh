@@ -11,9 +11,6 @@ date_helper="$utils_dir/core/date-period-helpers.sh"
 job_wrap="$repo_root/utils/core/job-wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
@@ -47,15 +44,15 @@ write_output() {
 
   if [ "$dry_run" -eq 1 ] && [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
     output_target=$dry_run_output_path
-    log_info "Dry run: redirecting output to sample file: $output_target"
+    printf 'INFO %s\n' "Dry run: redirecting output to sample file: $output_target"
     cat >"$output_target"
     return
   fi
 
   if [ "$dry_run" -eq 1 ]; then
-    log_info "DRY RUN start: $dest"
+    printf 'INFO %s\n' "DRY RUN start: $dest"
     cat
-    log_info "DRY RUN end: $dest"
+    printf 'INFO %s\n' "DRY RUN end: $dest"
   else
     cat >"$dest"
   fi
@@ -65,7 +62,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --vault)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --vault"
+        printf 'ERR  %s\n' "Missing value for --vault" >&2
         usage
         exit 2
       fi
@@ -74,7 +71,7 @@ while [ $# -gt 0 ]; do
       ;;
     --outdir)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --outdir"
+        printf 'ERR  %s\n' "Missing value for --outdir" >&2
         usage
         exit 2
       fi
@@ -83,7 +80,7 @@ while [ $# -gt 0 ]; do
       ;;
     --date)
       if [ $# -lt 2 ]; then
-        log_err "Missing value for --date"
+        printf 'ERR  %s\n' "Missing value for --date" >&2
         usage
         exit 2
       fi
@@ -103,7 +100,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      log_err "Unknown option: $1"
+      printf 'ERR  %s\n' "Unknown option: $1" >&2
       usage
       exit 2
       ;;
@@ -115,12 +112,12 @@ if [ -z "$date_arg" ]; then
 fi
 
 if ! is_utc_date_format "$date_arg"; then
-  log_err "--date must be in YYYY-MM-DD format"
+  printf 'ERR  %s\n' "--date must be in YYYY-MM-DD format" >&2
   exit 2
 fi
 
 if ! week_nav=$(week_nav_tags_for_utc_date "$date_arg" 2>/dev/null); then
-  log_err "Invalid --date supplied: $date_arg"
+  printf 'ERR  %s\n' "Invalid --date supplied: $date_arg" >&2
   exit 2
 fi
 
@@ -131,17 +128,17 @@ next_week_tag=$3
 set --
 
 if ! current_month_tag=$(month_tag_for_utc_date "$date_arg" 2>/dev/null); then
-  log_err "Invalid --date supplied: $date_arg"
+  printf 'ERR  %s\n' "Invalid --date supplied: $date_arg" >&2
   exit 2
 fi
 
 if ! current_year=$(year_for_utc_date "$date_arg" 2>/dev/null); then
-  log_err "Invalid --date supplied: $date_arg"
+  printf 'ERR  %s\n' "Invalid --date supplied: $date_arg" >&2
   exit 2
 fi
 
 if ! current_quarter_tag=$(quarter_tag_for_utc_date "$date_arg" 2>/dev/null); then
-  log_err "Invalid --date supplied: $date_arg"
+  printf 'ERR  %s\n' "Invalid --date supplied: $date_arg" >&2
   exit 2
 fi
 
@@ -167,13 +164,13 @@ dry_run_primary_path=$note_path
 dry_run_output_path="${repo_root%/}/Weekly Note Sample.md"
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: would ensure directory exists: $note_dir"
+  printf 'INFO %s\n' "Dry run: would ensure directory exists: $note_dir"
 else
   mkdir -p "$note_dir"
 fi
 
 if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
-  log_err "Refusing to overwrite existing file: $note_path"
+  printf 'ERR  %s\n' "Refusing to overwrite existing file: $note_path" >&2
   printf '     Re-run with --force to overwrite.\n' >&2
   exit 1
 fi
@@ -222,8 +219,8 @@ tag includes due/${iso_week_tag}
 EOF_NOTE
 
 if [ "$dry_run" -eq 1 ]; then
-  log_info "Dry run: weekly note sample written to $dry_run_output_path"
+  printf 'INFO %s\n' "Dry run: weekly note sample written to $dry_run_output_path"
 else
-  log_info "Weekly note created: $note_path"
+  printf 'INFO %s\n' "Weekly note created: $note_path"
 fi
 

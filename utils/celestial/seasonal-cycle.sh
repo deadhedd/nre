@@ -2,11 +2,8 @@
 # Print details about the next equinox or solstice.
 set -eu
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*" >&2; }
-log_err() { printf 'ERR %s\n' "$*" >&2; }
 
-log_info "Starting pagan seasonal lookup"
+printf 'INFO %s\n' "Starting pagan seasonal lookup"
 
 print_rows() {
   event_label="$1"
@@ -50,7 +47,7 @@ custom_rows="${PAGAN_TIMINGS_SEASON_ROWS:-}"
 season_tip_default="${PAGAN_TIMINGS_SEASON_TIP:-_(seasonal guidance TBD)_}"
 
 if [ "${OFFLINE:-0}" = "1" ] && [ -z "$custom_rows" ]; then
-  log_warn "Offline mode detected and no custom rows provided; exiting"
+  printf 'WARN %s\n' "Offline mode detected and no custom rows provided; exiting" >&2
   print_rows "🌀 Offline" "n/a" "n/a" "$season_tip_default"
   exit 0
 fi
@@ -58,10 +55,10 @@ fi
 # 1) Build canonical rows in a robust, pipe-delimited form:
 #    |epoch|YYYY-MM-DD HH:MM|Type|
 if [ -n "$custom_rows" ]; then
-  log_info "Using seasonal rows from PAGAN_TIMINGS_SEASON_ROWS environment variable"
+  printf 'INFO %s\n' "Using seasonal rows from PAGAN_TIMINGS_SEASON_ROWS environment variable"
   raw_rows="$custom_rows"
 else
-  log_info "Fetching seasonal data from USNO API"
+  printf 'INFO %s\n' "Fetching seasonal data from USNO API"
   y=$(date -u +%Y)
   url1="https://aa.usno.navy.mil/api/seasons?year=${y}"
   url2="https://aa.usno.navy.mil/api/seasons?year=$(($y+1))"
@@ -73,16 +70,16 @@ else
   }
 
   if ! j1=$(curl_json_hdr "$url1"); then
-    log_warn "Failed to fetch data for year $y; continuing with empty dataset"
+    printf 'WARN %s\n' "Failed to fetch data for year $y; continuing with empty dataset" >&2
     j1='{"data":[]}'
   else
-    log_info "Fetched data for year $y"
+    printf 'INFO %s\n' "Fetched data for year $y"
   fi
   if ! j2=$(curl_json_hdr "$url2"); then
-    log_warn "Failed to fetch data for year $(($y+1)); continuing with empty dataset"
+    printf 'WARN %s\n' "Failed to fetch data for year $(($y+1)); continuing with empty dataset" >&2
     j2='{"data":[]}'
   else
-    log_info "Fetched data for year $(($y+1))"
+    printf 'INFO %s\n' "Fetched data for year $(($y+1))"
   fi
 
   # Emit lines like: "YYYY M D HH:MM|Phenomenon"
@@ -110,9 +107,9 @@ canon_rows=$(
 )
 
 rows_count=$(printf '%s\n' "$canon_rows" | awk 'NF>0 {c++} END{print c+0}')
-log_info "Evaluating seasonal dataset ($rows_count candidate rows)"
+printf 'INFO %s\n' "Evaluating seasonal dataset ($rows_count candidate rows)"
 if [ -z "$canon_rows" ]; then
-  log_warn "No seasonal rows available after filtering"
+  printf 'WARN %s\n' "No seasonal rows available after filtering" >&2
   print_rows "🌀 Unavailable" "n/a" "n/a" "$season_tip_default"
   exit 0
 fi
@@ -129,7 +126,7 @@ choice=$(printf '%s\n' "$canon_rows" | awk -F'|' -v now="$NOW" '
 ')
 
 if [ "$choice" = "NONE" ] || [ -z "$choice" ]; then
-  log_warn "No future seasonal turning found in dataset"
+  printf 'WARN %s\n' "No future seasonal turning found in dataset" >&2
   print_rows "🌀 Unavailable" "n/a" "n/a" "$season_tip_default"
   exit 0
 fi
@@ -144,7 +141,7 @@ $choice
 EOF_ROW
 
 if [ -z "${epoch:-}" ] || [ -z "${iso:-}" ] || [ -z "${phen:-}" ]; then
-  log_err "Failed to parse selected row: $choice"
+  printf 'ERR  %s\n' "Failed to parse selected row: $choice" >&2
   print_rows "🌀 Unavailable" "n/a" "n/a" "$season_tip_default"
   exit 0
 fi
@@ -162,7 +159,7 @@ case "$phen" in
 esac
 
 left=$((epoch - NOW))
-log_info "Next seasonal turning is $next_name at $iso (epoch $epoch)"
+printf 'INFO %s\n' "Next seasonal turning is $next_name at $iso (epoch $epoch)"
 
 pretty=$(format_epoch_local "$epoch" "%b %e, %Y · %I:%M %p %Z")
 pretty_clean=$(printf '%s' "$pretty" | sed 's/  */ /g')
