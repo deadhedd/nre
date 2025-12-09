@@ -67,6 +67,7 @@ set -- "$RESOLVED_CMD" "$@"
 
 JOB_BASENAME=$(basename "$RESOLVED_CMD")
 JOB_NAME=${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}
+SAFE_JOB_NAME=$(log__safe_job_name "$JOB_NAME")
 
 job_wrap__default_work_tree() {
   if [ -n "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
@@ -78,39 +79,9 @@ job_wrap__default_work_tree() {
 }
 
 DEFAULT_COMMIT_WORK_TREE=$(job_wrap__default_work_tree)
-
-# Where to put logs (change if you like)
-HOME_DIR="${HOME:-/home/obsidian}"
-LOG_ROOT="${HOME_DIR}/logs"
-LOG_ROLLING_VAULT_ROOT="${LOG_ROLLING_VAULT_ROOT:-${VAULT_PATH:-/home/obsidian/vaults/Main}}"
-
-# Group logs by note cadence; fall back to an "other" bucket for non-periodic jobs
-SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
-case "$SAFE_JOB_NAME" in
-  *daily-note*)
-LOGDIR="${LOG_ROOT}/daily-notes"
-    ;;
-  *weekly-note*)
-LOGDIR="${LOG_ROOT}/weekly-notes"
-    ;;
-  *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
-LOGDIR="${LOG_ROOT}/periodic-notes"
-    ;;
-  *)
-LOGDIR="${LOG_ROOT}/other"
-    ;;
-esac
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
-RUNLOG_BASE="${LOGDIR}/${SAFE_JOB_NAME}-${TS}.log"
-RUNLOG=$(log__periodic_log_path "$RUNLOG_BASE")
-LOGDIR_MAPPED=${RUNLOG%/*}
-mkdir -p "$LOGDIR_MAPPED"
-
-LATEST="${LOGDIR_MAPPED}/${SAFE_JOB_NAME}-latest.log"
-LOG_FILE="$RUNLOG"
-LOG_FILE_MAPPED=1
-LOG_JOB_NAME="$SAFE_JOB_NAME"
-LOG_RUN_TS="$TS"
+LOG_JOB_NAME=${SAFE_JOB_NAME}
+LOG_RUN_TS=${LOG_RUN_TS:-$TS}
 
 log_init "$SAFE_JOB_NAME"
 
@@ -124,6 +95,7 @@ log_info "requested_cmd=$ORIGINAL_CMD"
 log_info "resolved_cmd=$RESOLVED_CMD"
 log_info "default_commit_work_tree=$DEFAULT_COMMIT_WORK_TREE"
 log_info "argv=$(printf '%s ' "$@")"
+log_info "log_file=${LOG_FILE:-unknown}"
 log_info "------------------------------"
 
 cleanup_temp_log() {
@@ -217,7 +189,7 @@ log_info "duration_seconds=$DUR_SEC"
 log_info "== ${SAFE_JOB_NAME} end =="
 
 # Update latest symlink (best-effort)
-ln -sf "$(basename "$RUNLOG")" "$LATEST" 2>/dev/null || true
+log_update_latest_link
 
 log_rotate
 

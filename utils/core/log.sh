@@ -11,44 +11,64 @@ LOG_HELPER_LOADED=1
 
 : "${LOG_INFO_STREAM:=stdout}"
 : "${LOG_DEBUG_STREAM:=stdout}"
+: "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
+: "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
+: "${LOG_LATEST_RELATIVE:=1}"
 
 log__safe_job_name() {
   printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'
 }
 
 log__default_log_dir() {
-  log_root=${LOG_ROOT:-${HOME:-/home/obsidian}/logs}
   job_name=$1
 
   case "$job_name" in
     *daily-note*)
-      dir="$log_root/daily-notes"
+      dir="$LOG_ROOT/daily-notes"
       ;;
     *weekly-note*)
-      dir="$log_root/weekly-notes"
+      dir="$LOG_ROOT/weekly-notes"
       ;;
     *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
-      dir="$log_root/periodic-notes"
+      dir="$LOG_ROOT/periodic-notes"
       ;;
     *)
-      dir="$log_root/other"
+      dir="$LOG_ROOT/other"
       ;;
   esac
 
   printf '%s' "$dir"
 }
 
+log__latest_link_path() {
+  log_file=$1
+  job_name=${2:-${LOG_JOB_NAME:-log}}
+  safe_job=$(log__safe_job_name "$job_name")
+
+  case "$log_file" in
+    */*)
+      base_dir=${log_file%/*}
+      ;;
+    *)
+      base_dir="."
+      ;;
+  esac
+
+  printf '%s/%s-latest.log' "$base_dir" "$safe_job"
+}
+
 log_init() {
   job_arg=${1:-}
 
   if [ "${LOG_INIT_DONE:-0}" -eq 1 ] 2>/dev/null; then
-    export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME
+    export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_FILE_MAPPED LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
     return 0
   fi
 
   LOG_INIT_DONE=1
 
   : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
+  : "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
 
   if [ -n "$job_arg" ] && [ -z "${LOG_JOB_NAME:-}" ]; then
     LOG_JOB_NAME=$job_arg
@@ -57,7 +77,7 @@ log_init() {
   fi
 
   if [ -z "${LOG_RUN_TS:-}" ]; then
-    if ts=$(date +%Y%m%dT%H%M%S%z 2>/dev/null); then
+    if ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null); then
       LOG_RUN_TS=$ts
     elif ts=$(log__now 2>/dev/null); then
       LOG_RUN_TS=$(printf '%s' "$ts" | tr -d ':-')
@@ -70,21 +90,27 @@ log_init() {
   if [ -z "${LOG_FILE:-}" ]; then
     log_dir=$(log__default_log_dir "$safe_job")
     LOG_FILE="${log_dir}/${safe_job}-${LOG_RUN_TS}.log"
-
-    target=$(log__periodic_log_path "$LOG_FILE")
-    case "$target" in
-      */*)
-        target_dir=${target%/*}
-        if [ -n "$target_dir" ] && [ ! -d "$target_dir" ]; then
-          mkdir -p "$target_dir" || true
-        fi
-        ;;
-    esac
-
-    : >"$target" 2>/dev/null || true
   fi
 
-  export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME
+  if [ "${LOG_FILE_MAPPED:-0}" -ne 1 ]; then
+    LOG_FILE=$(log__periodic_log_path "$LOG_FILE")
+    LOG_FILE_MAPPED=1
+  fi
+
+  case "$LOG_FILE" in
+    */*)
+      target_dir=${LOG_FILE%/*}
+      if [ -n "$target_dir" ] && [ ! -d "$target_dir" ]; then
+        mkdir -p "$target_dir" || true
+      fi
+      ;;
+  esac
+
+  : >"$LOG_FILE" 2>/dev/null || true
+
+  LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe_job")}
+
+  export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_FILE_MAPPED LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
 }
 
 # Emit a timestamp in local time when enabled. Default is on; set LOG_TIMESTAMP=0 to disable.
@@ -299,6 +325,30 @@ log_rotate() {
   old_list=$(ls -1t "$log_dir/${safe_job}-"*.log 2>/dev/null | awk -v n="$keep" 'NR>n')
   if [ -n "${old_list:-}" ]; then
     printf '%s\n' "$old_list" | xargs rm -f
+  fi
+}
+
+log_update_latest_link() {
+  log_file=${LOG_FILE:-}
+  link_path=${LOG_LATEST_LINK:-}
+
+  if [ -z "$log_file" ] || [ -z "$link_path" ]; then
+    return 0
+  fi
+
+  case "$link_path" in
+    */*)
+      link_dir=${link_path%/*}
+      if [ -n "$link_dir" ] && [ ! -d "$link_dir" ]; then
+        mkdir -p "$link_dir" || return 1
+      fi
+      ;;
+  esac
+
+  if [ "${LOG_LATEST_RELATIVE:-1}" -ne 0 ]; then
+    ln -sf "$(basename "$log_file")" "$link_path" 2>/dev/null || true
+  else
+    ln -sf "$log_file" "$link_path" 2>/dev/null || true
   fi
 }
 
