@@ -62,7 +62,7 @@ log_start_job() {
   shift 2>/dev/null || true
 
   safe_job=$(log__safe_job_name "$job_arg")
-  LOG_JOB_NAME=${LOG_JOB_NAME:-$safe_job}
+  LOG_JOB_NAME=$safe_job
   LOG_RUN_TS=${LOG_RUN_TS:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || log__now 2>/dev/null || printf 'run')}
   LOG_RUN_START_SEC=${LOG_RUN_START_SEC:-$(date -u +%s 2>/dev/null || printf '')}
 

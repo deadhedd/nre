@@ -67,7 +67,6 @@ set -- "$RESOLVED_CMD" "$@"
 
 JOB_BASENAME=$(basename "$RESOLVED_CMD")
 JOB_NAME=${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}
-SAFE_JOB_NAME=$(log__safe_job_name "$JOB_NAME")
 
 job_wrap__default_work_tree() {
   if [ -n "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
@@ -79,12 +78,7 @@ job_wrap__default_work_tree() {
 }
 
 DEFAULT_COMMIT_WORK_TREE=$(job_wrap__default_work_tree)
-TS="$(date -u +%Y%m%dT%H%M%SZ)"
-LOG_JOB_NAME=${SAFE_JOB_NAME}
-LOG_RUN_TS=${LOG_RUN_TS:-$TS}
-LOG_RUN_START_SEC=${LOG_RUN_START_SEC:-$(date -u +%s)}
-
-log_start_job "$SAFE_JOB_NAME" \
+log_start_job "$JOB_NAME" \
   "cwd=$(pwd)" \
   "user=$(id -un 2>/dev/null || printf unknown)" \
   "path=${PATH:-}" \
