@@ -394,6 +394,7 @@ log_finish_job() {
 
   end_ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || log__now 2>/dev/null || printf 'unknown')
   duration=""
+  rolling_note_path=$(log__rolling_note_path "${LOG_FILE:-}" 2>/dev/null || printf '')
 
   if [ -n "$start_sec" ]; then
     end_sec=$(date -u +%s 2>/dev/null || printf '')
@@ -416,12 +417,25 @@ log_finish_job() {
   log_update_latest_link
   log_rotate
 
+  rolling_status=0
   if log_update_rolling_note; then
-    rolling_note_path=$(log__rolling_note_path "$LOG_FILE" 2>/dev/null || printf '')
     if [ -n "$rolling_note_path" ]; then
       log_info "Rolling log updated: $rolling_note_path"
     fi
+  else
+    rolling_status=$?
+    if [ -n "$rolling_note_path" ]; then
+      log_err "Rolling log update failed: $rolling_note_path (exit=$rolling_status)"
+    else
+      log_err "Rolling log update failed (exit=$rolling_status)"
+    fi
   fi
+
+  if [ "$status" -eq 0 ] 2>/dev/null && [ "$rolling_status" -ne 0 ] 2>/dev/null; then
+    status=$rolling_status
+  fi
+
+  return "$status"
 }
 
 log__emit_line() {
