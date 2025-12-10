@@ -2,7 +2,7 @@
 # script-status-report.sh
 # Author: deadhedd
 #
-# Scan all "*-latest" job logs, summarize their latest exit codes,
+# Scan all "*-latest.log" job logs, summarize their latest exit codes,
 # and write a markdown status report into the Obsidian vault.
 #
 # Exit status:
@@ -45,7 +45,7 @@ escape_md() {
 }
 
 list_file=$(mktemp "${TMPDIR:-/tmp}/script-status-latest.XXXXXX") || exit 1
-find "$LOG_ROOT" -name '*-latest' 2>/dev/null >"$list_file"
+find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file"
 
 tmp_report=$(mktemp "${TMPDIR:-/tmp}/script-status-report.XXXXXX") || {
     rm -f "$list_file"
@@ -56,7 +56,7 @@ trap 'rm -f "$tmp_report" "$list_file"' EXIT
 {
     printf '# Script Status Report\n\n'
     printf 'Generated: %s\n\n' "$(now_utc)"
-    printf 'This report summarizes the latest known status for each script, based on its `*-latest` log file.\n\n'
+    printf 'This report summarizes the latest known status for each script, based on its `*-latest.log` log file.\n\n'
     printf '## Status Table\n\n'
     printf '| Script | Status | Exit Code | Log |\n'
     printf '|--------|--------|-----------|-----|\n'
@@ -72,7 +72,7 @@ while IFS= read -r link; do
     [ -e "$link" ] || continue
 
     base=$(basename "$link")
-    job=${base%-latest}
+    job=${base%-latest.log}
     [ -n "$job" ] || job="(unknown)"
 
     exit_code=$(extract_exit_code "$link")
