@@ -9,6 +9,16 @@
 #   0 - no failures detected
 #   1 - one or more failures found
 set -eu
+PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
+job_wrap="$repo_root/utils/core/job-wrap.sh"
+script_path="$script_dir/$(basename -- "$0")"
+
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
+    JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+fi
 
 # Where logs & latest pointers live
 LOG_ROOT="/home/obsidian/logs"
