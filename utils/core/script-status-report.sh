@@ -41,6 +41,7 @@ tmp_report=$(mktemp "${TMPDIR:-/tmp}/script-status-report.XXXXXX") || {
     rm -f "$list_file"
     exit 1
 }
+trap 'rm -f "$tmp_report" "$list_file"' EXIT
 
 {
     printf '# Script Status Report\n\n'
@@ -103,7 +104,7 @@ fi
 report_dir=$(dirname "$REPORT_NOTE")
 [ -d "$report_dir" ] || mkdir -p "$report_dir" || exit 1
 
-mv "$tmp_report" "$REPORT_NOTE"
+cat "$tmp_report" >"$REPORT_NOTE"
 
 [ "$fail_jobs" -gt 0 ] && exit 1
 exit 0
