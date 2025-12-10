@@ -1,11 +1,18 @@
 #!/bin/sh
-# utils/core/script-status-report.sh — generate a simple status report for script failures
+# script-status-report.sh
 # Author: deadhedd
-# License: MIT
-set -eu
+#
+# Check the "latest" log for each script and report any that exited
+# with a non-zero code. Assumes each job has a file or symlink named:
+#   job_name-latest
+# pointing to its most recent log file.
+#
+# Exit status:
+#   0 - no failures detected
+#   1 - one or more failures found
 
-# Where logs & latest symlinks live
-LOG_ROOT="${LOG_ROOT:-/home/obsidian/logs}"
+# Where logs & latest pointers live
+LOG_ROOT="/home/obsidian/logs"
 
 LC_ALL=C
 LANG=C
@@ -17,19 +24,23 @@ extract_exit_code() {
     sed -n 's/.*exit=\([0-9][0-9]*\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
 }
 
-found_flag=$(mktemp "${TMPDIR:-/tmp}/script-status-fail.XXXXXX") || exit 1
-rm -f "$found_flag" 2>/dev/null
+found_failures=0
 
-# Find all "*-latest" symlinks under LOG_ROOT
-find "$LOG_ROOT" -type l -name '*-latest' 2>/dev/null | while IFS= read -r link; do
-    [ -L "$link" ] || continue
+# Capture the list of *-latest entries first so the loop runs in the main shell
+list_file=$(mktemp "${TMPDIR:-/tmp}/script-status-latest.XXXXXX") || exit 1
 
-    # Job name = basename without "-latest"
+find "$LOG_ROOT" -name '*-latest' 2>/dev/null >"$list_file"
+
+while IFS= read -r link; do
+    [ -n "$link" ] || continue
+
+    # Must exist (follow symlink transparently)
+    [ -e "$link" ] || continue
+
     base=$(basename "$link")
     job=${base%-latest}
     [ -n "$job" ] || job="(unknown)"
 
-    # The symlink itself points to the latest log; we can just read it directly.
     log_file=$link
 
     exit_code=$(extract_exit_code "$log_file")
@@ -38,17 +49,16 @@ find "$LOG_ROOT" -type l -name '*-latest' 2>/dev/null | while IFS= read -r link;
     [ -n "$exit_code" ] || continue
 
     # Skip successful runs
-    [ "$exit_code" = "0" ] && continue
+    if [ "$exit_code" = "0" ]; then
+        continue
+    fi
 
     printf 'FAIL: job=%s exit_code=%s log=%s\n' \
         "$job" "$exit_code" "$log_file"
 
-    : >"$found_flag"
-done
+    found_failures=1
+done <"$list_file"
 
-if [ -f "$found_flag" ]; then
-    rm -f "$found_flag"
-    exit 1
-fi
+rm -f "$list_file"
 
-exit 0
+exit "$found_failures"
