@@ -84,7 +84,7 @@ log_init() {
   job_arg=${1:-}
 
   if [ "${LOG_INIT_DONE:-0}" -eq 1 ] 2>/dev/null; then
-    export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_FILE_MAPPED LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
+    export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
     return 0
   fi
 
@@ -115,11 +115,6 @@ log_init() {
     LOG_FILE="${log_dir}/${safe_job}-${LOG_RUN_TS}.log"
   fi
 
-  if [ "${LOG_FILE_MAPPED:-0}" -ne 1 ]; then
-    LOG_FILE=$(log__periodic_log_path "$LOG_FILE")
-    LOG_FILE_MAPPED=1
-  fi
-
   case "$LOG_FILE" in
     */*)
       target_dir=${LOG_FILE%/*}
@@ -133,7 +128,7 @@ log_init() {
 
   LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe_job")}
 
-  export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_FILE_MAPPED LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
+  export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
 }
 
 # Emit a timestamp in local time when enabled. Default is on; set LOG_TIMESTAMP=0 to disable.
@@ -154,55 +149,10 @@ log__sanitize() {
   fi
 }
 
-log__periodic_log_path() {
-  path=$1
-  mapped_path=$path
-
-  case "$path" in
-    */logs/daily-notes/*)
-      base_name=${path##*/}
-      root_dir=${path%/daily-notes/*}
-      mapped_path="$root_dir/Periodic/Daily/$base_name"
-      ;;
-    */logs/weekly-notes/*)
-      base_name=${path##*/}
-      root_dir=${path%/weekly-notes/*}
-      mapped_path="$root_dir/Periodic/Weekly/$base_name"
-      ;;
-    */logs/periodic-notes/*)
-      base_name=${path##*/}
-      root_dir=${path%/periodic-notes/*}
-      cycle_dir=""
-      case "$base_name" in
-        *monthly*) cycle_dir="Monthly" ;;
-        *quarter*) cycle_dir="Quarterly" ;;
-        *yearly*) cycle_dir="Yearly" ;;
-      esac
-
-      if [ -n "$cycle_dir" ]; then
-        mapped_path="$root_dir/Periodic/Long Cycle/$cycle_dir/$base_name"
-      else
-        mapped_path="$root_dir/Periodic/Long Cycle/$base_name"
-      fi
-      ;;
-    */logs/*)
-      base_name=${path##*/}
-      root_dir=${path%/logs/*}/logs
-      mapped_path="$root_dir/other/$base_name"
-      ;;
-  esac
-
-  printf '%s' "$mapped_path"
-}
-
 log__append_file() {
   line=$1
   log_file=${LOG_FILE:-}
   [ -n "$log_file" ] || return 0
-
-  if [ "${LOG_FILE_MAPPED:-0}" -ne 1 ]; then
-    log_file=$(log__periodic_log_path "$log_file")
-  fi
 
   case "$log_file" in
     */*)
@@ -223,6 +173,9 @@ log__format_dir_segment() {
     awk '{ for (i = 1; i <= NF; i++) { $i = toupper(substr($i,1,1)) substr($i,2) } printf "%s", $0 }'
 }
 
+# Build a "pretty" path in the vault for the rolling log note, based on the
+# LOG_FILE path under the logs/ tree, e.g.:
+#   logs/daily-notes/... -> <vault>/Server Logs/Daily Notes/...
 log__rolling_note_path() {
   [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 1
 
@@ -280,9 +233,6 @@ log_update_rolling_note() {
   [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 0
 
   log_file=${LOG_FILE:-}
-  if [ "${LOG_FILE_MAPPED:-0}" -ne 1 ]; then
-    log_file=$(log__periodic_log_path "$log_file")
-  fi
   [ -n "$log_file" ] || return 0
 
   rolling_path=$(log__rolling_note_path "$log_file") || return 0
@@ -322,9 +272,6 @@ log_rotate() {
   keep_arg=${1:-}
   keep=${keep_arg:-${LOG_KEEP:-20}}
   log_file=${LOG_FILE:-}
-  if [ "${LOG_FILE_MAPPED:-0}" -ne 1 ]; then
-    log_file=$(log__periodic_log_path "$log_file")
-  fi
   job_name=${LOG_JOB_NAME:-}
 
   [ -n "$log_file" ] || return 0
