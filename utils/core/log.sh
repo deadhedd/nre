@@ -2,24 +2,60 @@
 # utils/core/log.sh — Shared logging helper for POSIX shell scripts.
 # Author: deadhedd
 # License: MIT
+#
+# This helper is intended to be sourced, not executed.
+# It provides:
+#   - log_init / log_start_job / log_finish_job
+#   - log_info / log_warn / log_err / log_debug
+#   - log_run_job (run a command with captured output + full job lifecycle)
+#   - log_update_rolling_note (Mirror latest log into a markdown file in the vault)
+#   - log_rotate / log_update_latest_link
 
-# This helper is intended to be sourced. Avoid redefining if already loaded.
+# ------------------------------------------------------------------------------
+# Load guard
+# ------------------------------------------------------------------------------
+
 if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ] 2>/dev/null; then
   return 0 2>/dev/null || exit 0
 fi
 LOG_HELPER_LOADED=1
 
+# ------------------------------------------------------------------------------
+# Defaults (can be overridden by the environment before sourcing)
+# ------------------------------------------------------------------------------
+
 : "${LOG_INFO_STREAM:=stdout}"
 : "${LOG_DEBUG_STREAM:=stdout}"
+
+# Root directory for raw .log files
 : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
+
+# Root of the Obsidian vault for rolling notes
 : "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
+
+# Whether latest symlink should be relative when possible (1 = yes)
 : "${LOG_LATEST_RELATIVE:=1}"
 
+# ASCII-only log sanitization (1 = strip non-ASCII, 0 = allow anything)
+: "${LOG_ASCII_ONLY:=1}"
+
+# Timestamp inclusion in log lines (1 = include, 0 = no timestamp)
+: "${LOG_TIMESTAMP:=1}"
+
+# Debug logging (1 = enable log_debug, 0 = disable)
+: "${LOG_DEBUG:=0}"
+
+# ------------------------------------------------------------------------------
+# Basic helpers
+# ------------------------------------------------------------------------------
+
 log__safe_job_name() {
+  # Replace anything not [A-Za-z0-9._-] with '-'
   printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'
 }
 
 log__default_log_dir() {
+  # Decide the subdirectory under LOG_ROOT based on the job name.
   job_name=$1
 
   case "$job_name" in
@@ -41,6 +77,7 @@ log__default_log_dir() {
 }
 
 log__latest_link_path() {
+  # Build a path like <log_dir>/<safe_job>-latest.log
   log_file=$1
   job_name=${2:-${LOG_JOB_NAME:-log}}
   safe_job=$(log__safe_job_name "$job_name")
@@ -57,79 +94,9 @@ log__latest_link_path() {
   printf '%s/%s-latest.log' "$base_dir" "$safe_job"
 }
 
-log_start_job() {
-  job_arg=${1:-${LOG_JOB_NAME:-job}}
-  shift 2>/dev/null || true
-
-  safe_job=$(log__safe_job_name "$job_arg")
-  LOG_JOB_NAME=$safe_job
-  LOG_RUN_TS=${LOG_RUN_TS:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || log__now 2>/dev/null || printf 'run')}
-  LOG_RUN_START_SEC=${LOG_RUN_START_SEC:-$(date -u +%s 2>/dev/null || printf '')}
-
-  log_init "$safe_job"
-
-  log_info "== ${safe_job} start =="
-  log_info "utc_start=$LOG_RUN_TS"
-
-  while [ $# -gt 0 ]; do
-    log_info "$1"
-    shift
-  done
-
-  log_info "log_file=${LOG_FILE:-unknown}"
-  log_info "------------------------------"
-}
-
-log_init() {
-  job_arg=${1:-}
-
-  if [ "${LOG_INIT_DONE:-0}" -eq 1 ] 2>/dev/null; then
-    export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
-    return 0
-  fi
-
-  LOG_INIT_DONE=1
-
-  : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
-  : "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
-
-  if [ -n "$job_arg" ] && [ -z "${LOG_JOB_NAME:-}" ]; then
-    LOG_JOB_NAME=$job_arg
-  elif [ -z "${LOG_JOB_NAME:-}" ]; then
-    LOG_JOB_NAME=${0##*/}
-  fi
-
-  if [ -z "${LOG_RUN_TS:-}" ]; then
-    if ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null); then
-      LOG_RUN_TS=$ts
-    elif ts=$(log__now 2>/dev/null); then
-      LOG_RUN_TS=$(printf '%s' "$ts" | tr -d ':-')
-    fi
-  fi
-  : "${LOG_RUN_TS:=run}"
-
-  safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-job}")
-
-  if [ -z "${LOG_FILE:-}" ]; then
-    log_dir=$(log__default_log_dir "$safe_job")
-    LOG_FILE="${log_dir}/${safe_job}-${LOG_RUN_TS}.log"
-  fi
-
-  case "$LOG_FILE" in
-    */*)
-      target_dir=${LOG_FILE%/*}
-      if [ -n "$target_dir" ] && [ ! -d "$target_dir" ]; then
-        mkdir -p "$target_dir" || true
-      fi
-      ;;
-  esac
-
-  : >"$LOG_FILE" 2>/dev/null || true
-
-  LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe_job")}
-
-  export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
-}
+# ------------------------------------------------------------------------------
+# Time, sanitization, file append
+# ------------------------------------------------------------------------------
 
 # Emit a timestamp in local time when enabled. Default is on; set LOG_TIMESTAMP=0 to disable.
 log__now() {
@@ -150,6 +117,7 @@ log__sanitize() {
 }
 
 log__append_file() {
+  # Append a single line to LOG_FILE, creating the directory if needed.
   line=$1
   log_file=${LOG_FILE:-}
   [ -n "$log_file" ] || return 0
@@ -166,7 +134,12 @@ log__append_file() {
   printf '%s\n' "$line" >>"$log_file"
 }
 
+# ------------------------------------------------------------------------------
+# Rolling note path helpers (for Obsidian vault)
+# ------------------------------------------------------------------------------
+
 log__format_dir_segment() {
+  # Convert "daily-notes" -> "Daily Notes" etc.
   segment=$1
   cleaned=$(printf '%s' "$segment" | tr '-' ' ')
   printf '%s' "$cleaned" |
@@ -175,7 +148,7 @@ log__format_dir_segment() {
 
 # Build a "pretty" path in the vault for the rolling log note, based on the
 # LOG_FILE path under the logs/ tree, e.g.:
-#   logs/daily-notes/... -> <vault>/Server Logs/Daily Notes/...
+#   /home/obsidian/logs/daily-notes/... -> <vault>/Server Logs/Daily Notes/...
 log__rolling_note_path() {
   [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 1
 
@@ -227,6 +200,89 @@ log__rolling_note_path() {
   fi
 
   printf '%s/%s-latest.md' "$mapped_dir" "$safe_job"
+}
+
+# ------------------------------------------------------------------------------
+# Initialization & job lifecycle
+# ------------------------------------------------------------------------------
+
+log_init() {
+  job_arg=${1:-}
+
+  if [ "${LOG_INIT_DONE:-0}" -eq 1 ] 2>/dev/null; then
+    export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
+    return 0
+  fi
+
+  LOG_INIT_DONE=1
+
+  # Re-assert defaults in case env changed before sourcing
+  : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
+  : "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
+
+  # Determine job name
+  if [ -n "$job_arg" ] && [ -z "${LOG_JOB_NAME:-}" ]; then
+    LOG_JOB_NAME=$job_arg
+  elif [ -z "${LOG_JOB_NAME:-}" ]; then
+    LOG_JOB_NAME=${0##*/}
+  fi
+
+  # Determine run timestamp (UTC, compact)
+  if [ -z "${LOG_RUN_TS:-}" ]; then
+    if ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null); then
+      LOG_RUN_TS=$ts
+    elif ts=$(log__now 2>/dev/null); then
+      LOG_RUN_TS=$(printf '%s' "$ts" | tr -d ':-')
+    fi
+  fi
+  : "${LOG_RUN_TS:=run}"
+
+  safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-job}")
+
+  # Build LOG_FILE only if not already set by the caller
+  if [ -z "${LOG_FILE:-}" ]; then
+    log_dir=$(log__default_log_dir "$safe_job")
+    LOG_FILE="${log_dir}/${safe_job}-${LOG_RUN_TS}.log"
+  fi
+
+  # Make sure directory exists, and create/truncate the file for this run
+  case "$LOG_FILE" in
+    */*)
+      target_dir=${LOG_FILE%/*}
+      if [ -n "$target_dir" ] && [ ! -d "$target_dir" ]; then
+        mkdir -p "$target_dir" || true
+      fi
+      ;;
+  esac
+
+  : >"$LOG_FILE" 2>/dev/null || true
+
+  LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe_job")}
+
+  export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
+}
+
+log_start_job() {
+  job_arg=${1:-${LOG_JOB_NAME:-job}}
+  shift 2>/dev/null || true
+
+  safe_job=$(log__safe_job_name "$job_arg")
+  LOG_JOB_NAME=$safe_job
+  LOG_RUN_TS=${LOG_RUN_TS:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || log__now 2>/dev/null || printf 'run')}
+  LOG_RUN_START_SEC=${LOG_RUN_START_SEC:-$(date -u +%s 2>/dev/null || printf '')}
+
+  log_init "$safe_job"
+
+  log_info "== ${safe_job} start =="
+  log_info "utc_start=$LOG_RUN_TS"
+
+  while [ $# -gt 0 ]; do
+    log_info "$1"
+    shift
+  done
+
+  log_info "log_file=${LOG_FILE:-unknown}"
+  log_info "------------------------------"
 }
 
 log_update_rolling_note() {
@@ -319,12 +375,12 @@ log_update_latest_link() {
   if [ "${LOG_LATEST_RELATIVE:-1}" -ne 0 ]; then
     case "$log_file" in
       */*) log_dir=${log_file%/*} ;;
-      *) log_dir="." ;;
+      *)   log_dir="." ;;
     esac
 
     case "$link_path" in
       */*) link_dir=${link_path%/*} ;;
-      *) link_dir="." ;;
+      *)   link_dir="." ;;
     esac
 
     if [ "$log_dir" = "$link_dir" ]; then
@@ -345,7 +401,6 @@ log_finish_job() {
 
   if [ -n "$start_sec" ]; then
     end_sec=$(date -u +%s 2>/dev/null || printf '')
-
     if [ -n "$end_sec" ]; then
       duration=$(( end_sec - start_sec ))
     fi
@@ -385,6 +440,10 @@ log_finish_job() {
   return "$status"
 }
 
+# ------------------------------------------------------------------------------
+# Streaming & command capture
+# ------------------------------------------------------------------------------
+
 log__emit_line() {
   line=$1
 
@@ -414,10 +473,10 @@ log__emit_line() {
   fi
 
   case "$level" in
-    WARN) log_warn "$msg" ;;
-    ERR) log_err "$msg" ;;
+    WARN)  log_warn "$msg"  ;;
+    ERR)   log_err "$msg"   ;;
     DEBUG) log_debug "$msg" ;;
-    *) log_info "$line" ;;
+    *)     log_info "$line" ;;
   esac
 }
 
@@ -516,6 +575,10 @@ log_run_job() {
   return "$status"
 }
 
+# ------------------------------------------------------------------------------
+# Public logging API
+# ------------------------------------------------------------------------------
+
 log__emit() {
   level=$1
   stream=$2
@@ -530,15 +593,15 @@ log__emit() {
 
   case "$stream" in
     stderr) printf '%s\n' "$line" >&2 ;;
-    *) printf '%s\n' "$line" ;;
+    *)      printf '%s\n' "$line" ;;
   esac
 
   log__append_file "$line"
 }
 
-log_info() { log__emit INFO "${LOG_INFO_STREAM:-stdout}" "$@"; }
-log_warn() { log__emit WARN stderr "$@"; }
-log_err()  { log__emit ERR stderr "$@"; }
+log_info()  { log__emit INFO  "${LOG_INFO_STREAM:-stdout}" "$@"; }
+log_warn()  { log__emit WARN  stderr "$@"; }
+log_err()   { log__emit ERR   stderr "$@"; }
 log_debug() {
   if [ "${LOG_DEBUG:-0}" -ne 0 ]; then
     log__emit DEBUG "${LOG_DEBUG_STREAM:-stdout}" "$@"
