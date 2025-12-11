@@ -3,9 +3,19 @@
 # Author: deadhedd
 # License: MIT
 set -eu
+PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)
+JOB_WRAP="$REPO_ROOT/utils/core/job-wrap.sh"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "$0")"
+
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$JOB_WRAP" ]; then
+  JOB_WRAP_ACTIVE=1 exec /bin/sh "$JOB_WRAP" "$SCRIPT_PATH" "$@"
+fi
 
 # Path to your logging helper
-LOG_HELPER_PATH="${LOG_HELPER_PATH:-$HOME/obsidian-note-tools/utils/core/log.sh}"
+LOG_HELPER_PATH="${LOG_HELPER_PATH:-$REPO_ROOT/utils/core/log.sh}"
 
 if [ ! -f "$LOG_HELPER_PATH" ]; then
   printf 'ERROR: LOG_HELPER_PATH does not point to log.sh: %s\n' "$LOG_HELPER_PATH" >&2
