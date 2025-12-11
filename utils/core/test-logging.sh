@@ -5,7 +5,7 @@
 set -eu
 
 # Path to your logging helper
-LOG_HELPER_PATH="${LOG_HELPER_PATH:-$HOME/utils/core/log.sh}"
+LOG_HELPER_PATH="${LOG_HELPER_PATH:-$HOME/obsidian-note-tools/utils/core/log.sh}"
 
 if [ ! -f "$LOG_HELPER_PATH" ]; then
   printf 'ERROR: LOG_HELPER_PATH does not point to log.sh: %s\n' "$LOG_HELPER_PATH" >&2
