@@ -500,7 +500,12 @@ log_stream_file() {
 }
 
 log_run_with_capture() {
-  tmp_log=$(mktemp)
+  tmp_log=$(mktemp 2>/dev/null || mktemp "/tmp/log.${LOG_JOB_NAME:-job}.XXXXXX" 2>/dev/null || printf '')
+
+  if [ -z "$tmp_log" ]; then
+    log_err "mktemp failed (cannot capture job output)"
+    return 127
+  fi
 
   cleanup_tmp_log() {
     [ -f "$tmp_log" ] || return 0
@@ -510,7 +515,6 @@ log_run_with_capture() {
   trap 'cleanup_tmp_log' EXIT HUP INT TERM
 
   status=0
-
   set +e
   "$@" >"$tmp_log" 2>&1
   status=$?
