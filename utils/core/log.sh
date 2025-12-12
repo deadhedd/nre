@@ -3,13 +3,11 @@
 # Author: deadhedd
 # License: MIT
 #
-# This helper is intended to be sourced, not executed.
-# It provides:
-#   - log_init / log_start_job / log_finish_job
-#   - log_info / log_warn / log_err / log_debug
-#   - log_run_job (run a command with captured output + full job lifecycle)
-#   - log_update_rolling_note (Mirror latest log into a markdown file in the vault)
-#   - log_rotate / log_update_latest_link
+# Heavy internal debug (opt-in):
+#   LOG_INTERNAL_DEBUG=1            Enable internal debug messages
+#   LOG_INTERNAL_DEBUG_FILE=<path>  Write internal debug to this file (else stderr)
+#
+# IMPORTANT: Internal debug NEVER writes to stdout.
 
 # ------------------------------------------------------------------------------
 # Load guard
@@ -27,35 +25,76 @@ LOG_HELPER_LOADED=1
 : "${LOG_INFO_STREAM:=stdout}"
 : "${LOG_DEBUG_STREAM:=stdout}"
 
-# Root directory for raw .log files
 : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
-
-# Root of the Obsidian vault for rolling notes
 : "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
-
-# Whether latest symlink should be relative when possible (1 = yes)
 : "${LOG_LATEST_RELATIVE:=1}"
 
-# ASCII-only log sanitization (1 = strip non-ASCII, 0 = allow anything)
 : "${LOG_ASCII_ONLY:=1}"
-
-# Timestamp inclusion in log lines (1 = include, 0 = no timestamp)
 : "${LOG_TIMESTAMP:=1}"
-
-# Debug logging (1 = enable log_debug, 0 = disable)
 : "${LOG_DEBUG:=0}"
+
+# Internal debug: off by default
+: "${LOG_INTERNAL_DEBUG:=0}"
+: "${LOG_INTERNAL_DEBUG_FILE:=}"
+
+# ------------------------------------------------------------------------------
+# Time + sanitize
+# ------------------------------------------------------------------------------
+
+log__now() {
+  if ! command -v date >/dev/null 2>&1; then
+    return 1
+  fi
+  date '+%Y-%m-%dT%H:%M:%S%z'
+}
+
+log__sanitize() {
+  if [ "${LOG_ASCII_ONLY:-1}" -ne 0 ]; then
+    printf '%s' "$*" | LC_ALL=C tr -cd '\11\12\15\40-\176'
+  else
+    printf '%s' "$*"
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# Internal debug emitter (never stdout)
+# ------------------------------------------------------------------------------
+
+log__dbg() {
+  [ "${LOG_INTERNAL_DEBUG:-0}" -ne 0 ] || return 0
+
+  ts=$(log__now 2>/dev/null || printf 'unknown')
+  msg=$(log__sanitize "$*")
+  line="$ts DBG $msg"
+
+  if [ -n "${LOG_INTERNAL_DEBUG_FILE:-}" ]; then
+    case "$LOG_INTERNAL_DEBUG_FILE" in
+      */*)
+        _dbg_dir=${LOG_INTERNAL_DEBUG_FILE%/*}
+        if [ -n "$_dbg_dir" ] && [ ! -d "$_dbg_dir" ]; then
+          mkdir -p "$_dbg_dir" 2>/dev/null || true
+        fi
+        ;;
+    esac
+    printf '%s\n' "$line" >>"$LOG_INTERNAL_DEBUG_FILE" 2>/dev/null || true
+  else
+    printf '%s\n' "$line" >&2
+  fi
+}
+
+# Best-effort note of where this helper was sourced from.
+# Set LOG_HELPER_PATH in the caller for an exact value.
+log__dbg "log.sh loaded: pid=$$ LOG_HELPER_PATH=${LOG_HELPER_PATH:-<unset>} pwd=$(pwd 2>/dev/null || printf unknown)"
 
 # ------------------------------------------------------------------------------
 # Basic helpers
 # ------------------------------------------------------------------------------
 
 log__safe_job_name() {
-  # Replace anything not [A-Za-z0-9._-] with '-'
   printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'
 }
 
 log__default_log_dir() {
-  # Decide the subdirectory under LOG_ROOT based on the job name.
   job_name=$1
 
   case "$job_name" in
@@ -77,50 +116,30 @@ log__default_log_dir() {
 }
 
 log__latest_link_path() {
-  # Build a path like <log_dir>/<safe_job>-latest.log
   log_file=$1
   job_name=${2:-${LOG_JOB_NAME:-log}}
   safe_job=$(log__safe_job_name "$job_name")
 
   case "$log_file" in
-    */*)
-      base_dir=${log_file%/*}
-      ;;
-    *)
-      base_dir="."
-      ;;
+    */*) base_dir=${log_file%/*} ;;
+    *)   base_dir="." ;;
   esac
 
   printf '%s/%s-latest.log' "$base_dir" "$safe_job"
 }
 
 # ------------------------------------------------------------------------------
-# Time, sanitization, file append
+# File append (instrumented)
 # ------------------------------------------------------------------------------
 
-# Emit a timestamp in local time when enabled. Default is on; set LOG_TIMESTAMP=0 to disable.
-log__now() {
-  if ! command -v date >/dev/null 2>&1; then
-    return 1
-  fi
-  date '+%Y-%m-%dT%H:%M:%S%z'
-}
-
-# Sanitize messages when ASCII-only logs are required (default on).
-log__sanitize() {
-  if [ "${LOG_ASCII_ONLY:-1}" -ne 0 ]; then
-    # Allow horizontal tab, LF, CR, and printable ASCII.
-    printf '%s' "$*" | LC_ALL=C tr -cd '\11\12\15\40-\176'
-  else
-    printf '%s' "$*"
-  fi
-}
-
 log__append_file() {
-  # Append a single line to LOG_FILE, creating the directory if needed.
   line=$1
   log_file=${LOG_FILE:-}
-  [ -n "$log_file" ] || return 0
+
+  if [ -z "$log_file" ]; then
+    log__dbg "append: skipped (LOG_FILE unset) line_prefix=$(printf '%s' "$line" | cut -c1-60 2>/dev/null || printf '?')"
+    return 0
+  fi
 
   case "$log_file" in
     */*)
@@ -128,15 +147,18 @@ log__append_file() {
       if [ -n "$dir" ] && [ ! -d "$dir" ]; then
         if ! mkdir -p "$dir" 2>/dev/null; then
           printf '%s\n' "ERR log: mkdir failed for $dir (LOG_FILE=$log_file)" >&2
+          log__dbg "append: mkdir failed for dir=$dir LOG_FILE=$log_file"
           return 1
         fi
       fi
       ;;
   esac
 
+  log__dbg "append: target=$log_file line_prefix=$(printf '%s' "$line" | cut -c1-60 2>/dev/null || printf '?')"
+
   if ! printf '%s\n' "$line" >>"$log_file" 2>/dev/null; then
-    # This is the smoking gun when logs are empty
     printf '%s\n' "ERR log: append failed (LOG_FILE=$log_file)" >&2
+    log__dbg "append: FAILED target=$log_file"
     return 1
   fi
 
@@ -144,20 +166,16 @@ log__append_file() {
 }
 
 # ------------------------------------------------------------------------------
-# Rolling note path helpers (for Obsidian vault)
+# Rolling note path helpers
 # ------------------------------------------------------------------------------
 
 log__format_dir_segment() {
-  # Convert "daily-notes" -> "Daily Notes" etc.
   segment=$1
   cleaned=$(printf '%s' "$segment" | tr '-' ' ')
   printf '%s' "$cleaned" |
     awk '{ for (i = 1; i <= NF; i++) { $i = toupper(substr($i,1,1)) substr($i,2) } printf "%s", $0 }'
 }
 
-# Build a "pretty" path in the vault for the rolling log note, based on the
-# LOG_FILE path under the logs/ tree, e.g.:
-#   /home/obsidian/logs/daily-notes/... -> <vault>/Server Logs/Daily Notes/...
 log__rolling_note_path() {
   [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 1
 
@@ -177,21 +195,13 @@ log__rolling_note_path() {
   mapped_root="${LOG_ROLLING_VAULT_ROOT%/}/Server Logs"
 
   case "$log_file" in
-    */logs/*)
-      rel_path=${log_file#*/logs/}
-      ;;
-    *)
-      rel_path=${log_file##*/}
-      ;;
+    */logs/*) rel_path=${log_file#*/logs/} ;;
+    *)        rel_path=${log_file##*/} ;;
   esac
 
   case "$rel_path" in
-    */*)
-      rel_dir=${rel_path%/*}
-      ;;
-    *)
-      rel_dir=
-      ;;
+    */*) rel_dir=${rel_path%/*} ;;
+    *)   rel_dir= ;;
   esac
 
   mapped_dir=$mapped_root
@@ -220,23 +230,21 @@ log_init() {
 
   if [ "${LOG_INIT_DONE:-0}" -eq 1 ] 2>/dev/null; then
     export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
+    log__dbg "log_init: already done LOG_FILE=${LOG_FILE:-<unset>}"
     return 0
   fi
 
   LOG_INIT_DONE=1
 
-  # Re-assert defaults in case env changed before sourcing
   : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
   : "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
 
-  # Determine job name
   if [ -n "$job_arg" ] && [ -z "${LOG_JOB_NAME:-}" ]; then
     LOG_JOB_NAME=$job_arg
   elif [ -z "${LOG_JOB_NAME:-}" ]; then
     LOG_JOB_NAME=${0##*/}
   fi
 
-  # Determine run timestamp (UTC, compact)
   if [ -z "${LOG_RUN_TS:-}" ]; then
     if ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null); then
       LOG_RUN_TS=$ts
@@ -248,24 +256,23 @@ log_init() {
 
   safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-job}")
 
-  # Build LOG_FILE only if not already set by the caller
   if [ -z "${LOG_FILE:-}" ]; then
     log_dir=$(log__default_log_dir "$safe_job")
     LOG_FILE="${log_dir}/${safe_job}-${LOG_RUN_TS}.log"
   fi
 
-  # Make sure directory exists, and create/truncate the file for this run
+  log__dbg "log_init: pid=$$ job=$LOG_JOB_NAME safe_job=$safe_job run_ts=$LOG_RUN_TS LOG_FILE=$LOG_FILE"
+
   case "$LOG_FILE" in
     */*)
       target_dir=${LOG_FILE%/*}
       if [ -n "$target_dir" ] && [ ! -d "$target_dir" ]; then
-        mkdir -p "$target_dir" || true
+        mkdir -p "$target_dir" 2>/dev/null || true
       fi
       ;;
   esac
 
   : >"$LOG_FILE" 2>/dev/null || true
-  # Prove we can actually write to the log file (and avoid 0-byte "success" artifacts)
   log__append_file "INFO log_init: opened LOG_FILE=$LOG_FILE" || true
 
   LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe_job")}
@@ -283,6 +290,8 @@ log_start_job() {
   LOG_RUN_START_SEC=${LOG_RUN_START_SEC:-$(date -u +%s 2>/dev/null || printf '')}
 
   log_init "$safe_job"
+
+  log__dbg "start_job: job=$safe_job LOG_FILE=${LOG_FILE:-<unset>} start_sec=${LOG_RUN_START_SEC:-<unset>}"
 
   log_info "== ${safe_job} start =="
   log_info "utc_start=$LOG_RUN_TS"
@@ -309,7 +318,7 @@ log_update_rolling_note() {
     */*)
       rolling_dir=${rolling_path%/*}
       if [ ! -d "$rolling_dir" ]; then
-        mkdir -p "$rolling_dir" || return 1
+        mkdir -p "$rolling_dir" 2>/dev/null || return 1
       fi
       ;;
   esac
@@ -318,6 +327,8 @@ log_update_rolling_note() {
 
   ts=$(log__now 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || printf 'unknown')
   job_title=${LOG_JOB_NAME:-Latest Log}
+
+  log__dbg "rolling_note: from=$log_file to=$rolling_path"
 
   {
     printf '# %s\n\n' "$job_title"
@@ -344,12 +355,8 @@ log_rotate() {
   [ -n "$log_file" ] || return 0
 
   case "$log_file" in
-    */*)
-      log_dir=${log_file%/*}
-      ;;
-    *)
-      return 0
-      ;;
+    */*) log_dir=${log_file%/*} ;;
+    *)   return 0 ;;
   esac
 
   if [ -z "$job_name" ]; then
@@ -377,7 +384,7 @@ log_update_latest_link() {
     */*)
       link_dir=${link_path%/*}
       if [ -n "$link_dir" ] && [ ! -d "$link_dir" ]; then
-        mkdir -p "$link_dir" || return 1
+        mkdir -p "$link_dir" 2>/dev/null || return 1
       fi
       ;;
   esac
