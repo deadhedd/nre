@@ -265,6 +265,8 @@ log_init() {
   esac
 
   : >"$LOG_FILE" 2>/dev/null || true
+  # Prove we can actually write to the log file (and avoid 0-byte "success" artifacts)
+  log__append_file "INFO log_init: opened LOG_FILE=$LOG_FILE" || true
 
   LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe_job")}
 
