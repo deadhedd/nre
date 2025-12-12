@@ -126,12 +126,21 @@ log__append_file() {
     */*)
       dir=${log_file%/*}
       if [ -n "$dir" ] && [ ! -d "$dir" ]; then
-        mkdir -p "$dir" || return 1
+        if ! mkdir -p "$dir" 2>/dev/null; then
+          printf '%s\n' "ERR log: mkdir failed for $dir (LOG_FILE=$log_file)" >&2
+          return 1
+        fi
       fi
       ;;
   esac
 
-  printf '%s\n' "$line" >>"$log_file"
+  if ! printf '%s\n' "$line" >>"$log_file" 2>/dev/null; then
+    # This is the smoking gun when logs are empty
+    printf '%s\n' "ERR log: append failed (LOG_FILE=$log_file)" >&2
+    return 1
+  fi
+
+  return 0
 }
 
 # ------------------------------------------------------------------------------
