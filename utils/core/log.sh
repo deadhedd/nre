@@ -256,12 +256,15 @@ log_init() {
 
   safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-job}")
 
+  # FIX: Only truncate when log_init created the LOG_FILE path (i.e., LOG_FILE was unset).
+  created_new_log_file=0
   if [ -z "${LOG_FILE:-}" ]; then
     log_dir=$(log__default_log_dir "$safe_job")
     LOG_FILE="${log_dir}/${safe_job}-${LOG_RUN_TS}.log"
+    created_new_log_file=1
   fi
 
-  log__dbg "log_init: pid=$$ job=$LOG_JOB_NAME safe_job=$safe_job run_ts=$LOG_RUN_TS LOG_FILE=$LOG_FILE"
+  log__dbg "log_init: pid=$$ job=$LOG_JOB_NAME safe_job=$safe_job run_ts=$LOG_RUN_TS LOG_FILE=$LOG_FILE created_new=$created_new_log_file"
 
   case "$LOG_FILE" in
     */*)
@@ -272,7 +275,9 @@ log_init() {
       ;;
   esac
 
-  : >"$LOG_FILE" 2>/dev/null || true
+  if [ "$created_new_log_file" -ne 0 ] 2>/dev/null; then
+    : >"$LOG_FILE" 2>/dev/null || true
+  fi
   log__append_file "INFO log_init: opened LOG_FILE=$LOG_FILE" || true
 
   LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe_job")}
