@@ -223,16 +223,16 @@ DEFAULT_COMMIT_WORK_TREE=$(job_wrap__default_work_tree)
 job_wrap__dbg "commit: DEFAULT_COMMIT_WORK_TREE=$DEFAULT_COMMIT_WORK_TREE"
 
 perform_commit() {
-  [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ] && {
+  if [ -n "${JOB_WRAP_DISABLE_COMMIT:-}" ]; then
     job_wrap__dbg "commit: disabled via JOB_WRAP_DISABLE_COMMIT"
     return 0
-  }
+  fi
 
   if [ ! -x "$COMMIT_HELPER" ]; then
     log_err "Commit helper not executable: $COMMIT_HELPER"
     job_wrap__dbg "commit: helper not executable: $COMMIT_HELPER"
     return 1
-  }
+  fi
 
   commit_work_tree=${DEFAULT_COMMIT_WORK_TREE:-$REPO_ROOT}
   commit_message=${JOB_WRAP_DEFAULT_COMMIT_MESSAGE:-"job-wrap(${JOB_NAME}): auto-commit (exit=${STATUS:-unknown})"}
@@ -259,8 +259,8 @@ perform_commit() {
 job_wrap__dbg "invoke: calling log_run_job job=$JOB_NAME cmd=$(printf '%s ' "$@")"
 job_wrap__dbg "invoke: context: cwd=$(pwd) user=$(id -un 2>/dev/null || printf unknown) requested_cmd=$ORIGINAL_CMD resolved_cmd=$RESOLVED_CMD"
 
-STATUS=0
-if ! log_run_job "$JOB_NAME" \
+set +e
+log_run_job "$JOB_NAME" \
   "cwd=$(pwd)" \
   "user=$(id -un 2>/dev/null || printf unknown)" \
   "path=${PATH:-}" \
@@ -270,8 +270,10 @@ if ! log_run_job "$JOB_NAME" \
   "argv=$(printf '%s ' "$@")" \
   -- \
   "$@"
-then
-  STATUS=$?
+STATUS=$?
+set -e
+
+if [ "$STATUS" -ne 0 ]; then
   job_wrap__dbg "invoke: log_run_job FAILED status=$STATUS"
 else
   job_wrap__dbg "invoke: log_run_job OK"
