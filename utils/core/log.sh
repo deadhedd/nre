@@ -105,7 +105,7 @@ log__default_log_dir() {
       dir="$LOG_ROOT/weekly-notes"
       ;;
     *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
-      dir="$LOG_ROOT/periodic-notes"
+      dir="$LOG_ROOT/long-cycle"
       ;;
     *)
       dir="$LOG_ROOT/other"
