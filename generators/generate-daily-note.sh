@@ -425,7 +425,9 @@ tags:
 ---
 << [[Periodic Notes/Daily Notes/${yesterday}|${yesterday}]] | [[Periodic Notes/Daily Notes/${tomorrow}|${tomorrow}]] >>
 
-${daily_plan_intro_section}${navigation_callout}
+${daily_plan_intro_section}
+
+${navigation_callout}
 
 ${daily_context_callout}
 
