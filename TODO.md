@@ -20,39 +20,11 @@ High Priority
 
     * refactor daily note to utilize obsidian's embed feature wherever possible
 
-    * script error notification system. catch non-zero exits and report in daily note
-
-    * budgeting automation
-    
-    • Sleep Data Automation
-
-    • Workout Data Automation
-
     • Workout schedule implemented in daily notes
-
-    • set up grocery list automation
-
-    - set up windows vault to pull on boot, and push on off, and auto push late at night in case of forgetting off
-Medium Priority
-
-    • fix moon phase illumination bug
-
-    • improve yardwork sutiability analysis to include precipitation and ideal time for work
-
-
-    - add leave for work checklist to daily notes
 
     * replace day plan util script with obsidian embed
 Low Priority / Someday
 
     • use advanced uri for enhanced ios shortcuts
 
-    - Explore using AGENTS.md as a unified config for all cron jobs—design parser integration and alias workflow for easy editing and syncing.
-
-Notes
-
-    • Year theme: Standing on Business (2025)
-
-    • Maintain automation server (daemon), laptop (ghost), and PC (phantom) coordination.
-
-    • Next automation candidates: workout schedule injection script + sleep/workout data pipelines.
+    - Explore using AGENTS.md as a unified config for all cron jobs—design parser integration and alias workflow for easy editing 
