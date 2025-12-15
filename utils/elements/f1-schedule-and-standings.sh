@@ -4,9 +4,9 @@
 
 set -eu
 
-log_info() { printf 'INFO %s\n' "$*"; }
-log_warn() { printf 'WARN %s\n' "$*"; }
-log_err() { printf 'ERR %s\n' "$*"; }
+log_info() { printf 'INFO %s\n' "$*" >&2; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 # ---------- Portable date helpers ----------
 to_epoch() { date -u -j -f "%Y-%m-%d" "$1" "+%s"; }      # YYYY-MM-DD -> epoch
