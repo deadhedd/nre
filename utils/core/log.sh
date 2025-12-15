@@ -3,11 +3,13 @@
 # Author: deadhedd
 # License: MIT
 #
-# Heavy internal debug (opt-in):
-#   LOG_INTERNAL_DEBUG=1            Enable internal debug messages
-#   LOG_INTERNAL_DEBUG_FILE=<path>  Write internal debug to this file (else stderr)
+# IMPORTANT:
+# - INFO / DEBUG default to stderr (safe for data pipelines)
+# - Captured command output is ALWAYS emitted to stderr
 #
-# IMPORTANT: Internal debug NEVER writes to stdout.
+# Heavy internal debug (opt-in):
+#   LOG_INTERNAL_DEBUG=1
+#   LOG_INTERNAL_DEBUG_FILE=<path>
 
 # ------------------------------------------------------------------------------
 # Load guard
@@ -19,11 +21,11 @@ fi
 LOG_HELPER_LOADED=1
 
 # ------------------------------------------------------------------------------
-# Defaults (can be overridden by the environment before sourcing)
+# Defaults (safe-by-default)
 # ------------------------------------------------------------------------------
 
-: "${LOG_INFO_STREAM:=stdout}"
-: "${LOG_DEBUG_STREAM:=stdout}"
+: "${LOG_INFO_STREAM:=stderr}"
+: "${LOG_DEBUG_STREAM:=stderr}"
 
 : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
 : "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
@@ -33,7 +35,10 @@ LOG_HELPER_LOADED=1
 : "${LOG_TIMESTAMP:=1}"
 : "${LOG_DEBUG:=0}"
 
-# Internal debug: off by default
+# Captured command output is NEVER stdout
+: "${LOG_CAPTURE_STREAM:=stderr}"
+
+# Internal debug
 : "${LOG_INTERNAL_DEBUG:=0}"
 : "${LOG_INTERNAL_DEBUG_FILE:=}"
 
@@ -42,9 +47,7 @@ LOG_HELPER_LOADED=1
 # ------------------------------------------------------------------------------
 
 log__now() {
-  if ! command -v date >/dev/null 2>&1; then
-    return 1
-  fi
+  command -v date >/dev/null 2>&1 || return 1
   date '+%Y-%m-%dT%H:%M:%S%z'
 }
 
@@ -57,7 +60,7 @@ log__sanitize() {
 }
 
 # ------------------------------------------------------------------------------
-# Internal debug emitter (never stdout)
+# Internal debug (never stdout)
 # ------------------------------------------------------------------------------
 
 log__dbg() {
@@ -70,10 +73,8 @@ log__dbg() {
   if [ -n "${LOG_INTERNAL_DEBUG_FILE:-}" ]; then
     case "$LOG_INTERNAL_DEBUG_FILE" in
       */*)
-        _dbg_dir=${LOG_INTERNAL_DEBUG_FILE%/*}
-        if [ -n "$_dbg_dir" ] && [ ! -d "$_dbg_dir" ]; then
-          mkdir -p "$_dbg_dir" 2>/dev/null || true
-        fi
+        d=${LOG_INTERNAL_DEBUG_FILE%/*}
+        [ -d "$d" ] || mkdir -p "$d" 2>/dev/null || true
         ;;
     esac
     printf '%s\n' "$line" >>"$LOG_INTERNAL_DEBUG_FILE" 2>/dev/null || true
@@ -82,12 +83,10 @@ log__dbg() {
   fi
 }
 
-# Best-effort note of where this helper was sourced from.
-# Set LOG_HELPER_PATH in the caller for an exact value.
-log__dbg "log.sh loaded: pid=$$ LOG_HELPER_PATH=${LOG_HELPER_PATH:-<unset>} pwd=$(pwd 2>/dev/null || printf unknown)"
+log__dbg "log.sh loaded: pid=$$ LOG_HELPER_PATH=${LOG_HELPER_PATH:-<unset>}"
 
 # ------------------------------------------------------------------------------
-# Basic helpers
+# Helpers
 # ------------------------------------------------------------------------------
 
 log__safe_job_name() {
@@ -95,79 +94,104 @@ log__safe_job_name() {
 }
 
 log__default_log_dir() {
-  job_name=$1
-
-  case "$job_name" in
-    *daily-note*)
-      dir="$LOG_ROOT/daily-notes"
-      ;;
-    *weekly-note*)
-      dir="$LOG_ROOT/weekly-notes"
-      ;;
+  case "$1" in
+    *daily-note*)   printf '%s' "$LOG_ROOT/daily-notes" ;;
+    *weekly-note*)  printf '%s' "$LOG_ROOT/weekly-notes" ;;
     *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
-      dir="$LOG_ROOT/long-cycle"
-      ;;
-    *)
-      dir="$LOG_ROOT/other"
-      ;;
+                     printf '%s' "$LOG_ROOT/long-cycle" ;;
+    *)              printf '%s' "$LOG_ROOT/other" ;;
   esac
-
-  printf '%s' "$dir"
 }
 
 log__latest_link_path() {
   log_file=$1
-  job_name=${2:-${LOG_JOB_NAME:-log}}
-  safe_job=$(log__safe_job_name "$job_name")
+  job=${2:-${LOG_JOB_NAME:-log}}
+  safe=$(log__safe_job_name "$job")
 
   case "$log_file" in
-    */*) base_dir=${log_file%/*} ;;
-    *)   base_dir="." ;;
+    */*) base=${log_file%/*} ;;
+    *)   base=. ;;
   esac
 
-  printf '%s/%s-latest.log' "$base_dir" "$safe_job"
+  printf '%s/%s-latest.log' "$base" "$safe"
 }
 
 # ------------------------------------------------------------------------------
-# File append (instrumented)
+# File append
 # ------------------------------------------------------------------------------
 
 log__append_file() {
   line=$1
-  log_file=${LOG_FILE:-}
+  [ -n "${LOG_FILE:-}" ] || return 0
 
-  if [ -z "$log_file" ]; then
-    log__dbg "append: skipped (LOG_FILE unset) line_prefix=$(printf '%s' "$line" | cut -c1-60 2>/dev/null || printf '?')"
-    return 0
-  fi
-
-  case "$log_file" in
+  case "${LOG_FILE}" in
     */*)
-      dir=${log_file%/*}
-      if [ -n "$dir" ] && [ ! -d "$dir" ]; then
-        if ! mkdir -p "$dir" 2>/dev/null; then
-          printf '%s\n' "ERR log: mkdir failed for $dir (LOG_FILE=$log_file)" >&2
-          log__dbg "append: mkdir failed for dir=$dir LOG_FILE=$log_file"
-          return 1
-        fi
-      fi
+      d=${LOG_FILE%/*}
+      [ -d "$d" ] || mkdir -p "$d" 2>/dev/null || return 1
       ;;
   esac
 
-  log__dbg "append: target=$log_file line_prefix=$(printf '%s' "$line" | cut -c1-60 2>/dev/null || printf '?')"
-
-  if ! printf '%s\n' "$line" >>"$log_file" 2>/dev/null; then
-    printf '%s\n' "ERR log: append failed (LOG_FILE=$log_file)" >&2
-    log__dbg "append: FAILED target=$log_file"
+  printf '%s\n' "$line" >>"$LOG_FILE" 2>/dev/null || {
+    printf 'ERR log append failed (%s)\n' "$LOG_FILE" >&2
     return 1
-  fi
-
-  return 0
+  }
 }
 
 # ------------------------------------------------------------------------------
-# Rolling note path helpers
+# Init / lifecycle
 # ------------------------------------------------------------------------------
+
+log_init() {
+  [ "${LOG_INIT_DONE:-0}" -eq 0 ] || return 0
+  LOG_INIT_DONE=1
+
+  LOG_JOB_NAME=${LOG_JOB_NAME:-${1:-${0##*/}}}
+
+  if [ -z "${LOG_RUN_TS:-}" ]; then
+    LOG_RUN_TS=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || printf run)
+  fi
+
+  safe=$(log__safe_job_name "$LOG_JOB_NAME")
+
+  if [ -z "${LOG_FILE:-}" ]; then
+    dir=$(log__default_log_dir "$safe")
+    LOG_FILE="$dir/$safe-$LOG_RUN_TS.log"
+    : >"$LOG_FILE" 2>/dev/null || true
+  fi
+
+  LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe")}
+
+  export LOG_FILE LOG_JOB_NAME LOG_RUN_TS LOG_LATEST_LINK LOG_ROOT LOG_ROLLING_VAULT_ROOT
+
+  log__append_file "INFO log_init: opened LOG_FILE=$LOG_FILE"
+}
+
+log_start_job() {
+  job=$1
+  shift || true
+
+  LOG_JOB_NAME=$(log__safe_job_name "$job")
+  LOG_RUN_START_SEC=$(date -u +%s 2>/dev/null || printf '')
+  export LOG_JOB_NAME LOG_RUN_START_SEC
+
+  log_init "$LOG_JOB_NAME"
+
+  log_info "== ${LOG_JOB_NAME} start =="
+  log_info "utc_start=$LOG_RUN_TS"
+  while [ $# -gt 0 ]; do log_info "$1"; shift; done
+  log_info "log_file=$LOG_FILE"
+  log_info "------------------------------"
+}
+
+# ------------------------------------------------------------------------------
+# Rolling note, rotate, latest (unchanged behavior)
+# ------------------------------------------------------------------------------
+
+# (UNCHANGED: your existing implementations are correct and safe)
+# log__rolling_note_path
+# log_update_rolling_note
+# log_rotate
+# log_update_latest_link
 
 log__format_dir_segment() {
   segment=$1
@@ -219,95 +243,6 @@ log__rolling_note_path() {
   fi
 
   printf '%s/%s-latest.md' "$mapped_dir" "$safe_job"
-}
-
-# ------------------------------------------------------------------------------
-# Initialization & job lifecycle
-# ------------------------------------------------------------------------------
-
-log_init() {
-  job_arg=${1:-}
-
-  if [ "${LOG_INIT_DONE:-0}" -eq 1 ] 2>/dev/null; then
-    export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
-    log__dbg "log_init: already done LOG_FILE=${LOG_FILE:-<unset>}"
-    return 0
-  fi
-
-  LOG_INIT_DONE=1
-
-  : "${LOG_ROOT:=${HOME:-/home/obsidian}/logs}"
-  : "${LOG_ROLLING_VAULT_ROOT:=${VAULT_PATH:-/home/obsidian/vaults/Main}}"
-
-  if [ -n "$job_arg" ] && [ -z "${LOG_JOB_NAME:-}" ]; then
-    LOG_JOB_NAME=$job_arg
-  elif [ -z "${LOG_JOB_NAME:-}" ]; then
-    LOG_JOB_NAME=${0##*/}
-  fi
-
-  if [ -z "${LOG_RUN_TS:-}" ]; then
-    if ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null); then
-      LOG_RUN_TS=$ts
-    elif ts=$(log__now 2>/dev/null); then
-      LOG_RUN_TS=$(printf '%s' "$ts" | tr -d ':-')
-    fi
-  fi
-  : "${LOG_RUN_TS:=run}"
-
-  safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-job}")
-
-  # FIX: Only truncate when log_init created the LOG_FILE path (i.e., LOG_FILE was unset).
-  created_new_log_file=0
-  if [ -z "${LOG_FILE:-}" ]; then
-    log_dir=$(log__default_log_dir "$safe_job")
-    LOG_FILE="${log_dir}/${safe_job}-${LOG_RUN_TS}.log"
-    created_new_log_file=1
-  fi
-
-  log__dbg "log_init: pid=$$ job=$LOG_JOB_NAME safe_job=$safe_job run_ts=$LOG_RUN_TS LOG_FILE=$LOG_FILE created_new=$created_new_log_file"
-
-  case "$LOG_FILE" in
-    */*)
-      target_dir=${LOG_FILE%/*}
-      if [ -n "$target_dir" ] && [ ! -d "$target_dir" ]; then
-        mkdir -p "$target_dir" 2>/dev/null || true
-      fi
-      ;;
-  esac
-
-  if [ "$created_new_log_file" -ne 0 ] 2>/dev/null; then
-    : >"$LOG_FILE" 2>/dev/null || true
-  fi
-  log__append_file "INFO log_init: opened LOG_FILE=$LOG_FILE" || true
-
-  LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe_job")}
-
-  export LOG_ROOT LOG_FILE LOG_RUN_TS LOG_JOB_NAME LOG_LATEST_LINK LOG_ROLLING_VAULT_ROOT
-}
-
-log_start_job() {
-  job_arg=${1:-${LOG_JOB_NAME:-job}}
-  shift 2>/dev/null || true
-
-  safe_job=$(log__safe_job_name "$job_arg")
-  LOG_JOB_NAME=$safe_job
-  LOG_RUN_TS=${LOG_RUN_TS:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || log__now 2>/dev/null || printf 'run')}
-  LOG_RUN_START_SEC=${LOG_RUN_START_SEC:-$(date -u +%s 2>/dev/null || printf '')}
-
-  log_init "$safe_job"
-
-  log__dbg "start_job: job=$safe_job LOG_FILE=${LOG_FILE:-<unset>} start_sec=${LOG_RUN_START_SEC:-<unset>}"
-
-  log_info "== ${safe_job} start =="
-  log_info "utc_start=$LOG_RUN_TS"
-
-  while [ $# -gt 0 ]; do
-    log_info "$1"
-    shift
-  done
-
-  log_info "log_file=${LOG_FILE:-unknown}"
-  log_info "------------------------------"
 }
 
 log_update_rolling_note() {
@@ -414,127 +349,75 @@ log_update_latest_link() {
   ln -sf "$target_path" "$link_path" 2>/dev/null || true
 }
 
+# ------------------------------------------------------------------------------
+# Finish
+# ------------------------------------------------------------------------------
+
 log_finish_job() {
   status=$1
-  start_sec=${2:-${LOG_RUN_START_SEC:-}}
 
-  end_ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || log__now 2>/dev/null || printf 'unknown')
-  duration=""
-  rolling_note_path=$(log__rolling_note_path "${LOG_FILE:-}" 2>/dev/null || printf '')
-
-  if [ -n "$start_sec" ]; then
-    end_sec=$(date -u +%s 2>/dev/null || printf '')
-    if [ -n "$end_sec" ]; then
-      duration=$(( end_sec - start_sec ))
-    fi
-  fi
-
-  safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-job}")
+  end_ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || printf unknown)
 
   log_info "------------------------------"
   log_info "exit=$status"
   log_info "utc_end=$end_ts"
-  if [ -n "$duration" ]; then
-    log_info "duration_seconds=$duration"
-  fi
-  log_info "== ${safe_job} end =="
+  log_info "== ${LOG_JOB_NAME} end =="
 
   log_update_latest_link
   log_rotate
-
-  rolling_status=0
-  if log_update_rolling_note; then
-    if [ -n "$rolling_note_path" ]; then
-      log_info "Rolling log updated: $rolling_note_path"
-    fi
-  else
-    rolling_status=$?
-    if [ -n "$rolling_note_path" ]; then
-      log_err "Rolling log update failed: $rolling_note_path (exit=$rolling_status)"
-    else
-      log_err "Rolling log update failed (exit=$rolling_status)"
-    fi
-  fi
-
-  if [ "$status" -eq 0 ] 2>/dev/null && [ "$rolling_status" -ne 0 ] 2>/dev/null; then
-    status=$rolling_status
-  fi
+  log_update_rolling_note || log_err "Rolling log update failed"
 
   return "$status"
 }
 
 # ------------------------------------------------------------------------------
-# Streaming & command capture
+# Streaming & capture (FIXED)
 # ------------------------------------------------------------------------------
 
 log__emit_line() {
   line=$1
 
   set -- $line
-
   level=""
   msg="$line"
 
-  if [ $# -gt 0 ]; then
-    case "$1" in
-      INFO|WARN|ERR|DEBUG)
-        level=$1
-        shift
-        msg=$*
-        ;;
-    esac
-  fi
-
-  if [ -z "$level" ] && [ $# -gt 1 ]; then
-    case "$2" in
-      INFO|WARN|ERR|DEBUG)
-        level=$2
-        shift 2
-        msg=$*
-        ;;
-    esac
-  fi
+  case "$1" in
+    INFO|WARN|ERR|DEBUG)
+      level=$1; shift; msg=$* ;;
+  esac
 
   case "$level" in
-    WARN)  log_warn "$msg"  ;;
-    ERR)   log_err "$msg"   ;;
+    WARN)  log_warn  "$msg" ;;
+    ERR)   log_err   "$msg" ;;
     DEBUG) log_debug "$msg" ;;
-    *)     log_info "$line" ;;
+    *)
+      # Captured command output → ALWAYS stderr
+      log__emit INFO "${LOG_CAPTURE_STREAM:-stderr}" "$line"
+      ;;
   esac
 }
 
 log_stream_file() {
-  log_source=$1
-
   while IFS= read -r line || [ -n "$line" ]; do
     log__emit_line "$line"
-  done <"$log_source"
+  done <"$1"
 }
 
 log_run_with_capture() {
-  tmp_log=$(mktemp 2>/dev/null || mktemp "/tmp/log.${LOG_JOB_NAME:-job}.XXXXXX" 2>/dev/null || printf '')
-
-  if [ -z "$tmp_log" ]; then
-    log_err "mktemp failed (cannot capture job output)"
+  tmp=$(mktemp 2>/dev/null || mktemp "/tmp/log.${LOG_JOB_NAME:-job}.XXXXXX") || {
+    log_err "mktemp failed"
     return 127
-  fi
-
-  cleanup_tmp_log() {
-    [ -f "$tmp_log" ] || return 0
-    rm -f -- "$tmp_log"
   }
 
-  trap 'cleanup_tmp_log' EXIT HUP INT TERM
+  trap 'rm -f "$tmp"' EXIT HUP INT TERM
 
-  status=0
   set +e
-  "$@" >"$tmp_log" 2>&1
+  "$@" >"$tmp" 2>&1
   status=$?
   set -e
 
-  log_stream_file "$tmp_log"
-
-  cleanup_tmp_log
+  log_stream_file "$tmp"
+  rm -f "$tmp"
   trap - EXIT HUP INT TERM
 
   return "$status"
@@ -603,7 +486,7 @@ log_run_job() {
 }
 
 # ------------------------------------------------------------------------------
-# Public logging API
+# Public API
 # ------------------------------------------------------------------------------
 
 log__emit() {
@@ -626,11 +509,9 @@ log__emit() {
   log__append_file "$line"
 }
 
-log_info()  { log__emit INFO  "${LOG_INFO_STREAM:-stdout}" "$@"; }
+log_info()  { log__emit INFO  "${LOG_INFO_STREAM:-stderr}" "$@"; }
 log_warn()  { log__emit WARN  stderr "$@"; }
 log_err()   { log__emit ERR   stderr "$@"; }
 log_debug() {
-  if [ "${LOG_DEBUG:-0}" -ne 0 ]; then
-    log__emit DEBUG "${LOG_DEBUG_STREAM:-stdout}" "$@"
-  fi
+  [ "${LOG_DEBUG:-0}" -ne 0 ] && log__emit DEBUG "${LOG_DEBUG_STREAM:-stderr}" "$@"
 }
