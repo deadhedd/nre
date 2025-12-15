@@ -10,6 +10,9 @@
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
+log_info() { printf 'INFO %s\n' "$*"; }
+log_err()  { printf 'ERR %s\n'  "$*"; }
+
 # ---- configuration ----
 BASE_DIR="/home/obsidian"
 VAULT_ROOT="${VAULT_PATH:-$BASE_DIR/vaults/Main}"
@@ -21,10 +24,27 @@ csv="${1:?need sanitized credit card csv}"
 month="$(basename "$csv" | cut -c1-7)"
 note="$FINANCE_DIR/$month Credit Card.md"
 
+log_info "start summarize-credit-card-month csv=$csv note=$note"
+
+if [ ! -r "$csv" ]; then
+  log_err "csv not readable: $csv"
+  exit 1
+fi
+
+if [ ! -s "$csv" ]; then
+  log_err "csv is empty: $csv"
+  exit 1
+fi
+
+if ! awk 'NR>1 { exit 0 } END { exit NR>1 ? 0 : 1 }' "$csv" >/dev/null 2>&1; then
+  log_err "csv has no data rows: $csv"
+  exit 1
+fi
+
 mkdir -p "$FINANCE_DIR"
 
 # ---- generate markdown ----
-awk -F',' -v MONTH="$month" '
+if ! awk -F',' -v MONTH="$month" '
   NR == 1 { next }  # skip header
 
   {
@@ -68,4 +88,9 @@ awk -F',' -v MONTH="$month" '
       printf "> ⚖️ No net change.\n"
     }
   }
-' "$csv" > "$note"
+' "$csv" > "$note"; then
+  log_err "failed to summarize csv: $csv"
+  exit 1
+fi
+
+log_info "wrote summary note=$note"
