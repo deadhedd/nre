@@ -228,10 +228,18 @@ ensure_dir "$time_block_subnotes_dir"
 
 populate_block() {
   block_name=$1
-  if [ -r "$day_plan_script" ]; then
-    sh "$day_plan_script" --block "$block_name" 2>/dev/null || true
+  # Warn instead of exiting so daily note generation continues even if the plan is incomplete.
+  if [ ! -r "$day_plan_script" ]; then
+    printf 'WARN %s\n' "Daily plan script not found: $day_plan_script" >&2
+    return 0
+  fi
+
+  if block_output=$(sh "$day_plan_script" --block "$block_name" 2>/dev/null); then
+    printf '%s' "$block_output"
   else
-    :
+    status=$?
+    printf 'WARN %s\n' "Daily plan script failed for block '$block_name' with exit code $status" >&2
+    return 0
   fi
 }
 
