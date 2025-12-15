@@ -133,7 +133,7 @@ while IFS= read -r link; do
                 unknown_jobs=$((unknown_jobs - 1))
             fi
         fi
-    } elif [ "$warn_count" -gt 0 ]; then
+    elif [ "$warn_count" -gt 0 ]; then
         # Only promote to WARN if otherwise OK (don’t override FAIL/ERR/unknown)
         if [ "$status" = "OK" ]; then
             status="WARN"
