@@ -4,6 +4,10 @@
 # License: MIT
 set -eu
 
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
+
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 utils_dir=$(dirname -- "$script_dir")
@@ -13,6 +17,8 @@ lunar_cycle_script="$celestial_dir/lunar-cycle.sh"
 seasonal_cycle_script="$celestial_dir/seasonal-cycle.sh"
 
 celestial_header="### 🌌 Celestial Timings"
+
+failure=0
 
 moon_rows=$(cat <<'EOF'
 <tr>
@@ -40,29 +46,33 @@ EOF
 )
 
 if [ -r "$lunar_cycle_script" ]; then
-  printf 'INFO %s\n' "Gathering lunar cycle data"
+  log_info "Gathering lunar cycle data"
   if output=$(sh "$lunar_cycle_script"); then
-    printf 'INFO %s\n' "Lunar cycle data retrieved"
+    log_info "Lunar cycle data retrieved"
     moon_rows=$output
   else
     status=$?
-    printf 'WARN %s\n' "Lunar cycle script failed with exit code $status, using fallback text" >&2
+    log_err "Lunar cycle script failed with exit code $status, using fallback text"
+    failure=1
   fi
 else
-  printf 'WARN %s\n' "Lunar cycle script not found at $lunar_cycle_script, using fallback text" >&2
+  log_err "Lunar cycle script not found at $lunar_cycle_script, using fallback text"
+  failure=1
 fi
 
 if [ -r "$seasonal_cycle_script" ]; then
-  printf 'INFO %s\n' "Gathering seasonal cycle data"
+  log_info "Gathering seasonal cycle data"
   if output=$(sh "$seasonal_cycle_script"); then
-    printf 'INFO %s\n' "Seasonal cycle data retrieved"
+    log_info "Seasonal cycle data retrieved"
     season_rows=$output
   else
     status=$?
-    printf 'WARN %s\n' "Seasonal cycle script failed with exit code $status, using fallback text" >&2
+    log_err "Seasonal cycle script failed with exit code $status, using fallback text"
+    failure=1
   fi
 else
-  printf 'WARN %s\n' "Seasonal cycle script not found at $seasonal_cycle_script, using fallback text" >&2
+  log_err "Seasonal cycle script not found at $seasonal_cycle_script, using fallback text"
+  failure=1
 fi
 
 cat <<EOF
@@ -94,3 +104,7 @@ $season_rows
   </tbody>
 </table>
 EOF
+
+if [ "$failure" -ne 0 ]; then
+  exit 1
+fi
