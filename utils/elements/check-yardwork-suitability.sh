@@ -3,6 +3,10 @@
 
 set -eu
 
+log_info() { printf 'INFO %s\n' "$*"; }
+log_warn() { printf 'WARN %s\n' "$*"; }
+log_err()  { printf 'ERR %s\n'  "$*"; }
+
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 core_dir=$(dirname -- "$script_dir")/core
 job_wrap="$core_dir/job-wrap.sh"
@@ -27,13 +31,16 @@ EARLY_HOUR_END=6           # Inclusive (local time)
 API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hourly=temperature_2m,dew_point_2m&temperature_unit=fahrenheit&timezone=America/Los_Angeles"
 
 # Fetch forecast data
-data=$(curl -fsS "$API_URL")
+if ! data=$(curl -fsS "$API_URL"); then
+  log_err "Failed to fetch forecast data from API"
+  exit 1
+fi
 
 today=$(date +%Y-%m-%d)
 
 # Flag if ANY early morning hour (00:00–06:59 by default) is "humid/unsuitable":
 # temp < dew_point (i.e., likely muggy/condensation).
-early_unsuitable=$(
+if ! early_unsuitable=$(
   echo "$data" | jq --arg today "$today" \
     --argjson hs "$EARLY_HOUR_START" --argjson he "$EARLY_HOUR_END" '
       [ range(0; (.hourly.time|length)) as $i
@@ -46,17 +53,23 @@ early_unsuitable=$(
           )
       ] | map(select(.)) | length > 0
     '
-)
+); then
+  log_err "Failed to parse forecast data for early hours"
+  exit 1
+fi
 
 # Flag if ANY hour today reaches/exceeds the temperature cap.
-high_temp_unsuitable=$( 
+if ! high_temp_unsuitable=$(
   echo "$data" | jq --arg today "$today" --argjson cap "$TEMP_CAP_F" '
     [ range(0; (.hourly.time|length)) as $i
       | select(.hourly.time[$i] | startswith($today + "T"))
       | .hourly.temperature_2m[$i]
     ] | map(select(. >= $cap)) | length > 0
   '
-)
+); then
+  log_err "Failed to parse forecast data for temperature cap"
+  exit 1
+fi
 
 if [ "$early_unsuitable" = "true" ] || [ "$high_temp_unsuitable" = "true" ]; then
   message="❌ Not ideal for yard work today."
@@ -71,6 +84,12 @@ if [ -f "$note_path" ]; then
   # Replace the marker once; keep the rest of the file intact.
   sed "s/<!-- yard-work-check -->/$message/" "$note_path" > "$tmp"
 
+  if cmp -s "$note_path" "$tmp"; then
+    rm -f "$tmp"
+    log_err "Marker <!-- yard-work-check --> not found in note; no update applied"
+    exit 1
+  fi
+
   # Replace the original note with the temp file.
   # We silence the harmless "set owner/group: Operation not permitted" noise
   # that happens when mv crosses filesystems, but still let real errors kill
@@ -82,8 +101,8 @@ if [ -f "$note_path" ]; then
   # First try group-writable (664), fall back to 644 if needed.
   chmod 664 "$note_path" 2>/dev/null || chmod 644 "$note_path" 2>/dev/null || true
 
-  echo "Yard work suitability check completed."
+  log_info "Yard work suitability check completed"
 else
-  echo "Daily note not found: $note_path" >&2
+  log_err "Daily note not found: $note_path"
   exit 1
 fi
