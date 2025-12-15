@@ -88,7 +88,6 @@ if ! awk -F',' -v MONTH="$month" '
       printf "> ⚖️ No net change.\n"
     }
   }
-  }
 ' "$csv" > "$note"; then
   log_err "failed to summarize csv: $csv"
   exit 1
