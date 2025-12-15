@@ -1,11 +1,12 @@
 #!/bin/sh
 # Display upcoming F1 schedule and standings. POSIX/OpenBSD compatible.
+# WARN/ERR lines surface semantic/operational failures for script-status-report.sh.
 
-set -e
+set -eu
 
-log() {
-  printf 'ℹ️  %s\n' "$1" >&2
-}
+log_info() { printf 'INFO %s\n' "$*" >&2; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_err() { printf 'ERR %s\n' "$*" >&2; }
 
 # ---------- Portable date helpers ----------
 to_epoch() { date -u -j -f "%Y-%m-%d" "$1" "+%s"; }      # YYYY-MM-DD -> epoch
@@ -25,31 +26,34 @@ flag_for() {
   esac
 }
 
-log "Starting Formula 1 schedule and standings fetch"
+log_info "Starting Formula 1 schedule and standings fetch"
 today=$(date +%Y-%m-%d)
-log "Today's date: $today"
+log_info "Today's date: $today"
 printf "# 🏎️ Formula 1\n\n"
 
 # ---------- Fetch schedule ----------
-log "Fetching current season schedule from Ergast"
-schedule=$(curl -fsS https://api.jolpi.ca/ergast/f1/current.json 2>/dev/null) || {
-  echo "⚠️ Could not load race schedule."
-  exit 0
-}
-log "Schedule retrieved successfully"
-
 if ! command -v jq >/dev/null 2>&1; then
-  echo "⚠️ 'jq' is required but not found."
-  exit 0
+  log_err "'jq' is required but not found."
+  exit 1
 fi
 
-log "Parsing schedule entries"
+log_info "Fetching current season schedule from Ergast"
+if ! schedule=$(curl -fsS https://api.jolpi.ca/ergast/f1/current.json 2>/dev/null); then
+  log_err "Could not load race schedule."
+  exit 1
+fi
+log_info "Schedule retrieved successfully"
 
-race_lines=$(echo "$schedule" |
-  jq -r '.MRData.RaceTable.Races[] | [.raceName, .date, .Circuit.Location.country] | @tsv')
+log_info "Parsing schedule entries"
+
+if ! race_lines=$(echo "$schedule" |
+  jq -r '.MRData.RaceTable.Races[] | [.raceName, .date, .Circuit.Location.country] | @tsv'); then
+  log_err "Failed to parse race schedule response."
+  exit 1
+fi
 
 num_races=$(printf '%s\n' "$race_lines" | awk 'NF > 0' | wc -l | tr -d ' ')
-log "Found $num_races races in schedule"
+log_info "Found $num_races races in schedule"
 
 TAB=$(printf '\t')
 
@@ -75,7 +79,7 @@ $race_lines
 EOF_SCHEDULE
 
 if [ -n "$events" ]; then
-  log "There are events happening this weekend"
+  log_info "There are events happening this weekend"
   printf '### 📆 This Weekend:\n%s' "$events"
 elif [ -n "$next_race" ]; then
   IFS="$TAB" read -r nname ndate ncountry <<EOF_NR
@@ -84,22 +88,29 @@ EOF_NR
   practice=$(add_days "$ndate" -2)
   days_until=$(diff_days "$practice" "$today")
   plural=s; [ "$days_until" -eq 1 ] && plural=""
-  log "Next race identified: $nname on $ndate"
+  log_info "Next race identified: $nname on $ndate"
   printf '**⏳ Next Grand Prix:**\n- %s %s — %s\n- ⌛ Practice starts in %d day%s (on %s)\n' \
     "$nname" "$(flag_for "$ncountry")" "$ndate" "$days_until" "$plural" "$practice"
 else
+  log_warn "No upcoming Formula 1 races found in schedule data."
   echo '🚫 No upcoming Formula 1 races found.'
 fi
 echo
 
 # ---------- Standings ----------
-log "Fetching driver standings"
-drivers=$(curl -fsS https://api.jolpi.ca/ergast/f1/current/driverStandings.json 2>/dev/null) || drivers=""
-log "Fetching constructor standings"
-constructors=$(curl -fsS https://api.jolpi.ca/ergast/f1/current/constructorStandings.json 2>/dev/null) || constructors=""
+log_info "Fetching driver standings"
+if ! drivers=$(curl -fsS https://api.jolpi.ca/ergast/f1/current/driverStandings.json 2>/dev/null); then
+  log_err "Could not load driver standings."
+  exit 1
+fi
+log_info "Fetching constructor standings"
+if ! constructors=$(curl -fsS https://api.jolpi.ca/ergast/f1/current/constructorStandings.json 2>/dev/null); then
+  log_err "Could not load constructor standings."
+  exit 1
+fi
 
 if [ -n "$drivers" ] && [ -n "$constructors" ]; then
-  log "Standings data retrieved successfully"
+  log_info "Standings data retrieved successfully"
   echo "### 📊 Driver Standings"
   echo "$drivers" |
     jq -r '.MRData.StandingsTable.StandingsLists[0].DriverStandings | .[0:5][] |
@@ -119,7 +130,7 @@ if [ -n "$drivers" ] && [ -n "$constructors" ]; then
       printf -- "- %s. %s – %s pts\n" "$pos" "$tname" "$points"
     done
 else
-  echo "⚠️ Could not load standings."
+  log_warn "Standings data missing from Ergast response."
 fi
 
-log "Formula 1 data update complete"
+log_info "Formula 1 data update complete"
