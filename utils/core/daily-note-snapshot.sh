@@ -21,13 +21,14 @@ VAULT_DEFAULT=${VAULT_PATH:-/home/obsidian/vaults/Main}
 : "${VAULT_ROOT:=$VAULT_DEFAULT}"
 
 DRY_RUN=0
+ALLOW_UNRESOLVED=0
 embed_total=0
 embed_resolved=0
 embed_unresolved=0
 NOTE=""
 
 print_usage() {
-  printf 'Usage: %s [-n|--dry-run] [PATH/TO/daily-note.md]\n' "$0" >&2
+  printf 'Usage: %s [-n|--dry-run] [--allow-unresolved] [PATH/TO/daily-note.md]\n' "$0" >&2
 }
 
 # Option parsing: support -n/--dry-run and optional note path
@@ -36,6 +37,9 @@ while [ "$#" -gt 0 ]; do
     -n|--dry-run)
       DRY_RUN=1
       printf 'INFO %s\n' "Flag detected: dry run enabled"
+      ;;
+    -a|--allow-unresolved)
+      ALLOW_UNRESOLVED=1
       ;;
     -h|--help)
       print_usage
@@ -257,6 +261,12 @@ done < "$NOTE"
 
 printf 'INFO %s\n' "Embeds processed: $embed_total (resolved: $embed_resolved, unresolved: $embed_unresolved)"
 
+if [ "$embed_unresolved" -gt 0 ]; then
+  printf 'ERR  %s\n' "Unresolved embeds detected: $embed_unresolved of $embed_total" >&2
+fi
+
+printf 'INFO %s\n' "Summary: embeds_total=$embed_total, embeds_resolved=$embed_resolved, embeds_unresolved=$embed_unresolved"
+
 if [ "$DRY_RUN" -eq 1 ]; then
   # Dry run: keep original note; write result to NOTE.dryrun
   mv "$TMP" "$TEST_NOTE"
@@ -266,4 +276,8 @@ else
   cp "$NOTE" "$BAK"
   mv "$TMP" "$NOTE"
   printf 'INFO %s\n' "Replaced $NOTE (backup at $BAK)"
+fi
+
+if [ "$embed_unresolved" -gt 0 ] && [ "$ALLOW_UNRESOLVED" -eq 0 ]; then
+  exit 1
 fi
