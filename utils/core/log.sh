@@ -70,20 +70,20 @@ log__sanitize() {
 log__dbg() {
   [ "${LOG_INTERNAL_DEBUG:-0}" -ne 0 ] || return 0
 
-  ts=$(log__now 2>/dev/null || printf 'unknown')
-  msg=$(log__sanitize "$*")
-  line="$ts DBG $msg"
+  log__ts=$(log__now 2>/dev/null || printf 'unknown')
+  log__msg=$(log__sanitize "$*")
+  log__line="$log__ts DBG $log__msg"
 
   if [ -n "${LOG_INTERNAL_DEBUG_FILE:-}" ]; then
     case "$LOG_INTERNAL_DEBUG_FILE" in
       */*)
-        d=${LOG_INTERNAL_DEBUG_FILE%/*}
-        [ -d "$d" ] || mkdir -p "$d" || return 1
+        log__dir=${LOG_INTERNAL_DEBUG_FILE%/*}
+        [ -d "$log__dir" ] || mkdir -p "$log__dir" || return 1
         ;;
     esac
-    printf '%s\n' "$line" >>"$LOG_INTERNAL_DEBUG_FILE" 2>/dev/null || return 1
+    printf '%s\n' "$log__line" >>"$LOG_INTERNAL_DEBUG_FILE" 2>/dev/null || return 1
   else
-    printf '%s\n' "$line" >&2
+    printf '%s\n' "$log__line" >&2
   fi
 }
 
@@ -108,16 +108,16 @@ log__default_log_dir() {
 }
 
 log__latest_link_path() {
-  log_file=$1
-  job=${2:-${LOG_JOB_NAME:-log}}
-  safe=$(log__safe_job_name "$job")
+  log__log_file=$1
+  log__job=${2:-${LOG_JOB_NAME:-log}}
+  log__safe=$(log__safe_job_name "$log__job")
 
-  case "$log_file" in
-    */*) base=${log_file%/*} ;;
-    *)   base=. ;;
+  case "$log__log_file" in
+    */*) log__base=${log__log_file%/*} ;;
+    *)   log__base=. ;;
   esac
 
-  printf '%s/%s-latest.log' "$base" "$safe"
+  printf '%s/%s-latest.log' "$log__base" "$log__safe"
 }
 
 # ------------------------------------------------------------------------------
@@ -125,17 +125,17 @@ log__latest_link_path() {
 # ------------------------------------------------------------------------------
 
 log__append_file() {
-  line=$1
+  log__line=$1
   [ -n "${LOG_FILE:-}" ] || return 0
 
   case "${LOG_FILE}" in
     */*)
-      d=${LOG_FILE%/*}
-      [ -d "$d" ] || mkdir -p "$d" 2>/dev/null || return 1
+      log__dir=${LOG_FILE%/*}
+      [ -d "$log__dir" ] || mkdir -p "$log__dir" 2>/dev/null || return 1
       ;;
   esac
 
-  printf '%s\n' "$line" >>"$LOG_FILE" 2>/dev/null || {
+  printf '%s\n' "$log__line" >>"$LOG_FILE" 2>/dev/null || {
     printf 'ERR log append failed (%s)\n' "$LOG_FILE" >&2
     return 1
   }
@@ -154,11 +154,11 @@ log_init() {
     LOG_RUN_TS=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || printf run)
   fi
 
-  safe=$(log__safe_job_name "$LOG_JOB_NAME")
+  log__safe=$(log__safe_job_name "$LOG_JOB_NAME")
 
   if [ -z "${LOG_FILE:-}" ]; then
-    dir=$(log__default_log_dir "$safe")
-    LOG_FILE="$dir/$safe-$LOG_RUN_TS.log"
+    log__dir=$(log__default_log_dir "$log__safe")
+    LOG_FILE="$log__dir/$log__safe-$LOG_RUN_TS.log"
   fi
 
   case "${LOG_FILE}" in
@@ -172,7 +172,7 @@ log_init() {
 
   : >"$LOG_FILE" 2>/dev/null || return 1
 
-  LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe")}
+  LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$log__safe")}
 
   export LOG_FILE LOG_JOB_NAME LOG_RUN_TS LOG_LATEST_LINK LOG_ROOT LOG_ROLLING_VAULT_ROOT
 
@@ -182,10 +182,10 @@ log_init() {
 }
 
 log_start_job() {
-  job=$1
+  log__job=$1
   shift || true
 
-  LOG_JOB_NAME=$(log__safe_job_name "$job")
+  LOG_JOB_NAME=$(log__safe_job_name "$log__job")
   LOG_RUN_START_SEC=$(date -u +%s 2>/dev/null || printf '')
   export LOG_JOB_NAME LOG_RUN_START_SEC
 
@@ -209,180 +209,180 @@ log_start_job() {
 # log_update_latest_link
 
 log__format_dir_segment() {
-  segment=$1
-  cleaned=$(printf '%s' "$segment" | tr '-' ' ')
-  printf '%s' "$cleaned" |
+  log__segment=$1
+  log__cleaned=$(printf '%s' "$log__segment" | tr '-' ' ')
+  printf '%s' "$log__cleaned" |
     awk '{ for (i = 1; i <= NF; i++) { $i = toupper(substr($i,1,1)) substr($i,2) } printf "%s", $0 }'
 }
 
 log__rolling_note_path() {
   [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 1
 
-  log_file=${1:-${LOG_FILE:-}}
-  [ -n "$log_file" ] || return 1
+  log__log_file=${1:-${LOG_FILE:-}}
+  [ -n "$log__log_file" ] || return 1
 
-  safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-}")
+  log__safe_job=$(log__safe_job_name "${LOG_JOB_NAME:-}")
 
-  if [ -z "$safe_job" ]; then
-    base_name=${log_file##*/}
-    base_trimmed=${base_name%.log}
-    safe_job=$(log__safe_job_name "${base_trimmed%-*}")
+  if [ -z "$log__safe_job" ]; then
+    log__base_name=${log__log_file##*/}
+    log__base_trimmed=${log__base_name%.log}
+    log__safe_job=$(log__safe_job_name "${log__base_trimmed%-*}")
   fi
 
-  [ -n "$safe_job" ] || safe_job=log
+  [ -n "$log__safe_job" ] || log__safe_job=log
 
-  mapped_root="${LOG_ROLLING_VAULT_ROOT%/}/Server Logs"
+  log__mapped_root="${LOG_ROLLING_VAULT_ROOT%/}/Server Logs"
 
-  case "$log_file" in
-    */logs/*) rel_path=${log_file#*/logs/} ;;
-    *)        rel_path=${log_file##*/} ;;
+  case "$log__log_file" in
+    */logs/*) log__rel_path=${log__log_file#*/logs/} ;;
+    *)        log__rel_path=${log__log_file##*/} ;;
   esac
 
-  case "$rel_path" in
-    */*) rel_dir=${rel_path%/*} ;;
-    *)   rel_dir= ;;
+  case "$log__rel_path" in
+    */*) log__rel_dir=${log__rel_path%/*} ;;
+    *)   log__rel_dir= ;;
   esac
 
-  mapped_dir=$mapped_root
+  log__mapped_dir=$log__mapped_root
 
-  if [ -n "$rel_dir" ]; then
-    old_ifs=$IFS
+  if [ -n "$log__rel_dir" ]; then
+    log__old_ifs=$IFS
     IFS='/'
-    set -- $rel_dir
-    IFS=$old_ifs
+    set -- $log__rel_dir
+    IFS=$log__old_ifs
 
-    for segment in "$@"; do
-      formatted=$(log__format_dir_segment "$segment")
-      mapped_dir="$mapped_dir/$formatted"
+    for log__segment in "$@"; do
+      log__formatted=$(log__format_dir_segment "$log__segment")
+      log__mapped_dir="$log__mapped_dir/$log__formatted"
     done
   fi
 
-  printf '%s/%s-latest.md' "$mapped_dir" "$safe_job"
+  printf '%s/%s-latest.md' "$log__mapped_dir" "$log__safe_job"
 }
 
 log_update_rolling_note() {
   [ -n "${LOG_ROLLING_VAULT_ROOT:-}" ] || return 0
 
-  log_file=${LOG_FILE:-}
-  [ -n "$log_file" ] || return 0
+  log__log_file=${LOG_FILE:-}
+  [ -n "$log__log_file" ] || return 0
 
-  rolling_path=$(log__rolling_note_path "$log_file") || return 0
-  [ -n "$rolling_path" ] || return 0
+  log__rolling_path=$(log__rolling_note_path "$log__log_file") || return 0
+  [ -n "$log__rolling_path" ] || return 0
 
-  case "$rolling_path" in
+  case "$log__rolling_path" in
     */*)
-      rolling_dir=${rolling_path%/*}
-      if [ ! -d "$rolling_dir" ]; then
-        mkdir -p "$rolling_dir" 2>/dev/null || return 1
+      log__rolling_dir=${log__rolling_path%/*}
+      if [ ! -d "$log__rolling_dir" ]; then
+        mkdir -p "$log__rolling_dir" 2>/dev/null || return 1
       fi
       ;;
   esac
 
-  tmp_path="${rolling_path}.tmp"
+  log__tmp_path="${log__rolling_path}.tmp"
 
-  ts=$(log__now 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || printf 'unknown')
-  job_title=${LOG_JOB_NAME:-Latest Log}
+  log__ts=$(log__now 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || printf 'unknown')
+  log__job_title=${LOG_JOB_NAME:-Latest Log}
 
-  log__dbg "rolling_note: from=$log_file to=$rolling_path"
+  log__dbg "rolling_note: from=$log__log_file to=$log__rolling_path"
 
   if ! {
-    printf '# %s\n\n' "$job_title"
-    printf 'Source: `%s`\n' "$log_file"
-    printf 'Timestamp: %s\n\n' "$ts"
+    printf '# %s\n\n' "$log__job_title"
+    printf 'Source: `%s`\n' "$log__log_file"
+    printf 'Timestamp: %s\n\n' "$log__ts"
     printf '```text\n'
     if [ -n "${LOG_ROLLING_LINES:-}" ]; then
-      if ! tail -n "$LOG_ROLLING_LINES" "$log_file" 2>/dev/null; then
-        tail -"$LOG_ROLLING_LINES" "$log_file" 2>/dev/null || return 1
+      if ! tail -n "$LOG_ROLLING_LINES" "$log__log_file" 2>/dev/null; then
+        tail -"$LOG_ROLLING_LINES" "$log__log_file" 2>/dev/null || return 1
       fi
     else
-      cat "$log_file" || return 1
+      cat "$log__log_file" || return 1
     fi
     printf '\n```\n'
-  } >"$tmp_path"; then
+  } >"$log__tmp_path"; then
     return 1
   fi
 
-  mv "$tmp_path" "$rolling_path" || return 1
+  mv "$log__tmp_path" "$log__rolling_path" || return 1
 }
 
 log_rotate() {
-  keep_arg=${1:-}
-  keep=${keep_arg:-${LOG_KEEP:-20}}
-  log_file=${LOG_FILE:-}
-  job_name=${LOG_JOB_NAME:-}
+  log__keep_arg=${1:-}
+  log__keep=${log__keep_arg:-${LOG_KEEP:-20}}
+  log__log_file=${LOG_FILE:-}
+  log__job_name=${LOG_JOB_NAME:-}
 
-  [ -n "$log_file" ] || return 0
+  [ -n "$log__log_file" ] || return 0
 
-  case "$log_file" in
-    */*) log_dir=${log_file%/*} ;;
+  case "$log__log_file" in
+    */*) log__log_dir=${log__log_file%/*} ;;
     *)   return 0 ;;
   esac
 
-  if [ -z "$job_name" ]; then
-    base_name=${log_file##*/}
-    job_name=${base_name%-*}
+  if [ -z "$log__job_name" ]; then
+    log__base_name=${log__log_file##*/}
+    log__job_name=${log__base_name%-*}
   fi
 
-  safe_job=$(log__safe_job_name "$job_name")
+  log__safe_job=$(log__safe_job_name "$log__job_name")
 
-  set -- "$log_dir"/${safe_job}-*.log
+  set -- "$log__log_dir"/${log__safe_job}-*.log
 
-  if [ $# -eq 1 ] && [ "$1" = "$log_dir/${safe_job}-"*.log ]; then
+  if [ $# -eq 1 ] && [ "$1" = "$log__log_dir/${log__safe_job}-"*.log ]; then
     return 0
   fi
 
-  if ! old_list=$(ls -1t "$@" 2>/dev/null | awk -v n="$keep" 'NR>n'); then
+  if ! log__old_list=$(ls -1t "$@" 2>/dev/null | awk -v n="$log__keep" 'NR>n'); then
     return 1
   fi
 
-  [ -n "${old_list:-}" ] || return 0
+  [ -n "${log__old_list:-}" ] || return 0
 
-  old_IFS=$IFS
+  log__old_IFS=$IFS
   IFS=$(printf '\n')
-  set -- $old_list
-  IFS=$old_IFS
+  set -- $log__old_list
+  IFS=$log__old_IFS
 
-  for old_log in "$@"; do
-    [ -n "$old_log" ] || continue
-    rm -f -- "$old_log" || return 1
+  for log__old_log in "$@"; do
+    [ -n "$log__old_log" ] || continue
+    rm -f -- "$log__old_log" || return 1
   done
 }
 
 log_update_latest_link() {
-  log_file=${LOG_FILE:-}
-  link_path=${LOG_LATEST_LINK:-}
+  log__log_file=${LOG_FILE:-}
+  log__link_path=${LOG_LATEST_LINK:-}
 
-  if [ -z "$log_file" ] || [ -z "$link_path" ]; then
+  if [ -z "$log__log_file" ] || [ -z "$log__link_path" ]; then
     return 0
   fi
 
-  case "$link_path" in
+  case "$log__link_path" in
     */*)
-      link_dir=${link_path%/*}
-      if [ -n "$link_dir" ] && [ ! -d "$link_dir" ]; then
-        mkdir -p "$link_dir" 2>/dev/null || return 1
+      log__link_dir=${log__link_path%/*}
+      if [ -n "$log__link_dir" ] && [ ! -d "$log__link_dir" ]; then
+        mkdir -p "$log__link_dir" 2>/dev/null || return 1
       fi
       ;;
   esac
 
-  target_path=$log_file
+  log__target_path=$log__log_file
   if [ "${LOG_LATEST_RELATIVE:-1}" -ne 0 ]; then
-    case "$log_file" in
-      */*) log_dir=${log_file%/*} ;;
-      *)   log_dir="." ;;
+    case "$log__log_file" in
+      */*) log__log_dir=${log__log_file%/*} ;;
+      *)   log__log_dir="." ;;
     esac
 
-    case "$link_path" in
-      */*) link_dir=${link_path%/*} ;;
-      *)   link_dir="." ;;
+    case "$log__link_path" in
+      */*) log__link_dir=${log__link_path%/*} ;;
+      *)   log__link_dir="." ;;
     esac
 
-    if [ "$log_dir" = "$link_dir" ]; then
-      target_path=$(basename "$log_file")
+    if [ "$log__log_dir" = "$log__link_dir" ]; then
+      log__target_path=$(basename "$log__log_file")
     fi
   fi
 
-  ln -sf "$target_path" "$link_path" 2>/dev/null || return 1
+  ln -sf "$log__target_path" "$log__link_path" 2>/dev/null || return 1
 }
 
 # ------------------------------------------------------------------------------
@@ -390,58 +390,58 @@ log_update_latest_link() {
 # ------------------------------------------------------------------------------
 
 log_finish_job() {
-  status=$1
+  log__status=$1
 
-  end_ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || printf unknown)
+  log__end_ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || printf unknown)
 
   log_info "------------------------------"
-  log_info "exit=$status"
-  log_info "utc_end=$end_ts"
+  log_info "exit=$log__status"
+  log_info "utc_end=$log__end_ts"
   log_info "== ${LOG_JOB_NAME} end =="
 
   log_update_latest_link || return 1
   log_rotate || return 1
   log_update_rolling_note || return 1
 
-  return "$status"
+  return "$log__status"
 }
 
 log_stream_file() {
-  capture_level=${LOG_CAPTURE_LEVEL:-OUT}
-  capture_stream=${LOG_CAPTURE_STREAM:-stderr}
+  log__capture_level=${LOG_CAPTURE_LEVEL:-OUT}
+  log__capture_stream=${LOG_CAPTURE_STREAM:-stderr}
 
-  while IFS= read -r line || [ -n "$line" ]; do
-    log__emit "$capture_level" "$capture_stream" "$line"
+  while IFS= read -r log__line || [ -n "$log__line" ]; do
+    log__emit "$log__capture_level" "$log__capture_stream" "$log__line"
   done <"$1"
 }
 
 log_run_with_capture() {
-  tmp=$(mktemp 2>/dev/null || mktemp "/tmp/log.${LOG_JOB_NAME:-job}.XXXXXX") || {
+  log__tmp=$(mktemp 2>/dev/null || mktemp "/tmp/log.${LOG_JOB_NAME:-job}.XXXXXX") || {
     log_err "mktemp failed"
     return 127
   }
 
   set +e
-  "$@" >"$tmp" 2>&1
-  status=$?
+  "$@" >"$log__tmp" 2>&1
+  log__status=$?
   set -e
 
-  log_stream_file "$tmp"
-  rm -f "$tmp"
+  log_stream_file "$log__tmp"
+  rm -f "$log__tmp"
 
-  return "$status"
+  return "$log__status"
 }
 
 log_run_job() {
-  job_name=${1:-}
+  log__job_name=${1:-}
   shift
 
-  [ -n "$job_name" ] || {
+  [ -n "$log__job_name" ] || {
     log_err "log_run_job: missing job name"
     return 2
   }
 
-  LOG_JOB_NAME=$(log__safe_job_name "$job_name")
+  LOG_JOB_NAME=$(log__safe_job_name "$log__job_name")
   LOG_RUN_START_SEC=$(date -u +%s 2>/dev/null || printf '')
   export LOG_JOB_NAME LOG_RUN_START_SEC
 
@@ -472,11 +472,11 @@ log_run_job() {
   log_info "------------------------------"
 
   log_run_with_capture "$@"
-  status=$?
+  log__status=$?
 
-  log_finish_job "$status"
+  log_finish_job "$log__status"
 
-  return "$status"
+  return "$log__status"
 }
 
 # ------------------------------------------------------------------------------
@@ -484,23 +484,23 @@ log_run_job() {
 # ------------------------------------------------------------------------------
 
 log__emit() {
-  level=$1
-  stream=$2
+  log__level=$1
+  log__stream=$2
   shift 2
-  msg=$(log__sanitize "$*")
+  log__msg=$(log__sanitize "$*")
 
-  if [ "${LOG_TIMESTAMP:-1}" -ne 0 ] && ts=$(log__now 2>/dev/null); then
-    line="$ts $level $msg"
+  if [ "${LOG_TIMESTAMP:-1}" -ne 0 ] && log__ts=$(log__now 2>/dev/null); then
+    log__line="$log__ts $log__level $log__msg"
   else
-    line="$level $msg"
+    log__line="$log__level $log__msg"
   fi
 
-  case "$stream" in
-    stderr) printf '%s\n' "$line" >&2 ;;
-    *)      printf '%s\n' "$line" ;;
+  case "$log__stream" in
+    stderr) printf '%s\n' "$log__line" >&2 ;;
+    *)      printf '%s\n' "$log__line" ;;
   esac
 
-  log__append_file "$line" || return 1
+  log__append_file "$log__line" || return 1
 }
 
 log_info()  { log__emit INFO  "${LOG_INFO_STREAM:-stderr}" "$@"; }
