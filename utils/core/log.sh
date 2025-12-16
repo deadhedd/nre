@@ -74,10 +74,10 @@ log__dbg() {
     case "$LOG_INTERNAL_DEBUG_FILE" in
       */*)
         d=${LOG_INTERNAL_DEBUG_FILE%/*}
-        [ -d "$d" ] || mkdir -p "$d" 2>/dev/null || true
+        [ -d "$d" ] || mkdir -p "$d" 2>/dev/null || return 1
         ;;
     esac
-    printf '%s\n' "$line" >>"$LOG_INTERNAL_DEBUG_FILE" 2>/dev/null || true
+    printf '%s\n' "$line" >>"$LOG_INTERNAL_DEBUG_FILE" 2>/dev/null || return 1
   else
     printf '%s\n' "$line" >&2
   fi
@@ -143,7 +143,6 @@ log__append_file() {
 
 log_init() {
   [ "${LOG_INIT_DONE:-0}" -eq 0 ] || return 0
-  LOG_INIT_DONE=1
 
   LOG_JOB_NAME=${LOG_JOB_NAME:-${1:-${0##*/}}}
 
@@ -156,14 +155,26 @@ log_init() {
   if [ -z "${LOG_FILE:-}" ]; then
     dir=$(log__default_log_dir "$safe")
     LOG_FILE="$dir/$safe-$LOG_RUN_TS.log"
-    : >"$LOG_FILE" 2>/dev/null || true
   fi
+
+  case "${LOG_FILE}" in
+    */*)
+      LOG_DIR_PATH=${LOG_FILE%/*}
+      if [ ! -d "$LOG_DIR_PATH" ]; then
+        mkdir -p "$LOG_DIR_PATH" 2>/dev/null || return 1
+      fi
+      ;;
+  esac
+
+  : >"$LOG_FILE" 2>/dev/null || return 1
 
   LOG_LATEST_LINK=${LOG_LATEST_LINK:-$(log__latest_link_path "$LOG_FILE" "$safe")}
 
   export LOG_FILE LOG_JOB_NAME LOG_RUN_TS LOG_LATEST_LINK LOG_ROOT LOG_ROLLING_VAULT_ROOT
 
-  log__append_file "INFO log_init: opened LOG_FILE=$LOG_FILE"
+  log__append_file "INFO log_init: opened LOG_FILE=$LOG_FILE" || return 1
+
+  LOG_INIT_DONE=1
 }
 
 log_start_job() {
@@ -270,20 +281,24 @@ log_update_rolling_note() {
 
   log__dbg "rolling_note: from=$log_file to=$rolling_path"
 
-  {
+  if ! {
     printf '# %s\n\n' "$job_title"
     printf 'Source: `%s`\n' "$log_file"
     printf 'Timestamp: %s\n\n' "$ts"
     printf '```text\n'
     if [ -n "${LOG_ROLLING_LINES:-}" ]; then
       if ! tail -n "$LOG_ROLLING_LINES" "$log_file" 2>/dev/null; then
-        tail -"$LOG_ROLLING_LINES" "$log_file" 2>/dev/null || true
+        tail -"$LOG_ROLLING_LINES" "$log_file" 2>/dev/null || return 1
       fi
     else
-      cat "$log_file" 2>/dev/null || true
+      cat "$log_file" || return 1
     fi
     printf '\n```\n'
-  } >"$tmp_path" && mv "$tmp_path" "$rolling_path"
+  } >"$tmp_path"; then
+    return 1
+  fi
+
+  mv "$tmp_path" "$rolling_path" || return 1
 }
 
 log_rotate() {
@@ -306,10 +321,27 @@ log_rotate() {
 
   safe_job=$(log__safe_job_name "$job_name")
 
-  old_list=$(ls -1t "$log_dir/${safe_job}-"*.log 2>/dev/null | awk -v n="$keep" 'NR>n')
-  if [ -n "${old_list:-}" ]; then
-    printf '%s\n' "$old_list" | xargs rm -f
+  set -- "$log_dir"/${safe_job}-*.log
+
+  if [ $# -eq 1 ] && [ "$1" = "$log_dir/${safe_job}-"*.log ]; then
+    return 0
   fi
+
+  if ! old_list=$(ls -1t "$@" 2>/dev/null | awk -v n="$keep" 'NR>n'); then
+    return 1
+  fi
+
+  [ -n "${old_list:-}" ] || return 0
+
+  old_IFS=$IFS
+  IFS=$(printf '\n')
+  set -- $old_list
+  IFS=$old_IFS
+
+  for old_log in "$@"; do
+    [ -n "$old_log" ] || continue
+    rm -f -- "$old_log" || return 1
+  done
 }
 
 log_update_latest_link() {
@@ -346,7 +378,7 @@ log_update_latest_link() {
     fi
   fi
 
-  ln -sf "$target_path" "$link_path" 2>/dev/null || true
+  ln -sf "$target_path" "$link_path" 2>/dev/null || return 1
 }
 
 # ------------------------------------------------------------------------------
