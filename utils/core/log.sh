@@ -70,9 +70,8 @@ log__sanitize() {
 log__dbg() {
   [ "${LOG_INTERNAL_DEBUG:-0}" -ne 0 ] || return 0
 
-  log__ts=$(log__now 2>/dev/null || printf 'unknown')
   log__msg=$(log__sanitize "$*")
-  log__line="$log__ts DBG $log__msg"
+  log__line=$(log__format_line "DBG" "$log__msg")
 
   if [ -n "${LOG_INTERNAL_DEBUG_FILE:-}" ]; then
     case "$LOG_INTERNAL_DEBUG_FILE" in
@@ -95,6 +94,33 @@ log__dbg "log.sh loaded: pid=$$ LOG_HELPER_PATH=${LOG_HELPER_PATH:-<unset>}"
 
 log__safe_job_name() {
   printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'
+}
+
+log__normalize_level() {
+  log__raw=${1:-INFO}
+
+  case "$log__raw" in
+    INFO|WARN|ERR|DEBUG|OUT|DBG)
+      printf '%s' "$log__raw"
+      ;;
+    *)
+      printf '%s' "$log__raw" | tr '[:lower:]' '[:upper:]'
+      ;;
+  esac
+}
+
+log__format_line() {
+  log__level=$1
+  shift
+  log__msg=$*
+
+  if [ "${LOG_TIMESTAMP:-1}" -ne 0 ] && log__ts=$(log__now 2>/dev/null); then
+    log__ts_field=$log__ts
+  else
+    log__ts_field='-'
+  fi
+
+  printf '%s %s %s' "$log__ts_field" "$log__level" "$log__msg"
 }
 
 log__default_log_dir() {
@@ -176,7 +202,7 @@ log_init() {
 
   export LOG_FILE LOG_JOB_NAME LOG_RUN_TS LOG_LATEST_LINK LOG_ROOT LOG_ROLLING_VAULT_ROOT
 
-  log__append_file "INFO log_init: opened LOG_FILE=$LOG_FILE" || return 1
+  log_info "log_init: opened LOG_FILE=$LOG_FILE" || return 1
 
   LOG_INIT_DONE=1
 }
@@ -483,17 +509,34 @@ log_run_job() {
 # Public API
 # ------------------------------------------------------------------------------
 
+# Log line contract:
+# - Structure: "<timestamp> <LEVEL> <message>" where timestamp is ISO-8601. When
+#   LOG_TIMESTAMP=0 or a timestamp cannot be produced, the timestamp field is a
+#   literal "-" to keep the structure stable for parsers.
+# - LEVEL is always an explicit token (INFO, WARN, ERR, DEBUG, OUT, DBG) and is
+#   never inferred from the message text.
+# - Message text is sanitized (ASCII-only when LOG_ASCII_ONLY!=0).
+# Examples:
+#   2025-01-02T03:04:05+0000 INFO == job start ==
+#   2025-01-02T03:04:06+0000 INFO utc_start=20250102T030405Z
+#   - INFO LOG_TIMESTAMP disabled; using placeholder timestamp field
+#   2025-01-02T03:05:00+0000 WARN retrying fetch (attempt=2)
+#   2025-01-02T03:05:01+0000 WARN disk space below threshold
+#   - WARN degraded mode enabled by operator
+#   2025-01-02T03:06:00+0000 ERR download failed (status=503)
+#   2025-01-02T03:06:05+0000 ERR cannot write output directory
+#   - ERR final attempt exhausted
+#   2025-01-02T03:07:00+0000 DEBUG captured payload length=42
+#   2025-01-02T03:07:01+0000 DEBUG env flag LOG_DEBUG=1
+#   - DEBUG tracing enabled without timestamp field
+
 log__emit() {
-  log__level=$1
+  log__level=$(log__normalize_level "$1")
   log__stream=$2
   shift 2
   log__msg=$(log__sanitize "$*")
 
-  if [ "${LOG_TIMESTAMP:-1}" -ne 0 ] && log__ts=$(log__now 2>/dev/null); then
-    log__line="$log__ts $log__level $log__msg"
-  else
-    log__line="$log__level $log__msg"
-  fi
+  log__line=$(log__format_line "$log__level" "$log__msg")
 
   case "$log__stream" in
     stderr) printf '%s\n' "$log__line" >&2 ;;
