@@ -23,6 +23,41 @@ if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ]; then
 fi
 LOG_HELPER_LOADED=1
 
+log__helper_path=${LOG_HELPER_PATH:-}
+
+if [ -z "$log__helper_path" ]; then
+  log__caller_dir=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd -P || true)
+  if [ -n "$log__caller_dir" ]; then
+    log__helper_path="$log__caller_dir/log.sh"
+  fi
+fi
+
+case "$log__helper_path" in
+  */*)
+    log__helper_dir=$(CDPATH= cd -- "${log__helper_path%/*}" 2>/dev/null && pwd -P || true)
+    ;;
+  *)
+    log__helper_dir=
+    ;;
+esac
+
+if [ -z "$log__helper_dir" ]; then
+  printf 'ERR log.sh: unable to resolve helper directory (helper path=%s)\n' "${log__helper_path:-<unset>}" >&2
+  return 1
+fi
+
+log__date_helper_path="$log__helper_dir/date-period-helpers.sh"
+
+if [ ! -f "$log__date_helper_path" ]; then
+  printf 'ERR log.sh: missing date helper (%s)\n' "$log__date_helper_path" >&2
+  return 1
+fi
+
+. "$log__date_helper_path" || {
+  printf 'ERR log.sh: failed to load date helper (%s)\n' "$log__date_helper_path" >&2
+  return 1
+}
+
 # ------------------------------------------------------------------------------
 # Defaults (safe-by-default)
 # ------------------------------------------------------------------------------
@@ -50,9 +85,16 @@ LOG_HELPER_LOADED=1
 # Time + sanitize
 # ------------------------------------------------------------------------------
 
-log__now() {
-  command -v date >/dev/null 2>&1 || return 1
-  date '+%Y-%m-%dT%H:%M:%S%z'
+log__now_local_iso() {
+  get_local_iso_timestamp
+}
+
+log__now_utc_runid() {
+  get_utc_run_id
+}
+
+log__now_utc_epoch() {
+  get_utc_epoch_seconds
 }
 
 log__sanitize() {
@@ -114,7 +156,7 @@ log__format_line() {
   shift
   log__msg=$*
 
-  if [ "${LOG_TIMESTAMP:-1}" -ne 0 ] && log__ts=$(log__now 2>/dev/null); then
+  if [ "${LOG_TIMESTAMP:-1}" -ne 0 ] && log__ts=$(log__now_local_iso 2>/dev/null); then
     log__ts_field=$log__ts
   else
     log__ts_field='-'
@@ -177,7 +219,7 @@ log_init() {
   LOG_JOB_NAME=${LOG_JOB_NAME:-${1:-${0##*/}}}
 
   if [ -z "${LOG_RUN_TS:-}" ]; then
-    LOG_RUN_TS=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || printf run)
+    LOG_RUN_TS=$(log__now_utc_runid 2>/dev/null || printf run)
   fi
 
   log__safe=$(log__safe_job_name "$LOG_JOB_NAME")
@@ -212,7 +254,7 @@ log_start_job() {
   shift || true
 
   LOG_JOB_NAME=$(log__safe_job_name "$log__job")
-  LOG_RUN_START_SEC=$(date -u +%s 2>/dev/null || printf '')
+  LOG_RUN_START_SEC=$(log__now_utc_epoch 2>/dev/null || printf '')
   export LOG_JOB_NAME LOG_RUN_START_SEC
 
   log_init "$LOG_JOB_NAME"
@@ -306,7 +348,7 @@ log_update_rolling_note() {
 
   log__tmp_path="${log__rolling_path}.tmp"
 
-  log__ts=$(log__now 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || printf 'unknown')
+  log__ts=$(log__now_local_iso 2>/dev/null || printf 'unknown')
   log__job_title=${LOG_JOB_NAME:-Latest Log}
 
   log__dbg "rolling_note: from=$log__log_file to=$log__rolling_path"
@@ -418,7 +460,7 @@ log_update_latest_link() {
 log_finish_job() {
   log__status=$1
 
-  log__end_ts=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || printf unknown)
+  log__end_ts=$(log__now_utc_runid 2>/dev/null || printf unknown)
 
   log_info "------------------------------"
   log_info "exit=$log__status"
@@ -468,7 +510,7 @@ log_run_job() {
   }
 
   LOG_JOB_NAME=$(log__safe_job_name "$log__job_name")
-  LOG_RUN_START_SEC=$(date -u +%s 2>/dev/null || printf '')
+  LOG_RUN_START_SEC=$(log__now_utc_epoch 2>/dev/null || printf '')
   export LOG_JOB_NAME LOG_RUN_START_SEC
 
   log_init "$LOG_JOB_NAME"
