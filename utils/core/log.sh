@@ -163,9 +163,9 @@ log_init() {
 
   case "${LOG_FILE}" in
     */*)
-      LOG_DIR_PATH=${LOG_FILE%/*}
-      if [ ! -d "$LOG_DIR_PATH" ]; then
-        mkdir -p "$LOG_DIR_PATH" 2>/dev/null || return 1
+      log__dir_path=${LOG_FILE%/*}
+      if [ ! -d "$log__dir_path" ]; then
+        mkdir -p "$log__dir_path" 2>/dev/null || return 1
       fi
       ;;
   esac
