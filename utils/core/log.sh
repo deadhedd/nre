@@ -409,14 +409,22 @@ log_finish_job() {
 log__emit_line() {
   line=$1
 
-  set -- $line
   level=""
   msg="$line"
 
-  case "$1" in
-    INFO|WARN|ERR|DEBUG)
-      level=$1; shift; msg=$* ;;
+  case $line in
+    INFO|INFO\ *) level=INFO ;;
+    WARN|WARN\ *) level=WARN ;;
+    ERR|ERR\ *) level=ERR ;;
+    DEBUG|DEBUG\ *) level=DEBUG ;;
   esac
+
+  if [ -n "$level" ]; then
+    msg=${line#"$level"}
+    case $msg in
+      " "*) msg=${msg# } ;;
+    esac
+  fi
 
   case "$level" in
     WARN)  log_warn  "$msg" ;;
