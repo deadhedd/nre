@@ -421,7 +421,7 @@ log__emit_line() {
 
   if [ -n "$level" ]; then
     msg=${line#"$level"}
-    case $msg in
+    case "$msg" in
       " "*) msg=${msg# } ;;
     esac
   fi
