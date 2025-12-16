@@ -64,8 +64,8 @@ count_matches_ci_ere() {
 # Heuristic patterns (tune as your log format evolves).
 # - WARN: matches WARN or WARNING as a token-ish thing
 # - ERR : matches ERR, ERROR, or FATAL as a token-ish thing
-WARN_ERE='(^|[^A-Za-z0-9])(WARN|WARNING)([^A-Za-z0-9]|$)'
-ERR_ERE='(^|[^A-Za-z0-9])(ERR|ERROR|FATAL)([^A-Za-z0-9]|$)'
+WARN_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(WARN|WARNING)([[:space:]:]|$)'
+ERR_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(ERR|ERROR|FATAL)([[:space:]:]|$)'
 
 list_file=$(mktemp "${TMPDIR:-/tmp}/script-status-latest.XXXXXX") || exit 1
 find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file"
