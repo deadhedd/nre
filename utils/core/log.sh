@@ -39,6 +39,7 @@ LOG_HELPER_LOADED=1
 : "${LOG_DEBUG:=0}"
 
 # Captured command output is NEVER stdout
+: "${LOG_CAPTURE_LEVEL:=OUT}"
 : "${LOG_CAPTURE_STREAM:=stderr}"
 
 # Internal debug
@@ -436,7 +437,9 @@ log__emit_line() {
     DEBUG) log_debug "$msg" ;;
     *)
       # Captured command output → ALWAYS stderr
-      log__emit INFO "${LOG_CAPTURE_STREAM:-stderr}" "$line"
+      capture_level=${LOG_CAPTURE_LEVEL:-OUT}
+      [ -n "$capture_level" ] || capture_level=OUT
+      log__emit "$capture_level" "${LOG_CAPTURE_STREAM:-stderr}" "$line"
       ;;
   esac
 }
