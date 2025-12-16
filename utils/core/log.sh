@@ -14,28 +14,9 @@
 # ------------------------------------------------------------------------------
 # Load guard
 # ------------------------------------------------------------------------------
-
-log__invocation=sourced
-
-case ${0##*/} in
-  log.sh)
-    log__invocation=executed
-    ;;
-  sh|dash|ksh|mksh|pdksh)
-    case ${1:-} in
-      */log.sh|log.sh)
-        if [ -r "${1}" ]; then
-          log__invocation=executed
-        fi
-        ;;
-    esac
-    ;;
-esac
-
-if [ "$log__invocation" = executed ]; then
-  printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
-  exit 1
-fi
+# This file is a library and must be sourced.
+# If executed by mistake, fail loudly.
+(return 0 2>/dev/null) || { printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2; exit 2; }
 
 if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ]; then
   return 0
