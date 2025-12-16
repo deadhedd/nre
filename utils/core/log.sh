@@ -453,8 +453,6 @@ log_run_with_capture() {
     return 127
   }
 
-  trap 'rm -f "$tmp"' EXIT HUP INT TERM
-
   set +e
   "$@" >"$tmp" 2>&1
   status=$?
@@ -462,7 +460,6 @@ log_run_with_capture() {
 
   log_stream_file "$tmp"
   rm -f "$tmp"
-  trap - EXIT HUP INT TERM
 
   return "$status"
 }
