@@ -42,7 +42,7 @@ fi
 if log__helper_dir=$(CDPATH= cd -- "$log__helper_dir" 2>/dev/null && pwd -P); then
   :
 else
-  printf 'ERR log.sh: unable to resolve helper directory (%s)\n' "${LOG_HELPER_DIR:-${log__helper_path:-<unset>}}" >&2
+  printf 'ERR log.sh: unable to resolve helper directory (%s)\n' "$log__helper_dir" >&2
   return 1
 fi
 
