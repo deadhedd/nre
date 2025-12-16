@@ -24,28 +24,29 @@ fi
 LOG_HELPER_LOADED=1
 
 log__helper_path=${LOG_HELPER_PATH:-}
+log__helper_dir=${LOG_HELPER_DIR:-}
 
-if [ -z "$log__helper_path" ]; then
-  log__caller_dir=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd -P || true)
-  if [ -n "$log__caller_dir" ]; then
-    log__helper_path="$log__caller_dir/log.sh"
-  fi
+if [ -z "$log__helper_dir" ] && [ -n "$log__helper_path" ]; then
+  case "$log__helper_path" in
+    */*)
+      log__helper_dir=${log__helper_path%/*}
+      ;;
+  esac
 fi
 
-case "$log__helper_path" in
-  */*)
-    log__helper_dir=$(CDPATH= cd -- "${log__helper_path%/*}" 2>/dev/null && pwd -P || true)
-    ;;
-  *)
-    log__helper_dir=
-    ;;
-esac
-
 if [ -z "$log__helper_dir" ]; then
-  printf 'ERR log.sh: unable to resolve helper directory (helper path=%s)\n' "${log__helper_path:-<unset>}" >&2
+  printf 'ERR log.sh: LOG_HELPER_DIR or LOG_HELPER_PATH must be set for helper resolution\n' >&2
   return 1
 fi
 
+if log__helper_dir=$(CDPATH= cd -- "$log__helper_dir" 2>/dev/null && pwd -P); then
+  :
+else
+  printf 'ERR log.sh: unable to resolve helper directory (%s)\n' "${LOG_HELPER_DIR:-${log__helper_path:-<unset>}}" >&2
+  return 1
+fi
+
+log__helper_path=${log__helper_path:-$log__helper_dir/log.sh}
 log__date_helper_path="$log__helper_dir/date-period-helpers.sh"
 
 if [ ! -f "$log__date_helper_path" ]; then
