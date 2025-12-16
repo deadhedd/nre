@@ -147,6 +147,10 @@ get_quarter_tag_iso() { printf '%s-Q%s\n' "$(get_current_year)" "$(get_current_q
 
 get_today() { date +%Y-%m-%d; }
 
+get_local_iso_timestamp() { date '+%Y-%m-%dT%H:%M:%S%z'; }
+get_utc_run_id() { date -u +%Y%m%dT%H%M%SZ; }
+get_utc_epoch_seconds() { date -u +%s; }
+
 get_current_date_parts() {
   today=$(get_today)
   year=$(printf '%s' "$today" | cut -d- -f1)
