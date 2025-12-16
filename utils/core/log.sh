@@ -445,8 +445,11 @@ log__emit_line() {
 }
 
 log_stream_file() {
+  capture_level=${LOG_CAPTURE_LEVEL:-OUT}
+  capture_stream=${LOG_CAPTURE_STREAM:-stderr}
+
   while IFS= read -r line || [ -n "$line" ]; do
-    log__emit_line "$line"
+    log__emit "$capture_level" "$capture_stream" "$line"
   done <"$1"
 }
 
