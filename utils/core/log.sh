@@ -46,7 +46,9 @@ else
   return 1
 fi
 
-log__helper_path=${log__helper_path:-$log__helper_dir/log.sh}
+LOG_HELPER_DIR=$log__helper_dir
+export LOG_HELPER_DIR
+
 log__date_helper_path="$log__helper_dir/date-period-helpers.sh"
 
 if [ ! -f "$log__date_helper_path" ]; then
@@ -129,7 +131,7 @@ log__dbg() {
   fi
 }
 
-log__dbg "log.sh loaded: pid=$$ LOG_HELPER_PATH=${LOG_HELPER_PATH:-<unset>}"
+log__dbg "log.sh loaded: pid=$$ LOG_HELPER_DIR=$log__helper_dir LOG_HELPER_PATH=${LOG_HELPER_PATH:-<unset>}"
 
 # ------------------------------------------------------------------------------
 # Helpers
