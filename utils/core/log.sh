@@ -473,7 +473,14 @@ log_run_job() {
     return 2
   }
 
-  context_args=""
+  LOG_JOB_NAME=$(log__safe_job_name "$job_name")
+  LOG_RUN_START_SEC=$(date -u +%s 2>/dev/null || printf '')
+  export LOG_JOB_NAME LOG_RUN_START_SEC
+
+  log_init "$LOG_JOB_NAME"
+
+  log_info "== ${LOG_JOB_NAME} start =="
+  log_info "utc_start=$LOG_RUN_TS"
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -482,11 +489,7 @@ log_run_job() {
         break
         ;;
       *)
-        if [ -n "$context_args" ]; then
-          context_args="$context_args|$1"
-        else
-          context_args="$1"
-        fi
+        log_info "$1"
         shift
         ;;
     esac
@@ -497,24 +500,8 @@ log_run_job() {
     return 2
   fi
 
-  command_args=$(printf '%s\n' "$@")
-
-  if [ -n "$context_args" ]; then
-    old_IFS=$IFS
-    IFS='|'
-    set -- $context_args
-    IFS=$old_IFS
-    log_start_job "$job_name" "$@"
-  else
-    log_start_job "$job_name"
-  fi
-
-  old_IFS=$IFS
-  NL='
-'
-  IFS=$NL
-  set -- $command_args
-  IFS=$old_IFS
+  log_info "log_file=$LOG_FILE"
+  log_info "------------------------------"
 
   status=0
   if ! log_run_with_capture "$@"; then
