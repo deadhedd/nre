@@ -15,8 +15,30 @@
 # Load guard
 # ------------------------------------------------------------------------------
 
-if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ] 2>/dev/null; then
-  return 0 2>/dev/null || exit 0
+log__invocation=sourced
+
+case ${0##*/} in
+  log.sh)
+    log__invocation=executed
+    ;;
+  sh|dash|ksh|mksh|pdksh)
+    case ${1:-} in
+      */log.sh|log.sh)
+        if [ -r "${1}" ]; then
+          log__invocation=executed
+        fi
+        ;;
+    esac
+    ;;
+esac
+
+if [ "$log__invocation" = executed ]; then
+  printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
+  exit 1
+fi
+
+if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ]; then
+  return 0
 fi
 LOG_HELPER_LOADED=1
 
