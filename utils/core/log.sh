@@ -503,10 +503,8 @@ log_run_job() {
   log_info "log_file=$LOG_FILE"
   log_info "------------------------------"
 
-  status=0
-  if ! log_run_with_capture "$@"; then
-    status=$?
-  fi
+  log_run_with_capture "$@"
+  status=$?
 
   log_finish_job "$status"
 
