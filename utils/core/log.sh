@@ -421,26 +421,19 @@ log__emit_line() {
     WARN|WARN\ *) level=WARN ;;
     ERR|ERR\ *) level=ERR ;;
     DEBUG|DEBUG\ *) level=DEBUG ;;
+    *) return 0 ;;
   esac
 
-  if [ -n "$level" ]; then
-    msg=${line#"$level"}
-    case "$msg" in
-      " "*) msg=${msg# } ;;
-    esac
-  fi
+  msg=${line#"$level"}
+  case "$msg" in
+    " "*) msg=${msg# } ;;
+  esac
 
   case "$level" in
     INFO)  log_info  "$msg" ;;
     WARN)  log_warn  "$msg" ;;
     ERR)   log_err   "$msg" ;;
     DEBUG) log_debug "$msg" ;;
-    *)
-      # Captured command output → ALWAYS stderr
-      capture_level=${LOG_CAPTURE_LEVEL:-OUT}
-      [ -n "$capture_level" ] || capture_level=OUT
-      log__emit "$capture_level" "${LOG_CAPTURE_STREAM:-stderr}" "$line"
-      ;;
   esac
 }
 
