@@ -406,37 +406,6 @@ log_finish_job() {
   return "$status"
 }
 
-# ------------------------------------------------------------------------------
-# Streaming & capture (FIXED)
-# ------------------------------------------------------------------------------
-
-log__emit_line() {
-  line=$1
-
-  level=""
-  msg="$line"
-
-  case "$line" in
-    INFO|INFO\ *) level=INFO ;;
-    WARN|WARN\ *) level=WARN ;;
-    ERR|ERR\ *) level=ERR ;;
-    DEBUG|DEBUG\ *) level=DEBUG ;;
-    *) return 0 ;;
-  esac
-
-  msg=${line#"$level"}
-  case "$msg" in
-    " "*) msg=${msg# } ;;
-  esac
-
-  case "$level" in
-    INFO)  log_info  "$msg" ;;
-    WARN)  log_warn  "$msg" ;;
-    ERR)   log_err   "$msg" ;;
-    DEBUG) log_debug "$msg" ;;
-  esac
-}
-
 log_stream_file() {
   capture_level=${LOG_CAPTURE_LEVEL:-OUT}
   capture_stream=${LOG_CAPTURE_STREAM:-stderr}
