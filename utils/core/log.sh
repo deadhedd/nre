@@ -412,7 +412,7 @@ log__emit_line() {
   level=""
   msg="$line"
 
-  case $line in
+  case "$line" in
     INFO|INFO\ *) level=INFO ;;
     WARN|WARN\ *) level=WARN ;;
     ERR|ERR\ *) level=ERR ;;
@@ -427,6 +427,7 @@ log__emit_line() {
   fi
 
   case "$level" in
+    INFO)  log_info  "$msg" ;;
     WARN)  log_warn  "$msg" ;;
     ERR)   log_err   "$msg" ;;
     DEBUG) log_debug "$msg" ;;
