@@ -74,7 +74,7 @@ log__dbg() {
     case "$LOG_INTERNAL_DEBUG_FILE" in
       */*)
         d=${LOG_INTERNAL_DEBUG_FILE%/*}
-        [ -d "$d" ] || mkdir -p "$d" 2>/dev/null || return 1
+        [ -d "$d" ] || mkdir -p "$d" || return 1
         ;;
     esac
     printf '%s\n' "$line" >>"$LOG_INTERNAL_DEBUG_FILE" 2>/dev/null || return 1
@@ -395,9 +395,9 @@ log_finish_job() {
   log_info "utc_end=$end_ts"
   log_info "== ${LOG_JOB_NAME} end =="
 
-  log_update_latest_link
-  log_rotate
-  log_update_rolling_note || log_err "Rolling log update failed"
+  log_update_latest_link || return 1
+  log_rotate || return 1
+  log_update_rolling_note || return 1
 
   return "$status"
 }
@@ -538,7 +538,7 @@ log__emit() {
     *)      printf '%s\n' "$line" ;;
   esac
 
-  log__append_file "$line"
+  log__append_file "$line" || return 1
 }
 
 log_info()  { log__emit INFO  "${LOG_INFO_STREAM:-stderr}" "$@"; }
