@@ -473,27 +473,6 @@ log_run_job() {
     return 2
   }
 
-  context_count=0
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --)
-        shift
-        break
-        ;;
-      *)
-        context_count=$((context_count + 1))
-        eval "context_$context_count=\$1"
-        shift
-        ;;
-    esac
-  done
-
-  if [ $# -eq 0 ]; then
-    log_err "log_run_job: missing command to run"
-    return 2
-  fi
-
   LOG_JOB_NAME=$(log__safe_job_name "$job_name")
   LOG_RUN_START_SEC=$(date -u +%s 2>/dev/null || printf '')
   export LOG_JOB_NAME LOG_RUN_START_SEC
@@ -503,12 +482,23 @@ log_run_job() {
   log_info "== ${LOG_JOB_NAME} start =="
   log_info "utc_start=$LOG_RUN_TS"
 
-  i=1
-  while [ "$i" -le "$context_count" ]; do
-    eval "context_line=\${context_$i}"
-    log_info "$context_line"
-    i=$((i + 1))
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --)
+        shift
+        break
+        ;;
+      *)
+        log_info "$1"
+        shift
+        ;;
+    esac
   done
+
+  if [ $# -eq 0 ]; then
+    log_err "log_run_job: missing command to run"
+    return 2
+  fi
 
   log_info "log_file=$LOG_FILE"
   log_info "------------------------------"
