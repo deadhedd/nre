@@ -108,6 +108,20 @@ log__sanitize() {
   fi
 }
 
+log__format_line() {
+  log__level=$1
+  shift
+  log__msg=$*
+
+  if [ "${LOG_TIMESTAMP:-1}" -ne 0 ] && log__ts=$(log__now_local_iso 2>/dev/null); then
+    log__ts_field=$log__ts
+  else
+    log__ts_field='-'
+  fi
+
+  printf '%s %s %s' "$log__ts_field" "$log__level" "$log__msg"
+}
+
 # ------------------------------------------------------------------------------
 # Internal debug (never stdout)
 # ------------------------------------------------------------------------------
@@ -152,20 +166,6 @@ log__normalize_level() {
       printf '%s' "$log__raw" | tr '[:lower:]' '[:upper:]'
       ;;
   esac
-}
-
-log__format_line() {
-  log__level=$1
-  shift
-  log__msg=$*
-
-  if [ "${LOG_TIMESTAMP:-1}" -ne 0 ] && log__ts=$(log__now_local_iso 2>/dev/null); then
-    log__ts_field=$log__ts
-  else
-    log__ts_field='-'
-  fi
-
-  printf '%s %s %s' "$log__ts_field" "$log__level" "$log__msg"
 }
 
 log__default_log_dir() {
