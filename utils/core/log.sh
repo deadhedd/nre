@@ -20,7 +20,7 @@ case "$0" in
     printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
     exit 2
     ;;
-  *sh|*ksh)
+  sh|ksh)
     case "${1-}" in
       */log.sh|log.sh)
         printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
