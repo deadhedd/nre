@@ -84,16 +84,8 @@ UTILS_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(cd "$UTILS_DIR/.." && pwd)
 
 # Logger bootstrap (explicit, no guessing in log.sh)
-
-# 1) If LOG_HELPER_PATH is set, trust it
-if [ -n "${LOG_HELPER_PATH:-}" ]; then
-  LOG_HELPER_DIR=${LOG_HELPER_DIR:-$(cd "$(dirname "$LOG_HELPER_PATH")" && pwd)}
-else
-  # 2) Otherwise default to wrapper directory
-  LOG_HELPER_DIR=${LOG_HELPER_DIR:-$SCRIPT_DIR}
-  LOG_HELPER_PATH="$LOG_HELPER_DIR/log.sh"
-fi
-
+LOG_HELPER_DIR=${LOG_HELPER_DIR:-$SCRIPT_DIR}
+LOG_HELPER_PATH="$LOG_HELPER_DIR/log.sh"
 export LOG_HELPER_DIR LOG_HELPER_PATH
 COMMIT_HELPER="${COMMIT_HELPER:-$SCRIPT_DIR/commit.sh}"
 
