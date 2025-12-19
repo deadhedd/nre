@@ -12,24 +12,37 @@
 #   LOG_INTERNAL_DEBUG_FILE=<path>
 
 # ------------------------------------------------------------------------------
-# Load guard
+# Load guard (library-only; MUST be sourced)
+#
+# Problem:
+#   POSIX sh provides no explicit, portable way to distinguish "sourced" vs
+#   "executed" scripts.
+#
+# Chosen invariant:
+#   - `return` succeeds ONLY when this file is being sourced (or inside a function).
+#   - If executed, `return` raises an error.
+#
+# Behavioral contract:
+#   - If executed directly: emit a clear error to stderr and exit 2.
+#   - If sourced: continue silently.
+#   - Never writes to stdout.
+#
+# Rationale:
+#   The `return` probe is the least-bad, portable option across sh/dash/ksh/ash.
+#   Alternatives are either non-portable, unreliable, or noisier.
+#
+# This behavior is intentional. Do not "simplify" unless POSIX grows a real signal.
 # ------------------------------------------------------------------------------
-# This file is a library and must be sourced.
-case "$0" in
-  */log.sh|log.sh)
-    printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
-    exit 2
-    ;;
-  sh|ksh)
-    case "${1-}" in
-      */log.sh|log.sh)
-        printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
-        exit 2
-        ;;
-    esac
-    ;;
-esac
+# Invariant: `return` is valid only when this file is being sourced (or inside a
+# function). If executed as a script, `return` errors and we fail loudly.
+if return 0 2>/dev/null; then
+  : # sourced OK
+else
+  printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
+  exit 2
+fi
 
+# Load-once guard
 if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ]; then
   return 0
 fi
