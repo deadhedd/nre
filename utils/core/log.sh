@@ -25,7 +25,7 @@ fi
 
 # Load-once guard
 if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ]; then
-  return 0 2>/dev/null || exit 0
+  return 0
 fi
 LOG_HELPER_LOADED=1
 
