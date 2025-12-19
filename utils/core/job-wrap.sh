@@ -83,7 +83,8 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 UTILS_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(cd "$UTILS_DIR/.." && pwd)
 
-LOG_HELPER_PATH="${LOG_HELPER_PATH:-$SCRIPT_DIR/log.sh}"
+LOG_HELPER_DIR="${LOG_HELPER_DIR:-$SCRIPT_DIR}"
+LOG_HELPER_PATH="${LOG_HELPER_PATH:-$LOG_HELPER_DIR/log.sh}"
 COMMIT_HELPER="${COMMIT_HELPER:-$SCRIPT_DIR/commit.sh}"
 
 job_wrap__dbg "start: pid=$$ ppid=${PPID:-?} uid=$(id -u 2>/dev/null || printf '?') user=$(id -un 2>/dev/null || printf unknown)"
@@ -97,8 +98,7 @@ job_wrap__dbg "env: PATH=${PATH:-} HOME=${HOME:-} SHELL=${SHELL:-} VAULT_PATH=${
 : "${LOG_DEBUG_STREAM:=stderr}"
 export LOG_INFO_STREAM LOG_DEBUG_STREAM
 
-# Ensure logger can report where it was sourced from (best-effort)
-export LOG_HELPER_PATH
+export LOG_HELPER_DIR LOG_HELPER_PATH
 
 # shellcheck source=/dev/null
 . "$LOG_HELPER_PATH"

@@ -51,16 +51,8 @@ LOG_HELPER_LOADED=1
 log__helper_path=${LOG_HELPER_PATH:-}
 log__helper_dir=${LOG_HELPER_DIR:-}
 
-if [ -z "$log__helper_dir" ] && [ -n "$log__helper_path" ]; then
-  case "$log__helper_path" in
-    */*)
-      log__helper_dir=${log__helper_path%/*}
-      ;;
-  esac
-fi
-
 if [ -z "$log__helper_dir" ]; then
-  printf 'ERR log.sh: LOG_HELPER_DIR or LOG_HELPER_PATH must be set for helper resolution\n' >&2
+  printf 'ERR log.sh: LOG_HELPER_DIR must be set for helper resolution\n' >&2
   return 1
 fi
 
