@@ -161,7 +161,7 @@ log__dbg() {
   fi
 }
 
-log__dbg "log.sh loaded: pid=$$ LOG_HELPER_DIR=$log__helper_dir LOG_HELPER_PATH=${LOG_HELPER_PATH:-<unset>}"
+log__dbg "log.sh loaded: pid=$$ LOG_HELPER_DIR=$log__helper_dir"
 
 # ------------------------------------------------------------------------------
 # Helpers
