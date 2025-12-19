@@ -48,7 +48,6 @@ if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ]; then
 fi
 LOG_HELPER_LOADED=1
 
-log__helper_path=${LOG_HELPER_PATH:-}
 log__helper_dir=${LOG_HELPER_DIR:-}
 
 if [ -z "$log__helper_dir" ]; then
