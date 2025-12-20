@@ -178,9 +178,17 @@ else
 fi
 
 report_dir=$(dirname "$REPORT_NOTE")
-[ -d "$report_dir" ] || mkdir -p "$report_dir" || exit 1
+if [ -d "$report_dir" ] || mkdir -p "$report_dir"; then
+  :
+else
+  cleanup
+  exit 1
+fi
 
-cat "$tmp_report" >"$REPORT_NOTE"
+if ! cat "$tmp_report" >"$REPORT_NOTE"; then
+  cleanup
+  exit 1
+fi
 
 # Fail the run if any failures (non-zero exit or ERR patterns) were found
 if [ "$fail_jobs" -gt 0 ]; then
