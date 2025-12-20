@@ -69,14 +69,15 @@ WARN_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(WARN|WARNING)([[:spac
 ERR_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(ERR|ERROR|FATAL)([[:space:]:]|$)'
 
 list_file=$(mktemp "${TMPDIR:-/tmp}/script-status-latest.XXXXXX") || exit 1
-find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file"
+find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file" || true
 
 tmp_report=$(mktemp "${TMPDIR:-/tmp}/script-status-report.XXXXXX") || {
   rm -f "$list_file"
   exit 1
 }
 cleanup() {
-  rm -f "$tmp_report" "$list_file"
+  [ -n "${tmp_report:-}" ] && rm -f "$tmp_report" 2>/dev/null || true
+  [ -n "${list_file:-}" ] && rm -f "$list_file" 2>/dev/null || true
 }
 
 {
@@ -180,8 +181,6 @@ report_dir=$(dirname "$REPORT_NOTE")
 [ -d "$report_dir" ] || mkdir -p "$report_dir" || exit 1
 
 cat "$tmp_report" >"$REPORT_NOTE"
-bytes=$(wc -c <"$REPORT_NOTE" 2>/dev/null | tr -d ' ' || printf '?')
-lines=$(wc -l <"$REPORT_NOTE" 2>/dev/null | tr -d ' ' || printf '?')
 
 # Fail the run if any failures (non-zero exit or ERR patterns) were found
 if [ "$fail_jobs" -gt 0 ]; then
