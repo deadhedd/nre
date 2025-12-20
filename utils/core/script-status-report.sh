@@ -178,11 +178,11 @@ else
 fi
 
 report_dir=$(dirname "$REPORT_NOTE")
-if [ -d "$report_dir" ] || mkdir -p "$report_dir"; then
-  :
-else
-  cleanup
-  exit 1
+if [ ! -d "$report_dir" ]; then
+  if ! mkdir -p "$report_dir"; then
+    cleanup
+    exit 1
+  fi
 fi
 
 if ! cat "$tmp_report" >"$REPORT_NOTE"; then
