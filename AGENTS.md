@@ -1,208 +1,90 @@
-# AGENTS.md
+# AGENTS.md — obsidian-note-tools
 
-> Guidance for AI coding assistants working in this repository.
-> Audience: GitHub Copilot Chat, ChatGPT, Sourcegraph Cody, Continue, et al.
+Guidance for AI coding assistants working in this repo. Keep changes **small, POSIX-safe, wrapper-first**, and **easy to revert**.
 
-## Purpose
+## Core principles
 
-This file tells AI assistants how to propose, implement, and verify changes in **obsidian-note-tools** without breaking automated note workflows.
+- **Wrapper-first execution:** all jobs run via `utils/core/job-wrap.sh`. Leaf scripts should assume the wrapper owns logging + lifecycle + commit.
+- **POSIX `sh` (OpenBSD-friendly):** no Bash-isms unless explicitly requested.
+- **No stdout leaks:** anything “log-like” goes to **stderr**. (Ideally: leaf scripts don’t log at all; wrapper does.)
+- **ASCII-only output** in cron-captured logs.
+- **No hacks/fallbacks** unless explicitly requested. Prefer correct, explicit behavior.
 
----
+## Standard leaf script pattern
 
-## TL;DR (follow this every time)
+Every job/utility script should start like this (or match existing repo conventions):
 
-1. **Read before you edit:** `generators/generate-daily-note.sh`, `generators/generate-weekly-note.sh`, `utils/`, and cron docs below.
-2. **Propose first:** Outline the plan and list files to touch. Prefer minimal, reversible diffs.
-3. **Keep it POSIX-sh:** Use portable shell (no Bash-isms unless explicitly stated).
-4. **Log everything:** Use `job-wrap.sh` (or compatible logging) and avoid emoji in cron-captured logs.
-5. **Don’t leak secrets:** Never print tokens/paths that reveal private info; use env vars.
-6. **Ship diffs:** Provide unified diffs (`git apply` compatible) and any new file contents.
-7. **Verify:** Include commands to lint, shellcheck, dry-run, and schedule via cron wrapper.
-8. **No hacks:** Default to clean, correct implementations—no fallbacks or ad-hoc workarounds unless explicitly requested.
+```sh
+#!/bin/sh
+# <script> — <purpose>
+# Author: deadhedd
+set -eu
+PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
----
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
+job_wrap="$repo_root/utils/core/job-wrap.sh"
+script_path="$script_dir/$(basename -- "$0")"
 
-## Repo quick facts
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
+  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+fi
+```
 
-* **Primary language:** POSIX `sh` (OpenBSD compatible)
-* **Vault default path:** `/home/obsidian/vaults/Main` (override with `VAULT_PATH`)
-* **Periodic notes:** `Periodic Notes/Daily Notes/`, `Periodic Notes/Weekly Notes/`, `Periodic Notes/Monthly Notes/`, `Periodic Notes/Quarterly Notes/`, and `Periodic Notes/Yearly Notes/`
-* **Logging root:** `/home/obsidian/logs`
-* **Cron wrapper:** `utils/core/job-wrap.sh`
-* **Author tag:** `deadhedd`
-* **ASCII-only output preference** for OpenBSD TTY logs
+**Important:**
 
----
+* Leaf scripts **MUST NOT** source `log.sh`.
+* Leaf scripts **MUST NOT** define `log_info/log_warn/log_err` fallbacks.
+* Leaf scripts should not depend on wrapper-only env like `LOG_FILE`/`LOG_LATEST_LINK`.
 
-## Files to read first
+## Traps and lifecycle
 
-> Note: Files in the `legacy/` directory are deprecated and should be ignored unless a task explicitly requires referencing or migrating them.
+* **Avoid `trap ... EXIT` in leaf scripts.** It can interfere with wrapper lifecycle if anything runs in-process.
+* If cleanup is needed, prefer explicit cleanup at the end, or move cleanup responsibility into wrapper/core helpers.
 
-* `generators/generate-daily-note.sh`
-* `generators/generate-weekly-note.sh`
+## Paths & environment
+
+* Default vault: `/home/obsidian/vaults/Main` (override with `VAULT_PATH`)
+* Logs root: `/home/obsidian/logs`
+* Prefer env overrides over hard-coded paths beyond these defaults.
+* Use `printf`, not `echo`.
+
+## What to read before editing
+
 * `utils/core/job-wrap.sh`
+* `utils/core/log.sh`
 * `utils/core/commit.sh`
-* `utils/` (other helpers)
+* The specific script you’re changing + any scripts it calls
 
----
+## How to propose changes
 
-## Environment & invariants
+In every response that modifies code:
 
-* `PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"`
-* Respect `VAULT_PATH` if set; default `/home/obsidian/vaults/Main`
-* **Never hard-code** paths beyond documented defaults.
-* `set -eu` required for strict error handling.
-* Use `printf` for logs, not `echo`.
-* No color codes/non-ASCII output in cron logs.
-* Network calls should be opt-in via env vars and fail soft.
+1. **Plan:** 3–6 bullets: what changes, where, why.
+2. **Diffs:** unified diffs (`git apply` compatible).
+3. **Verify commands:** minimal, copy/paste-able.
+4. **Rollback:** describe how to revert (or rely on `.bak` if used).
 
----
+## Verification (minimum)
 
-## Cron & logs
+* `shellcheck` (with POSIX in mind)
+* Run the job via wrapper:
 
-> Note: Cron jobs are staggered by 2-minute intervals to respect cascading dependencies between note generations. Preserve this order when adding or adjusting jobs. (reference)
+  * `/bin/sh utils/core/job-wrap.sh <job> [args...]`
+* Confirm:
 
-```cron
-SHELL=/bin/sh
-PATH=/usr/local/bin:/usr/bin:/bin
-HOME=/home/obsidian
-MAILTO=obsidian
-
-10 0 * * * /bin/sh /home/obsidian/obsidian-note-tools/utils/core/job-wrap.sh \
-  generate-daily-note.sh >>/home/obsidian/logs/cron.log 2>&1
-
-8 0 * * 1 /bin/sh /home/obsidian/obsidian-note-tools/utils/core/job-wrap.sh \
-  generate-weekly-note.sh >>/home/obsidian/logs/cron.log 2>&1
-```
-
-> The wrapper looks in `$REPO_ROOT:$REPO_ROOT/utils` by default; override with
-> `JOB_WRAP_SEARCH_PATH` when cron runs from another working directory.
-
----
-
-## Coding standards
-
-### Clean coding & correctness
-
-This repository prioritizes correctness and clean implementations. Avoid shortcuts, implicit fallbacks, or “best-effort” behavior unless a task explicitly calls for them. Prefer failing fast with clear errors over silently masking problems.
-
-* POSIX `sh` only. Test with `dash` or OpenBSD `ksh -p`.
-* File header example:
-
-  ```sh
-  #!/bin/sh
-  # utils/<name>.sh — <purpose>
-  # Author: deadhedd
-  # License: MIT
-  set -eu
-  ```
-* Logging helpers:
-
-  ```sh
-  log_info() { printf 'INFO %s\n' "$*"; }
-  log_warn() { printf 'WARN %s\n' "$*"; }
-  log_err()  { printf 'ERR %s\n'  "$*"; }
-  ```
-* Quote variables, use `--` before paths, avoid interactive prompts.
-
----
-
-## Commit & PR style
-
-* Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`
-* Keep PRs small and include:
-
-  * Context/problem solved
-  * Diff preview
-  * Verify commands
-  * Roll-back instructions
-
----
-
-## Definition of Done
-
-| Change type        | Requirements                                                |
-| ------------------ | ----------------------------------------------------------- |
-| **New script/job** | Header, env vars, INFO/WARN/ERR logs, dry-run, cron example |
-| **Edit generator** | Preserve paths/output, add logs, example output diff        |
-| **Refactor**       | No behavior change, clearer logic, comments                 |
-| **Docs**           | Practical snippets, examples                                |
-
----
-
-## Agent Ops Protocol
-
-1. Understand the ask → rephrase goal, list files.
-2. Plan → bullet the approach, risks, assumptions.
-3. Propose diffs → unified `git apply` ready.
-4. Run static checks → `shfmt`, `shellcheck`.
-5. Dry run → simulate output.
-6. Cron → provide wrapper example.
-7. Fallbacks → soft-fail logs.
-8. Handoff → summary + verify + revert instructions.
-
----
-
-## Allowed tools & dependencies
-
-* `/bin/sh`, `ksh -p`
-* Common utils: `date`, `awk`, `grep`, `cut`, `tr`, `jq`, `curl`
-* Use shell unless a task explicitly requires another language.
-* For new deps, include install steps for OpenBSD + Ubuntu.
-
----
-
-## Templates
-
-**Commit message example:**
-
-```
-feat(daily): add yard-work suitability line to daily note
-
-- Pulls temp/dew point via API
-- Adds summary under "Morning" section
-- Soft-fails if API unavailable; logs WARN
-```
-
-**PR checklist:**
-
-*
-
----
-
-## Common playbooks
-
-**Add new utility job**
-
-1. Create `utils/<job>.sh` (POSIX sh, logs, env-driven).
-2. Call from note generator.
-3. Test locally.
-4. Add cron line via wrapper.
-
----
+  * no stdout noise
+  * expected file outputs
+  * wrapper log contains start + finish + exit code
 
 ## Security & privacy
 
-* Never store secrets; use env vars.
-* Redact sensitive paths/tokens in logs.
-* Only log safe info.
+* Never print secrets/tokens.
+* Avoid logging sensitive absolute paths unless necessary.
+* Prefer env vars for anything user-specific.
 
----
+## Style notes
 
-## Compatibility notes
-
-* **Copilot Chat / Cody:** Provide diffs + verify commands.
-* **ChatGPT:** Single response including plan, diff, verify.
-* Avoid interactivity; prefer env toggles.
-
----
-
-## Changelog
-
-* 2025-11-08: Initial AGENTS.md created; establishes protocol and standards.
-
----
-
-### Missing info?
-
-If a requirement isn’t in this file, **state your assumption** before proceeding and prefer opt-in behavior via env flags.
+* Keep diffs minimal and reversible.
+* Prefer clear, boring code over cleverness.
+* Match existing naming/layout conventions in the repo.
