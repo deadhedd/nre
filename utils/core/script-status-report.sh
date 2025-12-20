@@ -21,39 +21,6 @@ if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
 
-# ------------------------------------------------------------------------------
-# Logging (wrapper-first; bootstrap only if not wrapped)
-# ------------------------------------------------------------------------------
-
-log_bootstrap_if_needed() {
-  # If job-wrap already sourced log.sh and initialized logging, do nothing.
-  if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ] && [ -n "${LOG_FILE:-}" ]; then
-    return 0
-  fi
-
-  # Direct-run (best-effort): source log.sh from repo and start/finish lifecycle.
-  core_dir="$repo_root/utils/core"
-  LOG_HELPER_DIR=${LOG_HELPER_DIR:-$core_dir}
-  LOG_HELPER_PATH=${LOG_HELPER_PATH:-$LOG_HELPER_DIR/log.sh}
-  export LOG_HELPER_DIR LOG_HELPER_PATH
-
-  # shellcheck source=/dev/null
-  . "$LOG_HELPER_PATH" || {
-    printf 'ERR failed to source log helper (%s)\n' "$LOG_HELPER_PATH" >&2
-    exit 2
-  }
-
-  log_start_job "script-status-report" \
-    "cwd=$(pwd)" \
-    "user=$(id -un 2>/dev/null || printf unknown)" \
-    "path=${PATH:-}" \
-    "argv=$(printf '%s ' "$0" "$@")"
-
-  trap 'st=$?; log_finish_job "$st"; exit "$st"' EXIT HUP INT TERM
-}
-
-log_bootstrap_if_needed "$@"
-
 # Where logs & latest pointers live
 LOG_ROOT="/home/obsidian/logs"
 
@@ -64,21 +31,6 @@ REPORT_NOTE="$VAULT_PATH/Server Logs/Script Status Report.md"
 LC_ALL=C
 LANG=C
 export LC_ALL LANG
-
-log_info "status-report: begin"
-log_info "status-report: JOB_WRAP_ACTIVE=${JOB_WRAP_ACTIVE:-0}"
-log_info "status-report: LOG_FILE=${LOG_FILE:-<unset>}"
-log_info "status-report: LOG_LATEST_LINK=${LOG_LATEST_LINK:-<unset>}"
-log_info "status-report: scan_root=$LOG_ROOT"
-log_info "status-report: report_note=$REPORT_NOTE"
-
-if [ -n "${LOG_LATEST_LINK:-}" ]; then
-  if ls -l "$LOG_LATEST_LINK" >/dev/null 2>&1; then
-    log_info "status-report: wrapper_latest_before=$(ls -l "$LOG_LATEST_LINK" 2>/dev/null | tr '\n' ' ')"
-  else
-    log_warn "status-report: wrapper_latest_missing_or_unreadable=$LOG_LATEST_LINK"
-  fi
-fi
 
 now_utc() {
   date -u '+%Y-%m-%dT%H:%M:%SZ'
@@ -118,14 +70,14 @@ ERR_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(ERR|ERROR|FATAL)([[:sp
 
 list_file=$(mktemp "${TMPDIR:-/tmp}/script-status-latest.XXXXXX") || exit 1
 find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file"
-log_info "status-report: find_done list_file=$list_file"
 
 tmp_report=$(mktemp "${TMPDIR:-/tmp}/script-status-report.XXXXXX") || {
   rm -f "$list_file"
   exit 1
 }
-trap 'rm -f "$tmp_report" "$list_file"' EXIT
-log_info "status-report: tmp_report=$tmp_report"
+cleanup() {
+  rm -f "$tmp_report" "$list_file"
+}
 
 {
   printf '# Script Status Report\n\n'
@@ -206,8 +158,6 @@ while IFS= read -r link; do
 
   total_jobs=$((total_jobs + 1))
 
-  log_info "scan_item: job=$job status=$status exit=$exit_display warns=$warn_count errs=$err_count latest=$link"
-
   printf '| %s | %s | %s | %s | %s | `%s` |\n' \
     "$(printf '%s' "$job" | escape_md)" \
     "$(printf '%s' "$status" | escape_md)" \
@@ -217,8 +167,6 @@ while IFS= read -r link; do
     "$(printf '%s' "$link" | escape_md)" \
     >>"$tmp_report"
 done <"$list_file"
-
-log_info "status-report: scan_summary total=$total_jobs ok=$ok_jobs warn=$warn_jobs fail=$fail_jobs unknown=$unknown_jobs skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
 
 if [ "$total_jobs" -eq 0 ]; then
   printf '\n_No jobs found under `%s`._\n' "$LOG_ROOT" >>"$tmp_report"
@@ -231,17 +179,15 @@ fi
 report_dir=$(dirname "$REPORT_NOTE")
 [ -d "$report_dir" ] || mkdir -p "$report_dir" || exit 1
 
-log_info "status-report: write_begin report_dir=$report_dir"
 cat "$tmp_report" >"$REPORT_NOTE"
 bytes=$(wc -c <"$REPORT_NOTE" 2>/dev/null | tr -d ' ' || printf '?')
 lines=$(wc -l <"$REPORT_NOTE" 2>/dev/null | tr -d ' ' || printf '?')
-log_info "status-report: write_done bytes=$bytes lines=$lines"
 
 # Fail the run if any failures (non-zero exit or ERR patterns) were found
 if [ "$fail_jobs" -gt 0 ]; then
-  log_warn "status-report: exit=1 (fail_jobs=$fail_jobs)"
+  cleanup
   exit 1
 fi
 
-log_info "status-report: exit=0"
+cleanup
 exit 0
