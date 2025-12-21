@@ -36,6 +36,10 @@ now_utc() {
   date -u '+%Y-%m-%dT%H:%M:%SZ'
 }
 
+log_msg() {
+  printf '%s %s\n' "$(now_utc)" "$*" >&2
+}
+
 extract_exit_code() {
   log_file=$1
   sed -n 's/.*exit=\([0-9][0-9]*\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
@@ -68,13 +72,21 @@ count_matches_ci_ere() {
 WARN_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(WARN|WARNING)([[:space:]:]|$)'
 ERR_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(ERR|ERROR|FATAL)([[:space:]:]|$)'
 
+log_msg "Starting script-status-report"
+log_msg "LOG_ROOT=$LOG_ROOT"
+log_msg "VAULT_PATH=$VAULT_PATH"
+log_msg "REPORT_NOTE=$REPORT_NOTE"
+
 list_file=$(mktemp "${TMPDIR:-/tmp}/script-status-latest.XXXXXX") || exit 1
+log_msg "Created temporary list file: $list_file"
 find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file" || true
+log_msg "Finished scanning for latest logs under $LOG_ROOT"
 
 tmp_report=$(mktemp "${TMPDIR:-/tmp}/script-status-report.XXXXXX") || {
   rm -f "$list_file"
   exit 1
 }
+log_msg "Created temporary report file: $tmp_report"
 cleanup() {
   [ -n "${tmp_report:-}" ] && rm -f "$tmp_report" 2>/dev/null || true
   [ -n "${list_file:-}" ] && rm -f "$list_file" 2>/dev/null || true
@@ -97,16 +109,21 @@ unknown_jobs=0
 skipped_missing=0
 skipped_unreadable=0
 
+link_count=$(wc -l <"$list_file" | tr -d ' ')
+log_msg "Found $link_count latest log link(s)"
+
 while IFS= read -r link; do
   [ -n "$link" ] || continue
 
   if [ ! -e "$link" ]; then
     skipped_missing=$((skipped_missing + 1))
+    log_msg "Skipping missing link: $link"
     continue
   fi
 
   if [ ! -r "$link" ]; then
     skipped_unreadable=$((skipped_unreadable + 1))
+    log_msg "Skipping unreadable link: $link"
     continue
   fi
 
@@ -114,9 +131,13 @@ while IFS= read -r link; do
   job=${base%-latest.log}
   [ -n "$job" ] || job="(unknown)"
 
+  log_msg "Processing job: $job (link: $link)"
+
   exit_code=$(extract_exit_code "$link")
   warn_count=$(count_matches_ci_ere "$link" "$WARN_ERE")
   err_count=$(count_matches_ci_ere "$link" "$ERR_ERE")
+
+  log_msg "exit_code=${exit_code:-'(none)'} warn_count=$warn_count err_count=$err_count"
 
   # Default classification by exit code
   if [ -z "$exit_code" ]; then
@@ -159,6 +180,8 @@ while IFS= read -r link; do
 
   total_jobs=$((total_jobs + 1))
 
+  log_msg "Final status for $job: status=$status exit_display=$exit_display"
+
   printf '| %s | %s | %s | %s | %s | `%s` |\n' \
     "$(printf '%s' "$job" | escape_md)" \
     "$(printf '%s' "$status" | escape_md)" \
@@ -177,24 +200,33 @@ else
     "$total_jobs" "$ok_jobs" "$warn_jobs" "$fail_jobs" "$unknown_jobs" >>"$tmp_report"
 fi
 
+log_msg "Summary counts: total=$total_jobs ok=$ok_jobs warn=$warn_jobs fail=$fail_jobs unknown=$unknown_jobs skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
+
 report_dir=$(dirname "$REPORT_NOTE")
 if [ ! -d "$report_dir" ]; then
+  log_msg "Creating report directory: $report_dir"
   if ! mkdir -p "$report_dir"; then
+    log_msg "Failed to create report directory: $report_dir"
     cleanup
     exit 1
   fi
 fi
 
 if ! cat "$tmp_report" >"$REPORT_NOTE"; then
+  log_msg "Failed to write report to $REPORT_NOTE"
   cleanup
   exit 1
 fi
+
+log_msg "Report written to $REPORT_NOTE"
 
 # Fail the run if any failures (non-zero exit or ERR patterns) were found
 if [ "$fail_jobs" -gt 0 ]; then
+  log_msg "Exiting with failure due to detected failed jobs"
   cleanup
   exit 1
 fi
 
+log_msg "Script completed successfully"
 cleanup
 exit 0
