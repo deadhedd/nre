@@ -40,15 +40,6 @@
   exit 2
 }
 
-# Some shells allow `return` in a subshell even when executed directly. Fall back
-# to a basename check to keep execution-mode errors loud and consistent.
-case ${0##*/} in
-  log.sh)
-    printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
-    exit 2
-    ;;
-esac
-
 # Load-once guard
 if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ]; then
   return 0
