@@ -411,9 +411,10 @@ log_rotate() {
 
   log__safe_job=$(log__safe_job_name "$log__job_name")
 
-  set -- "$log__log_dir"/${log__safe_job}-*.log
+  log__glob="$log__log_dir/${log__safe_job}-????????T??????Z.log"
+  set -- $log__glob
 
-  if [ $# -eq 1 ] && [ "$1" = "$log__log_dir/${log__safe_job}-"*.log ]; then
+  if [ "$1" = "$log__glob" ]; then
     return 0
   fi
 
