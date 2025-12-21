@@ -35,12 +35,10 @@
 # ------------------------------------------------------------------------------
 # Invariant: `return` is valid only when this file is being sourced (or inside a
 # function). If executed as a script, `return` errors and we fail loudly.
-if return 0 2>/dev/null; then
-  : # sourced OK
-else
+(return 0 2>/dev/null) || {
   printf 'ERR utils/core/log.sh must be sourced, not executed\n' >&2
   exit 2
-fi
+}
 
 # Load-once guard
 if [ "${LOG_HELPER_LOADED:-0}" -eq 1 ]; then
