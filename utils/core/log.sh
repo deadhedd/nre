@@ -475,6 +475,7 @@ log_update_latest_link() {
     log_err "log_update_latest_link: ln failed target=$log__target_path link=$log__link_path"
     return 1
   }
+  log__dbg "latest_link: updated link=$log__link_path -> target=$log__target_path"
 }
 
 # ------------------------------------------------------------------------------
