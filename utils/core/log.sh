@@ -268,6 +268,7 @@ log_init() {
   LOG_INIT_DONE=1
 }
 
+# Canonical lifecycle entry point (manual lifecycle: start -> work -> finish)
 log_start_job() {
   log__job=$1
   shift || true
@@ -519,6 +520,16 @@ log_run_with_capture() {
   return "$log__status"
 }
 
+log__quote_args() {
+  while [ $# -gt 0 ]; do
+    log__escaped=$(printf "%s" "$1" | sed "s/'/'\\\\''/g")
+    printf " '%s'" "$log__escaped"
+    shift
+  done
+}
+
+# Compatibility wrapper: wrapped lifecycle (start -> run command -> finish)
+# Delegates to log_start_job to keep lifecycle logging canonical.
 log_run_job() {
   log__job_name=${1:-}
   shift
@@ -528,15 +539,7 @@ log_run_job() {
     return 2
   }
 
-  LOG_JOB_NAME=$(log__safe_job_name "$log__job_name")
-  LOG_RUN_START_SEC=$(log__now_utc_epoch 2>/dev/null || printf '')
-  export LOG_JOB_NAME LOG_RUN_START_SEC
-
-  log_init "$LOG_JOB_NAME"
-
-  log_info "== ${LOG_JOB_NAME} start =="
-  log_info "utc_start=$LOG_RUN_TS"
-
+  log__meta_args=
   while [ $# -gt 0 ]; do
     case "$1" in
       --)
@@ -544,7 +547,8 @@ log_run_job() {
         break
         ;;
       *)
-        log_info "$1"
+        log__escaped=$(printf "%s" "$1" | sed "s/'/'\\\\''/g")
+        log__meta_args="$log__meta_args '$log__escaped'"
         shift
         ;;
     esac
@@ -555,8 +559,17 @@ log_run_job() {
     return 2
   fi
 
-  log_info "log_file=$LOG_FILE"
-  log_info "------------------------------"
+  log__cmd_args=$(log__quote_args "$@")
+
+  if [ -n "$log__meta_args" ]; then
+    eval "set --$log__meta_args"
+  else
+    set --
+  fi
+
+  log_start_job "$log__job_name" "$@"
+
+  eval "set --$log__cmd_args"
 
   log_run_with_capture "$@"
   log__status=$?
