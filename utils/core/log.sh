@@ -446,7 +446,10 @@ log_update_latest_link() {
     */*)
       log__link_dir=${log__link_path%/*}
       if [ -n "$log__link_dir" ] && [ ! -d "$log__link_dir" ]; then
-        mkdir -p "$log__link_dir" 2>/dev/null || return 1
+        mkdir -p "$log__link_dir" 2>/dev/null || {
+          log_err "log_update_latest_link: mkdir failed link_dir=$log__link_dir"
+          return 1
+        }
       fi
       ;;
   esac
@@ -468,7 +471,10 @@ log_update_latest_link() {
     fi
   fi
 
-  ln -sf "$log__target_path" "$log__link_path" 2>/dev/null || return 1
+  ln -sf "$log__target_path" "$log__link_path" 2>/dev/null || {
+    log_err "log_update_latest_link: ln failed target=$log__target_path link=$log__link_path"
+    return 1
+  }
 }
 
 # ------------------------------------------------------------------------------
