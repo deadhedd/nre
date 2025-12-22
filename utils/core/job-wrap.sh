@@ -233,16 +233,16 @@ export LOG_KEEP_COUNT LOG_LEVEL LOG_ASCII_ONLY
 log_init
 
 # Metadata (replacement for old log_run_job meta lines)
-log_info "== ${JOB_NAME} start =="
-log_info "utc_start=$LOG_RUN_TS"
-log_info "cwd=$(pwd 2>/dev/null || pwd)"
-log_info "user=$(id -un 2>/dev/null || printf unknown)"
-log_info "path=${PATH:-}"
-log_info "requested_cmd=$ORIGINAL_CMD"
-log_info "resolved_cmd=$RESOLVED_CMD"
-log_info "argv=$(printf '%s ' "$@")"
-log_info "log_file=$LOG_FILE"
-log_info "------------------------------"
+log_audit "== ${JOB_NAME} start =="
+log_audit "utc_start=$LOG_RUN_TS"
+log_audit "cwd=$(pwd 2>/dev/null || pwd)"
+log_audit "user=$(id -un 2>/dev/null || printf unknown)"
+log_audit "path=${PATH:-}"
+log_audit "requested_cmd=$ORIGINAL_CMD"
+log_audit "resolved_cmd=$RESOLVED_CMD"
+log_audit "argv=$(printf '%s ' "$@")"
+log_audit "log_file=$LOG_FILE"
+log_audit "------------------------------"
 
 # ------------------------------------------------------------------------------
 # Commit helper glue (preserve old semantics)
@@ -276,8 +276,8 @@ perform_commit() {
   job_wrap__dbg "commit: work_tree=$commit_work_tree"
   job_wrap__dbg "commit: message=$commit_message"
 
-  log_info "Committing changes via job wrapper"
-  log_info "commit_work_tree=$commit_work_tree"
+  log_audit "Committing changes via job wrapper"
+  log_audit "commit_work_tree=$commit_work_tree"
 
   set +e
   "$COMMIT_HELPER" "$commit_work_tree" "$commit_message" .
@@ -333,10 +333,10 @@ wait "$cap_pid" 2>/dev/null || true
 cap_pid=""
 
 # Job end lifecycle lines
-log_info "------------------------------"
-log_info "exit=$STATUS"
-log_info "utc_end=$(job_wrap__utc_runid)"
-log_info "== ${JOB_NAME} end =="
+log_audit "------------------------------"
+log_audit "exit=$STATUS"
+log_audit "utc_end=$(job_wrap__utc_runid)"
+log_audit "== ${JOB_NAME} end =="
 
 # ------------------------------------------------------------------------------
 # Post-job commit & exit logic (preserve old semantics)
