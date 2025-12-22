@@ -314,20 +314,19 @@ job_wrap__shutdown() {
 
   if [ -n "${cap_pid:-}" ]; then
     set +e
-    kill -TERM "$cap_pid" 2>/dev/null || true
     wait "$cap_pid" 2>/dev/null
     cap_status=$?
     set -e
     cap_pid=""
   fi
 
-  if [ -n "${fifo:-}" ] && [ -p "$fifo" ]; then
-    rm -f -- "$fifo" 2>/dev/null || true
-  fi
-
   if [ "${cap_status:-0}" -ne 0 ]; then
     log_err "stderr capture failed (status=$cap_status) - stderr output may be incomplete"
     job_wrap__dbg "capture: FAILED status=$cap_status"
+  fi
+
+  if [ -n "${fifo:-}" ] && [ -p "$fifo" ]; then
+    rm -f -- "$fifo" 2>/dev/null || true
   fi
 
   log_audit "------------------------------"
@@ -384,6 +383,11 @@ job_wrap__on_signal() {
     kill -KILL "$job_pid" 2>/dev/null
     wait "$job_pid" 2>/dev/null
     set -e
+  fi
+
+  # If capture is still running (job may have kept FIFO open), stop it.
+  if [ -n "${cap_pid:-}" ]; then
+    kill -0 "$cap_pid" 2>/dev/null && kill -TERM "$cap_pid" 2>/dev/null || true
   fi
 
   job_wrap__shutdown
