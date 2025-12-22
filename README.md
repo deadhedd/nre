@@ -26,7 +26,7 @@ order when running from other directories.
 * Resolves the requested command name by checking `JOB_WRAP_SEARCH_PATH`, then searching the repository for executables, and finally falling back to `PATH`; unknown commands abort with exit 127.
 * Sanitizes the derived job label (or `JOB_WRAP_JOB_NAME`, when set) to pick the log bucket (daily/weekly/long-cycle/other), falling back to `${HOME:-/home/obsidian}/logs/other` when no match is found. Each run creates `<job>-<UTC timestamp>Z.log` and updates a `<job>-latest.log` symlink.
 * Uses the structured logger from `utils/core/log.sh` to write header metadata (start/end times, cwd, user, PATH, requested/resolved command, argv, and log path) plus footer lines for exit code and end time.
-* Captures only the wrapped command's stderr as `OUT` log lines so leaf stdout stays untouched for pipelines. Log verbosity, ASCII sanitization, and rotation are controlled by `LOG_LEVEL`, `LOG_ASCII_ONLY`, and `LOG_KEEP_COUNT` (default 10).
+* Captures only the wrapped command's stderr as `OUT` log lines so leaf stdout stays untouched for pipelines. Log verbosity, ASCII sanitization, and rotation are controlled by `LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY`, and `LOG_KEEP_COUNT` (default 10).
 
 ### When a generator runs directly
 

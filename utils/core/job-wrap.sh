@@ -35,7 +35,7 @@
 #
 # Logging knobs (wrapper -> new logger):
 #   LOG_ROOT                       Base logs dir (default ${HOME:-/home/obsidian}/logs)
-#   LOG_LEVEL                      DEBUG|INFO|WARN|ERR (default INFO)
+#   LOG_INTERNAL_LEVEL             DEBUG|INFO|WARN|ERR (default INFO)
 #   LOG_ASCII_ONLY                 1|0 (default 1)
 #   LOG_KEEP_COUNT                 keep last N (default 10)
 #   LOG_INTERNAL_DEBUG             1|0 (default 0)
@@ -225,9 +225,9 @@ LOG_FILE="$LOG_DIR/$SAFE_JOB_NAME-$LOG_RUN_TS.log"
 export JOB_NAME="$SAFE_JOB_NAME"
 export LOG_FILE
 : "${LOG_KEEP_COUNT:=10}"
-: "${LOG_LEVEL:=INFO}"
+: "${LOG_INTERNAL_LEVEL:=INFO}"
 : "${LOG_ASCII_ONLY:=1}"
-export LOG_KEEP_COUNT LOG_LEVEL LOG_ASCII_ONLY
+export LOG_KEEP_COUNT LOG_INTERNAL_LEVEL LOG_ASCII_ONLY
 
 # Initialize sink + prune + latest (writes banner)
 log_init
