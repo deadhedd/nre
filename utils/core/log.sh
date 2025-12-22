@@ -29,26 +29,32 @@ log__this_dir=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd -P) || {
 
 log_init() {
   # Initializes sink (fd + latest + prune).
-  log_sink_init
+  log_sink_init || return 0
 
   # Banner line (INFO)
-  line=$(log_fmt__line "INFO" "log_init: opened LOG_FILE=$LOG_FILE")
-  log_sink_write_line "$line"
+  line=$(log_fmt__line "INFO" "log_init: opened LOG_FILE=$LOG_FILE") \
+    || line="- ERR log_fmt__line failed in log_init"
+  log_sink_write_line "$line" || log_sink__internal "log_init: sink write failed"
+  return 0
 }
 
 log__emit() {
   level=$1
   shift
   log_level__should "$level" || return 0
-  line=$(log_fmt__line "$level" "$*")
-  log_sink_write_line "$line"
+  line=$(log_fmt__line "$level" "$*") || line="- ERR log_fmt__line failed"
+
+  log_sink_write_line "$line" || log_sink__internal "emit: sink write failed level=$level"
+  return 0
 }
 
 log__emit_force() {
   level=$1
   shift
-  line=$(log_fmt__line "$level" "$*")
-  log_sink_write_line "$line"
+  line=$(log_fmt__line "$level" "$*") || line="- ERR log_fmt__line failed"
+
+  log_sink_write_line "$line" || log_sink__internal "emit_force: sink write failed level=$level"
+  return 0
 }
 
 log_audit() { log__emit_force "INFO" "$@"; }
