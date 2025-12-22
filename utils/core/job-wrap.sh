@@ -244,6 +244,10 @@ log_audit "argv=$(printf '%s ' "$@")"
 log_audit "log_file=$LOG_FILE"
 log_audit "------------------------------"
 
+STATUS=0
+JOB_WRAP_SIG=""
+JOB_WRAP_SHUTDOWN_DONE=0
+
 # ------------------------------------------------------------------------------
 # Commit helper glue (preserve old semantics)
 # ------------------------------------------------------------------------------
@@ -297,17 +301,97 @@ tmp_base=${TMPDIR:-/tmp}
 fifo="$tmp_base/job-wrap.$$.$LOG_RUN_TS.err.fifo"
 
 cap_pid=""
+cap_status=0
+job_pid=""
 
-cleanup() {
-  rc=$?
-  [ -p "$fifo" ] && rm -f -- "$fifo" 2>/dev/null || true
-  if [ -n "$cap_pid" ]; then
-    kill "$cap_pid" 2>/dev/null || true
-    wait "$cap_pid" 2>/dev/null || true
+job_wrap__shutdown() {
+  if [ "${JOB_WRAP_SHUTDOWN_DONE:-0}" -ne 0 ] 2>/dev/null; then
+    [ -n "${fifo:-}" ] && [ -p "$fifo" ] && rm -f -- "$fifo" 2>/dev/null || true
+    exit "${STATUS:-0}"
   fi
-  exit "$rc"
+  trap '' INT TERM HUP
+  JOB_WRAP_SHUTDOWN_DONE=1
+
+  if [ -n "${cap_pid:-}" ]; then
+    set +e
+    kill -TERM "$cap_pid" 2>/dev/null || true
+    wait "$cap_pid" 2>/dev/null
+    cap_status=$?
+    set -e
+    cap_pid=""
+  fi
+
+  if [ -n "${fifo:-}" ] && [ -p "$fifo" ]; then
+    rm -f -- "$fifo" 2>/dev/null || true
+  fi
+
+  if [ "${cap_status:-0}" -ne 0 ]; then
+    log_err "stderr capture failed (status=$cap_status) - stderr output may be incomplete"
+    job_wrap__dbg "capture: FAILED status=$cap_status"
+  fi
+
+  log_audit "------------------------------"
+  if [ -n "${JOB_WRAP_SIG:-}" ]; then
+    log_audit "signal=$JOB_WRAP_SIG"
+  fi
+  log_audit "exit=${STATUS:-0}"
+  log_audit "end=$(job_wrap__runid)"
+  log_audit "== ${JOB_NAME} end =="
+
+  commit_status=0
+  if [ -n "${JOB_WRAP_SIG:-}" ]; then
+    if [ "${JOB_WRAP_COMMIT_ON_SIGNAL:-0}" -ne 0 ] 2>/dev/null; then
+      if ! perform_commit; then
+        commit_status=$?
+        log_err "Commit failed after signal (status=$commit_status)"
+        job_wrap__dbg "exit: commit failed status=$commit_status"
+      fi
+    else
+      job_wrap__dbg "commit: skipped due to signal=$JOB_WRAP_SIG"
+    fi
+  else
+    if ! perform_commit; then
+      commit_status=$?
+      log_err "Commit failed with status $commit_status"
+      job_wrap__dbg "exit: commit failed status=$commit_status"
+    fi
+  fi
+
+  if [ "${STATUS:-0}" -eq 0 ] && [ "${commit_status:-0}" -ne 0 ]; then
+    STATUS=$commit_status
+  fi
+
+  job_wrap__dbg "exit: STATUS=${STATUS:-0}"
+  exit "${STATUS:-0}"
 }
-trap cleanup INT TERM HUP
+
+job_wrap__on_signal() {
+  sig=$1
+  JOB_WRAP_SIG=$sig
+  export JOB_WRAP_SIG
+
+  case "$sig" in
+    INT)  STATUS=130 ;;
+    TERM) STATUS=143 ;;
+    HUP)  STATUS=129 ;;
+    *)    STATUS=128 ;;
+  esac
+
+  if [ -n "${job_pid:-}" ]; then
+    set +e
+    kill -TERM "$job_pid" 2>/dev/null
+    sleep 1
+    kill -KILL "$job_pid" 2>/dev/null
+    wait "$job_pid" 2>/dev/null
+    set -e
+  fi
+
+  job_wrap__shutdown
+}
+
+trap 'job_wrap__on_signal INT' INT
+trap 'job_wrap__on_signal TERM' TERM
+trap 'job_wrap__on_signal HUP' HUP
 
 rm -f -- "$fifo" 2>/dev/null || true
 mkfifo -- "$fifo" 2>/dev/null || mkfifo "$fifo" 2>/dev/null || {
@@ -323,46 +407,11 @@ job_wrap__dbg "capture: started pid=$cap_pid fifo=$fifo"
 
 # Execute the job (note: preserve old behavior of running the resolved path directly)
 set +e
-"$@" 2>"$fifo"
+"$@" 2>"$fifo" &
+job_pid=$!
+wait "$job_pid"
 STATUS=$?
+job_pid=""
 set -e
 
-# Stop capture
-rm -f -- "$fifo" 2>/dev/null || true
-cap_status=0
-set +e
-wait "$cap_pid" 2>/dev/null
-cap_status=$?
-set -e
-cap_pid=""
-
-if [ "$cap_status" -ne 0 ]; then
-  # Best effort into the job log (if sink is alive)
-  log_err "stderr capture failed (status=$cap_status) - stderr output may be incomplete"
-  # Guaranteed visibility even if sink is busted
-  job_wrap__dbg "capture: FAILED status=$cap_status (stderr output may be missing)"
-fi
-
-# Job end lifecycle lines
-log_audit "------------------------------"
-log_audit "exit=$STATUS"
-log_audit "end=$(job_wrap__runid)"
-log_audit "== ${JOB_NAME} end =="
-
-# ------------------------------------------------------------------------------
-# Post-job commit & exit logic (preserve old semantics)
-# ------------------------------------------------------------------------------
-commit_status=0
-if ! perform_commit; then
-  commit_status=$?
-  log_err "Commit failed with status $commit_status"
-  job_wrap__dbg "exit: commit failed status=$commit_status"
-fi
-
-if [ "$STATUS" -eq 0 ] && [ "$commit_status" -ne 0 ]; then
-  job_wrap__dbg "exit: propagating commit failure $commit_status"
-  exit "$commit_status"
-fi
-
-job_wrap__dbg "exit: STATUS=$STATUS"
-exit "$STATUS"
+job_wrap__shutdown
