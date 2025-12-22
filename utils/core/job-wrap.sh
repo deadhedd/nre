@@ -1,5 +1,18 @@
 #!/bin/sh
-# job-wrap.sh — cron-safe wrapper with logging + optional auto-commit
+# utils/core/job-wrap.sh — cron-safe wrapper with per-job logs + optional auto-commit
+# Author: deadhedd
+# License: MIT
+# shellcheck shell=sh
+#
+# Paradigm:
+# - Leaf scripts must re-exec via this wrapper when JOB_WRAP_ACTIVE!=1.
+# - ONLY this wrapper sources utils/core/log.sh (leaf scripts must NOT).
+# - Option A routing:
+#     * leaf stdout is sacred (passes through untouched)
+#     * leaf stderr is captured and written to per-run log file as OUT lines
+# - Each run has: <job>-<UTC>.log and <job>-latest.log
+# - Rotation: keep last N logs (default 10), per job, per bucket.
+# - Log path mapping MUST match legacy behavior (daily-notes / weekly-notes / long-cycle / other).
 #
 # Usage:
 #   job-wrap.sh <command_or_script> [args...]
@@ -16,47 +29,42 @@
 # Debug knobs (all opt-in; never stdout):
 #   JOB_WRAP_DEBUG=1               Enable wrapper internal debug.
 #   JOB_WRAP_DEBUG_FILE=<path>     Write wrapper debug to this file (else stderr).
+#   JOB_WRAP_ASCII_ONLY=1|0        Wrapper dbg sanitization (default 1).
 #   JOB_WRAP_XTRACE=1              Enable shell xtrace to JOB_WRAP_XTRACE_FILE.
 #   JOB_WRAP_XTRACE_FILE=<path>    File for xtrace output (else $LOG_ROOT/debug/...).
 #
-# Logging knobs passed through to log.sh:
-#   LOG_HELPER_PATH, LOG_ROOT, LOG_ROLLING_VAULT_ROOT, LOG_INTERNAL_DEBUG, etc.
+# Logging knobs (wrapper -> new logger):
+#   LOG_ROOT                       Base logs dir (default ${HOME:-/home/obsidian}/logs)
+#   LOG_LEVEL                      DEBUG|INFO|WARN|ERR (default INFO)
+#   LOG_ASCII_ONLY                 1|0 (default 1)
+#   LOG_KEEP_COUNT                 keep last N (default 10)
+#   LOG_INTERNAL_DEBUG             1|0 (default 0)
+#   LOG_INTERNAL_DEBUG_FILE        path for logger internal debug (optional)
 
 set -eu
+PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 export JOB_WRAP_ACTIVE=1
 
 # ------------------------------------------------------------------------------
 # Wrapper internal debug (never stdout)
 # ------------------------------------------------------------------------------
-
-job_wrap__now() {
-  if command -v date >/dev/null 2>&1; then
-    date '+%Y-%m-%dT%H:%M:%S%z'
-  else
-    printf 'unknown'
-  fi
-}
+job_wrap__now() { date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || printf 'unknown'; }
 
 job_wrap__dbg() {
   [ "${JOB_WRAP_DEBUG:-0}" -ne 0 ] || return 0
 
-  ts=$(job_wrap__now 2>/dev/null || printf 'unknown')
-  # Keep ASCII-only by default to match your terminals
+  ts=$(job_wrap__now)
   if [ "${JOB_WRAP_ASCII_ONLY:-1}" -ne 0 ] 2>/dev/null; then
     msg=$(printf '%s' "$*" | LC_ALL=C tr -cd '\11\12\15\40-\176')
   else
     msg=$*
   fi
-
   line="$ts DBG $msg"
 
   if [ -n "${JOB_WRAP_DEBUG_FILE:-}" ]; then
     case "$JOB_WRAP_DEBUG_FILE" in
-      */*)
-        _d=${JOB_WRAP_DEBUG_FILE%/*}
-        [ -d "$_d" ] || mkdir -p "$_d" 2>/dev/null || true
-        ;;
+      */*) d=${JOB_WRAP_DEBUG_FILE%/*}; [ -d "$d" ] || mkdir -p "$d" 2>/dev/null || true ;;
     esac
     printf '%s\n' "$line" >>"$JOB_WRAP_DEBUG_FILE" 2>/dev/null || true
   else
@@ -67,7 +75,6 @@ job_wrap__dbg() {
 # ------------------------------------------------------------------------------
 # Args
 # ------------------------------------------------------------------------------
-
 ORIGINAL_CMD="${1:-}"
 if [ -z "$ORIGINAL_CMD" ]; then
   printf 'Usage: %s <command_or_script> [args...]\n' "$0" >&2
@@ -76,41 +83,41 @@ fi
 shift || true
 
 # ------------------------------------------------------------------------------
-# Path setup
+# Paths
 # ------------------------------------------------------------------------------
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd -P) || {
+  printf '%s\n' "ERR job-wrap: cannot resolve SCRIPT_DIR" >&2
+  exit 2
+}
+UTILS_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." 2>/dev/null && pwd -P) || {
+  printf '%s\n' "ERR job-wrap: cannot resolve UTILS_DIR" >&2
+  exit 2
+}
+REPO_ROOT=$(CDPATH= cd -- "$UTILS_DIR/.." 2>/dev/null && pwd -P) || {
+  printf '%s\n' "ERR job-wrap: cannot resolve REPO_ROOT" >&2
+  exit 2
+}
 
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-UTILS_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
-REPO_ROOT=$(cd "$UTILS_DIR/.." && pwd)
-
-# Logger bootstrap (explicit, no guessing in log.sh)
-LOG_HELPER_DIR=${LOG_HELPER_DIR:-$SCRIPT_DIR}
-LOG_HELPER_PATH="$LOG_HELPER_DIR/log.sh"
-export LOG_HELPER_DIR LOG_HELPER_PATH
 COMMIT_HELPER="${COMMIT_HELPER:-$SCRIPT_DIR/commit.sh}"
 
 job_wrap__dbg "start: pid=$$ ppid=${PPID:-?} uid=$(id -u 2>/dev/null || printf '?') user=$(id -un 2>/dev/null || printf unknown)"
 job_wrap__dbg "paths: SCRIPT_DIR=$SCRIPT_DIR UTILS_DIR=$UTILS_DIR REPO_ROOT=$REPO_ROOT"
-job_wrap__dbg "helpers: LOG_HELPER_PATH=$LOG_HELPER_PATH COMMIT_HELPER=$COMMIT_HELPER"
+job_wrap__dbg "helpers: COMMIT_HELPER=$COMMIT_HELPER"
 job_wrap__dbg "cmd: ORIGINAL_CMD=$ORIGINAL_CMD argv=$(printf '%s ' "$@")"
 job_wrap__dbg "env: PATH=${PATH:-} HOME=${HOME:-} SHELL=${SHELL:-} VAULT_PATH=${VAULT_PATH:-<unset>} LOG_ROOT=${LOG_ROOT:-<unset>}"
 
-# Make logs safe for content pipelines by default:
-: "${LOG_INFO_STREAM:=stderr}"
-: "${LOG_DEBUG_STREAM:=stderr}"
-export LOG_INFO_STREAM LOG_DEBUG_STREAM
-
+# ------------------------------------------------------------------------------
+# Source new logging façade (wrapper-only)
+# ------------------------------------------------------------------------------
 # shellcheck source=/dev/null
-. "$LOG_HELPER_PATH"
+. "$SCRIPT_DIR/log.sh"
 
 # ------------------------------------------------------------------------------
 # Optional: enable xtrace to a file (never stdout)
 # ------------------------------------------------------------------------------
-
 job_wrap__enable_xtrace() {
   [ "${JOB_WRAP_XTRACE:-0}" -ne 0 ] || return 0
 
-  # Default xtrace file under LOG_ROOT/debug if LOG_ROOT exists, else /tmp
   if [ -z "${JOB_WRAP_XTRACE_FILE:-}" ]; then
     if [ -n "${LOG_ROOT:-}" ]; then
       JOB_WRAP_XTRACE_FILE="$LOG_ROOT/debug/job-wrap.${ORIGINAL_CMD}.$$.xtrace.log"
@@ -121,30 +128,19 @@ job_wrap__enable_xtrace() {
   fi
 
   case "$JOB_WRAP_XTRACE_FILE" in
-    */*)
-      _xtd=${JOB_WRAP_XTRACE_FILE%/*}
-      [ -d "$_xtd" ] || mkdir -p "$_xtd" 2>/dev/null || true
-      ;;
+    */*) d=${JOB_WRAP_XTRACE_FILE%/*}; [ -d "$d" ] || mkdir -p "$d" 2>/dev/null || true ;;
   esac
 
-  # Route xtrace to FD 9
-  exec 9>>"$JOB_WRAP_XTRACE_FILE"
+  exec 9>>"$JOB_WRAP_XTRACE_FILE" 2>/dev/null || true
   export PS4='+ ${0##*/}:${LINENO}: '
-  # Some shells honor BASH_XTRACEFD; sh generally does not, so we redirect via FD 9:
-  # Portable approach: many /bin/sh don't support redirecting xtrace output; OpenBSD ksh does.
-  # We'll still enable xtrace; if your shell ignores FD routing, it will go to stderr.
-  # (Still not stdout.)
   set -x
   job_wrap__dbg "xtrace enabled: JOB_WRAP_XTRACE_FILE=$JOB_WRAP_XTRACE_FILE"
 }
-
-# If JOB_WRAP_DEBUG is on and you want xtrace automatically, you can set JOB_WRAP_XTRACE=1.
 job_wrap__enable_xtrace || true
 
 # ------------------------------------------------------------------------------
-# Resolve the command we’re supposed to run
+# Resolve the command (legacy behavior preserved)
 # ------------------------------------------------------------------------------
-
 RESOLVED_CMD=""
 
 case "$ORIGINAL_CMD" in
@@ -153,7 +149,6 @@ case "$ORIGINAL_CMD" in
     job_wrap__dbg "resolve: explicit path -> $RESOLVED_CMD"
     ;;
   *)
-    # 1) If JOB_WRAP_SEARCH_PATH is set, honor it (non-recursive)
     if [ -n "${JOB_WRAP_SEARCH_PATH:-}" ]; then
       job_wrap__dbg "resolve: searching JOB_WRAP_SEARCH_PATH=$JOB_WRAP_SEARCH_PATH"
       OLD_IFS=$IFS
@@ -171,7 +166,6 @@ case "$ORIGINAL_CMD" in
       IFS=$OLD_IFS
     fi
 
-    # 2) If still not found, search the repo recursively
     if [ -z "$RESOLVED_CMD" ]; then
       job_wrap__dbg "resolve: searching repo recursively under $REPO_ROOT"
       RESOLVED_CMD=$(
@@ -181,7 +175,6 @@ case "$ORIGINAL_CMD" in
       [ -n "$RESOLVED_CMD" ] && job_wrap__dbg "resolve: found in repo -> $RESOLVED_CMD"
     fi
 
-    # 3) If still not found, try PATH
     if [ -z "$RESOLVED_CMD" ]; then
       job_wrap__dbg "resolve: searching PATH via command -v"
       if RESOLVED_CMD=$(command -v "$ORIGINAL_CMD" 2>/dev/null); then
@@ -202,15 +195,58 @@ esac
 
 set -- "$RESOLVED_CMD" "$@"
 
-JOB_BASENAME=$(basename "$RESOLVED_CMD")
-JOB_NAME=${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}
+JOB_BASENAME=$(basename -- "$RESOLVED_CMD")
+JOB_NAME="${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}"
 
 job_wrap__dbg "job: RESOLVED_CMD=$RESOLVED_CMD JOB_BASENAME=$JOB_BASENAME JOB_NAME=$JOB_NAME"
 
 # ------------------------------------------------------------------------------
-# Commit helper glue
+# Legacy log path mapping (same as old logger)
 # ------------------------------------------------------------------------------
+job_wrap__default_log_dir() {
+  # Mirrors legacy log__default_log_dir mapping.
+  case "$1" in
+    *daily-note*)   printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/daily-notes" ;;
+    *weekly-note*)  printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/weekly-notes" ;;
+    *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
+                   printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/long-cycle" ;;
+    *)              printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/other" ;;
+  esac
+}
 
+job_wrap__utc_runid() { date -u '+%Y%m%dT%H%M%SZ' 2>/dev/null || printf 'run'; }
+
+# Set env for new logger
+LOG_RUN_TS=${LOG_RUN_TS:-$(job_wrap__utc_runid)}
+SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
+LOG_DIR=$(job_wrap__default_log_dir "$SAFE_JOB_NAME")
+LOG_FILE="$LOG_DIR/$SAFE_JOB_NAME-$LOG_RUN_TS.log"
+
+export JOB_NAME="$SAFE_JOB_NAME"
+export LOG_FILE
+: "${LOG_KEEP_COUNT:=10}"
+: "${LOG_LEVEL:=INFO}"
+: "${LOG_ASCII_ONLY:=1}"
+export LOG_KEEP_COUNT LOG_LEVEL LOG_ASCII_ONLY
+
+# Initialize sink + prune + latest (writes banner)
+log_init
+
+# Metadata (replacement for old log_run_job meta lines)
+log_info "== ${JOB_NAME} start =="
+log_info "utc_start=$LOG_RUN_TS"
+log_info "cwd=$(pwd 2>/dev/null || pwd)"
+log_info "user=$(id -un 2>/dev/null || printf unknown)"
+log_info "path=${PATH:-}"
+log_info "requested_cmd=$ORIGINAL_CMD"
+log_info "resolved_cmd=$RESOLVED_CMD"
+log_info "argv=$(printf '%s ' "$@")"
+log_info "log_file=$LOG_FILE"
+log_info "------------------------------"
+
+# ------------------------------------------------------------------------------
+# Commit helper glue (preserve old semantics)
+# ------------------------------------------------------------------------------
 job_wrap__default_work_tree() {
   if [ -n "${JOB_WRAP_DEFAULT_WORK_TREE:-}" ]; then
     printf '%s\n' "$JOB_WRAP_DEFAULT_WORK_TREE"
@@ -253,36 +289,58 @@ perform_commit() {
 }
 
 # ------------------------------------------------------------------------------
-# Run the job through the logging helper
+# Run the job (Option A routing)
+#   - stdout passes through untouched
+#   - stderr captured and logged as OUT lines
 # ------------------------------------------------------------------------------
+tmp_base=${TMPDIR:-/tmp}
+fifo="$tmp_base/job-wrap.$$.$LOG_RUN_TS.err.fifo"
 
-job_wrap__dbg "invoke: calling log_run_job job=$JOB_NAME cmd=$(printf '%s ' "$@")"
-job_wrap__dbg "invoke: context: cwd=$(pwd) user=$(id -un 2>/dev/null || printf unknown) requested_cmd=$ORIGINAL_CMD resolved_cmd=$RESOLVED_CMD"
+cap_pid=""
 
+cleanup() {
+  rc=$?
+  [ -p "$fifo" ] && rm -f -- "$fifo" 2>/dev/null || true
+  if [ -n "$cap_pid" ]; then
+    kill "$cap_pid" 2>/dev/null || true
+    wait "$cap_pid" 2>/dev/null || true
+  fi
+  exit "$rc"
+}
+trap cleanup INT TERM HUP
+
+rm -f -- "$fifo" 2>/dev/null || true
+mkfifo -- "$fifo" 2>/dev/null || mkfifo "$fifo" 2>/dev/null || {
+  log_err "mkfifo failed (cannot capture stderr)"
+  exit 2
+}
+
+# Start stderr capture
+# shellcheck disable=SC2094
+log_capture_stderr <"$fifo" &
+cap_pid=$!
+job_wrap__dbg "capture: started pid=$cap_pid fifo=$fifo"
+
+# Execute the job (note: preserve old behavior of running the resolved path directly)
 set +e
-log_run_job "$JOB_NAME" \
-  "cwd=$(pwd)" \
-  "user=$(id -un 2>/dev/null || printf unknown)" \
-  "path=${PATH:-}" \
-  "requested_cmd=$ORIGINAL_CMD" \
-  "resolved_cmd=$RESOLVED_CMD" \
-  "default_commit_work_tree=$DEFAULT_COMMIT_WORK_TREE" \
-  "argv=$(printf '%s ' "$@")" \
-  -- \
-  "$@"
+"$@" 2>"$fifo"
 STATUS=$?
 set -e
 
-if [ "$STATUS" -ne 0 ]; then
-  job_wrap__dbg "invoke: log_run_job FAILED status=$STATUS"
-else
-  job_wrap__dbg "invoke: log_run_job OK"
-fi
+# Stop capture
+rm -f -- "$fifo" 2>/dev/null || true
+wait "$cap_pid" 2>/dev/null || true
+cap_pid=""
+
+# Job end lifecycle lines
+log_info "------------------------------"
+log_info "exit=$STATUS"
+log_info "utc_end=$(job_wrap__utc_runid)"
+log_info "== ${JOB_NAME} end =="
 
 # ------------------------------------------------------------------------------
-# Post-job commit & exit logic
+# Post-job commit & exit logic (preserve old semantics)
 # ------------------------------------------------------------------------------
-
 commit_status=0
 if ! perform_commit; then
   commit_status=$?
