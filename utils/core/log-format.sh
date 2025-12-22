@@ -10,9 +10,9 @@
 # - Provides: sanitize, timestamp, level gating, line formatting.
 #
 # Config (env):
-#   LOG_ASCII_ONLY=1|0   (default 1)
-#   LOG_LEVEL=DEBUG|INFO|WARN|ERR (default INFO)
-#   LOG_TIMESTAMP=1|0    (default 1)
+#   LOG_ASCII_ONLY=1|0     (default 1)
+#   LOG_INTERNAL_LEVEL=DEBUG|INFO|WARN|ERR (default INFO)
+#   LOG_TIMESTAMP=1|0      (default 1)
 
 (return 0 2>/dev/null) || { printf '%s\n' "ERR log-format.sh must be sourced, not executed" >&2; exit 2; }
 
@@ -22,7 +22,7 @@ fi
 LOG_FORMAT_LOADED=1
 
 : "${LOG_ASCII_ONLY:=1}"
-: "${LOG_LEVEL:=INFO}"
+: "${LOG_INTERNAL_LEVEL:=INFO}"
 : "${LOG_TIMESTAMP:=1}"
 
 log_level__to_num() {
@@ -37,7 +37,7 @@ log_level__to_num() {
 
 log_level__should() {
   want=$(log_level__to_num "${1:-INFO}")
-  cur=$(log_level__to_num "${LOG_LEVEL:-INFO}")
+  cur=$(log_level__to_num "${LOG_INTERNAL_LEVEL:-INFO}")
   [ "$want" -ge "$cur" ]
 }
 
