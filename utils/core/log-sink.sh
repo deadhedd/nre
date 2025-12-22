@@ -74,6 +74,18 @@ log_sink__prune_keep_last_n() {
   [ -n "$log_dir" ] || return 0
   [ -n "$job_name" ] || return 0
 
+  case "$keep_n" in
+    ''|*[!0-9]*)
+      log_sink__internal "prune: skip invalid keep_n=$keep_n"
+      return 0
+      ;;
+  esac
+
+  if [ "$keep_n" -le 0 ]; then
+    log_sink__internal "prune: skip non-positive keep_n=$keep_n"
+    return 0
+  fi
+
   # Tight glob: <JOB_NAME>-????????T??????.log
   glob="${log_dir%/}/${job_name}-????????T??????.log"
 
