@@ -10,7 +10,7 @@
 # - Option A routing:
 #     * leaf stdout is sacred (passes through untouched)
 #     * leaf stderr is captured and written to per-run log file as OUT lines
-# - Each run has: <job>-<UTC>.log and <job>-latest.log
+# - Each run has: <job>-<timestamp>.log and <job>-latest.log
 # - Rotation: keep last N logs (default 10), per job, per bucket.
 # - Log path mapping MUST match legacy behavior (daily-notes / weekly-notes / long-cycle / other).
 #
@@ -214,10 +214,10 @@ job_wrap__default_log_dir() {
   esac
 }
 
-job_wrap__utc_runid() { date -u '+%Y%m%dT%H%M%SZ' 2>/dev/null || printf 'run'; }
+job_wrap__runid() { date '+%Y%m%dT%H%M%S' 2>/dev/null || printf 'run'; }
 
 # Set env for new logger
-LOG_RUN_TS=${LOG_RUN_TS:-$(job_wrap__utc_runid)}
+LOG_RUN_TS=${LOG_RUN_TS:-$(job_wrap__runid)}
 SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
 LOG_DIR=$(job_wrap__default_log_dir "$SAFE_JOB_NAME")
 LOG_FILE="$LOG_DIR/$SAFE_JOB_NAME-$LOG_RUN_TS.log"
@@ -234,7 +234,7 @@ log_init
 
 # Metadata (replacement for old log_run_job meta lines)
 log_audit "== ${JOB_NAME} start =="
-log_audit "utc_start=$LOG_RUN_TS"
+log_audit "start=$LOG_RUN_TS"
 log_audit "cwd=$(pwd 2>/dev/null || pwd)"
 log_audit "user=$(id -un 2>/dev/null || printf unknown)"
 log_audit "path=${PATH:-}"
@@ -335,7 +335,7 @@ cap_pid=""
 # Job end lifecycle lines
 log_audit "------------------------------"
 log_audit "exit=$STATUS"
-log_audit "utc_end=$(job_wrap__utc_runid)"
+log_audit "end=$(job_wrap__runid)"
 log_audit "== ${JOB_NAME} end =="
 
 # ------------------------------------------------------------------------------
