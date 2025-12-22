@@ -44,6 +44,15 @@ log__emit() {
   log_sink_write_line "$line"
 }
 
+log__emit_force() {
+  level=$1
+  shift
+  line=$(log_fmt__line "$level" "$*")
+  log_sink_write_line "$line"
+}
+
+log_audit() { log__emit_force "INFO" "$@"; }
+
 log_debug() { log__emit "DEBUG" "$@"; }
 log_info()  { log__emit "INFO"  "$@"; }
 log_warn()  { log__emit "WARN"  "$@"; }
