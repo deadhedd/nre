@@ -121,9 +121,10 @@ log_sink_write_line() {
   [ -n "${LOG_FD:-}" ] || {
     log_sink__internal "write_line: LOG_FD unset (sink not opened?)"
     printf '%s\n' "ERR logger sink not initialized (LOG_FD unset)" >&2
-    exit 2
+    return 1
   }
-  printf '%s\n' "$line" >&"$LOG_FD"
+  printf '%s\n' "$line" >&"$LOG_FD" || return 1
+  return 0
 }
 
 log_sink_init() {

@@ -329,8 +329,19 @@ set -e
 
 # Stop capture
 rm -f -- "$fifo" 2>/dev/null || true
-wait "$cap_pid" 2>/dev/null || true
+cap_status=0
+set +e
+wait "$cap_pid" 2>/dev/null
+cap_status=$?
+set -e
 cap_pid=""
+
+if [ "$cap_status" -ne 0 ]; then
+  # Best effort into the job log (if sink is alive)
+  log_err "stderr capture failed (status=$cap_status) — stderr output may be incomplete"
+  # Guaranteed visibility even if sink is busted
+  job_wrap__dbg "capture: FAILED status=$cap_status (stderr output may be missing)"
+fi
 
 # Job end lifecycle lines
 log_audit "------------------------------"

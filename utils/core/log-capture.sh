@@ -20,19 +20,23 @@ LOG_CAPTURE_LOADED=1
 # Reads from stdin, emits each line as:
 #   "<ts> OUT <sanitized-line>"
 log_capture_stderr() {
+  rc=0
   # Read robustly including last line without newline.
   while IFS= read -r line || [ -n "$line" ]; do
-    out=$(log_fmt__line "OUT" "$line")
-    log_sink_write_line "$out"
+    out=$(log_fmt__line "OUT" "$line") || { rc=1; continue; }
+    log_sink_write_line "$out" || rc=1
   done
+  return "$rc"
 }
 
 # Same as above but with explicit level token (e.g. "ERR", "WARN")
 log_capture_stream_as() {
   level=$1
   shift || true
+  rc=0
   while IFS= read -r line || [ -n "$line" ]; do
-    out=$(log_fmt__line "$level" "$line")
-    log_sink_write_line "$out"
+    out=$(log_fmt__line "$level" "$line") || { rc=1; continue; }
+    log_sink_write_line "$out" || rc=1
   done
+  return "$rc"
 }
