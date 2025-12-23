@@ -295,39 +295,16 @@ perform_commit() {
 # ------------------------------------------------------------------------------
 # Run the job (Option A routing)
 #   - stdout passes through untouched
-#   - stderr captured and logged as OUT lines
+#   - stderr appended to LOG_FILE
 # ------------------------------------------------------------------------------
-tmp_base=${TMPDIR:-/tmp}
-fifo="$tmp_base/job-wrap.$$.$LOG_RUN_TS.err.fifo"
-
-cap_pid=""
-cap_status=0
 job_pid=""
 
 job_wrap__shutdown() {
   if [ "${JOB_WRAP_SHUTDOWN_DONE:-0}" -ne 0 ] 2>/dev/null; then
-    [ -n "${fifo:-}" ] && [ -p "$fifo" ] && rm -f -- "$fifo" 2>/dev/null || true
     exit "${STATUS:-0}"
   fi
   trap '' INT TERM HUP
   JOB_WRAP_SHUTDOWN_DONE=1
-
-  if [ -n "${cap_pid:-}" ]; then
-    set +e
-    wait "$cap_pid" 2>/dev/null
-    cap_status=$?
-    set -e
-    cap_pid=""
-  fi
-
-  if [ "${cap_status:-0}" -ne 0 ]; then
-    log_err "stderr capture failed (status=$cap_status) - stderr output may be incomplete"
-    job_wrap__dbg "capture: FAILED status=$cap_status"
-  fi
-
-  if [ -n "${fifo:-}" ] && [ -p "$fifo" ]; then
-    rm -f -- "$fifo" 2>/dev/null || true
-  fi
 
   log_audit "------------------------------"
   if [ -n "${JOB_WRAP_SIG:-}" ]; then
@@ -385,11 +362,6 @@ job_wrap__on_signal() {
     set -e
   fi
 
-  # If capture is still running (job may have kept FIFO open), stop it.
-  if [ -n "${cap_pid:-}" ]; then
-    kill -0 "$cap_pid" 2>/dev/null && kill -TERM "$cap_pid" 2>/dev/null || true
-  fi
-
   job_wrap__shutdown
 }
 
@@ -397,21 +369,9 @@ trap 'job_wrap__on_signal INT' INT
 trap 'job_wrap__on_signal TERM' TERM
 trap 'job_wrap__on_signal HUP' HUP
 
-rm -f -- "$fifo" 2>/dev/null || true
-mkfifo -- "$fifo" 2>/dev/null || mkfifo "$fifo" 2>/dev/null || {
-  log_err "mkfifo failed (cannot capture stderr)"
-  exit 2
-}
-
-# Start stderr capture
-# shellcheck disable=SC2094
-log_capture_stderr <"$fifo" &
-cap_pid=$!
-job_wrap__dbg "capture: started pid=$cap_pid fifo=$fifo"
-
 # Execute the job (note: preserve old behavior of running the resolved path directly)
 set +e
-"$@" 2>"$fifo" &
+"$@" 2>>"$LOG_FILE" &
 job_pid=$!
 wait "$job_pid"
 STATUS=$?
