@@ -239,6 +239,9 @@ export LOG_FILE
 : "${LOG_ASCII_ONLY:=1}"
 export LOG_KEEP_COUNT LOG_INTERNAL_LEVEL LOG_ASCII_ONLY
 
+JOB_WRAP_ACTIVE=1
+export JOB_WRAP_ACTIVE
+
 # Initialize sink + prune + latest (writes banner)
 log_init
 
@@ -253,9 +256,6 @@ log_audit "resolved_cmd=$RESOLVED_CMD"
 log_audit "argv=$(job_wrap__fmt_argv "$@")"
 log_audit "log_file=$LOG_FILE"
 log_audit "------------------------------"
-
-JOB_WRAP_ACTIVE=1
-export JOB_WRAP_ACTIVE
 
 STATUS=0
 JOB_WRAP_SIG=""
