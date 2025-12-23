@@ -73,7 +73,7 @@ job_wrap__dbg() {
 job_wrap__fmt_argv() {
   first=1
   for arg in "$@"; do
-    if [ "$first" -eq 1 ]; then
+    if [ "$first" = 1 ]; then
       printf '%s' "$arg"
       first=0
     else
