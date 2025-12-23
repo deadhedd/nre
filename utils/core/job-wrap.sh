@@ -7,9 +7,9 @@
 # Paradigm:
 # - Leaf scripts must re-exec via this wrapper when JOB_WRAP_ACTIVE!=1.
 # - ONLY this wrapper sources utils/core/log.sh (leaf scripts must NOT).
-# - Option A routing:
+# - Wrapper routing:
 #     * leaf stdout is sacred (passes through untouched)
-#     * leaf stderr is captured and written to per-run log file as OUT lines
+#     * leaf stderr is appended verbatim to the per-run log file
 # - Each run has: <job>-<timestamp>.log and <job>-latest.log
 # - Rotation: keep last N logs (default 10), per job, per bucket.
 # - Log path mapping MUST match legacy behavior (daily-notes / weekly-notes / long-cycle / other).
@@ -44,8 +44,6 @@
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-export JOB_WRAP_ACTIVE=1
-
 # ------------------------------------------------------------------------------
 # Wrapper internal debug (never stdout)
 # ------------------------------------------------------------------------------
@@ -58,7 +56,7 @@ job_wrap__dbg() {
   if [ "${JOB_WRAP_ASCII_ONLY:-1}" -ne 0 ] 2>/dev/null; then
     msg=$(printf '%s' "$*" | LC_ALL=C tr -cd '\11\12\15\40-\176')
   else
-    msg=$*
+    msg=$(printf '%s' "$*")
   fi
   line="$ts DBG $msg"
 
@@ -70,6 +68,18 @@ job_wrap__dbg() {
   else
     printf '%s\n' "$line" >&2
   fi
+}
+
+job_wrap__fmt_argv() {
+  first=1
+  for arg in "$@"; do
+    if [ "$first" -eq 1 ]; then
+      printf '%s' "$arg"
+      first=0
+    else
+      printf ' %s' "$arg"
+    fi
+  done
 }
 
 # ------------------------------------------------------------------------------
@@ -103,7 +113,7 @@ COMMIT_HELPER="${COMMIT_HELPER:-$SCRIPT_DIR/commit.sh}"
 job_wrap__dbg "start: pid=$$ ppid=${PPID:-?} uid=$(id -u 2>/dev/null || printf '?') user=$(id -un 2>/dev/null || printf unknown)"
 job_wrap__dbg "paths: SCRIPT_DIR=$SCRIPT_DIR UTILS_DIR=$UTILS_DIR REPO_ROOT=$REPO_ROOT"
 job_wrap__dbg "helpers: COMMIT_HELPER=$COMMIT_HELPER"
-job_wrap__dbg "cmd: ORIGINAL_CMD=$ORIGINAL_CMD argv=$(printf '%s ' "$@")"
+job_wrap__dbg "cmd: ORIGINAL_CMD=$ORIGINAL_CMD argv=$(job_wrap__fmt_argv "$@")"
 job_wrap__dbg "env: PATH=${PATH:-} HOME=${HOME:-} SHELL=${SHELL:-} VAULT_PATH=${VAULT_PATH:-<unset>} LOG_ROOT=${LOG_ROOT:-<unset>}"
 
 # ------------------------------------------------------------------------------
@@ -240,9 +250,12 @@ log_audit "user=$(id -un 2>/dev/null || printf unknown)"
 log_audit "path=${PATH:-}"
 log_audit "requested_cmd=$ORIGINAL_CMD"
 log_audit "resolved_cmd=$RESOLVED_CMD"
-log_audit "argv=$(printf '%s ' "$@")"
+log_audit "argv=$(job_wrap__fmt_argv "$@")"
 log_audit "log_file=$LOG_FILE"
 log_audit "------------------------------"
+
+JOB_WRAP_ACTIVE=1
+export JOB_WRAP_ACTIVE
 
 STATUS=0
 JOB_WRAP_SIG=""
@@ -293,12 +306,10 @@ perform_commit() {
 }
 
 # ------------------------------------------------------------------------------
-# Run the job (Option A routing)
+# Run the job (foreground routing)
 #   - stdout passes through untouched
 #   - stderr appended to LOG_FILE
 # ------------------------------------------------------------------------------
-job_pid=""
-
 job_wrap__shutdown() {
   if [ "${JOB_WRAP_SHUTDOWN_DONE:-0}" -ne 0 ] 2>/dev/null; then
     exit "${STATUS:-0}"
@@ -353,15 +364,6 @@ job_wrap__on_signal() {
     *)    STATUS=128 ;;
   esac
 
-  if [ -n "${job_pid:-}" ]; then
-    set +e
-    kill -TERM "$job_pid" 2>/dev/null
-    sleep 1
-    kill -KILL "$job_pid" 2>/dev/null
-    wait "$job_pid" 2>/dev/null
-    set -e
-  fi
-
   job_wrap__shutdown
 }
 
@@ -371,11 +373,8 @@ trap 'job_wrap__on_signal HUP' HUP
 
 # Execute the job (note: preserve old behavior of running the resolved path directly)
 set +e
-"$@" 2>>"$LOG_FILE" &
-job_pid=$!
-wait "$job_pid"
+"$@" 2>>"$LOG_FILE"
 STATUS=$?
-job_pid=""
 set -e
 
 job_wrap__shutdown
