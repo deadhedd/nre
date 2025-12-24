@@ -10,6 +10,70 @@ Manual review and refinement are required before this document should be conside
 
 ---
 
+## Table of Contents
+
+1. Execution Contract (job-wrap)
+   1. Mandatory Re-exec via job-wrap
+   2. job-wrap as the Sole Lifecycle Authority
+   3. Single-Process Execution Model
+   4. Wrapper Transparency
+   5. Wrapper Availability Guarantee
+   6. Design Intent Summary
+2. Stdout / Stderr Contract
+   1. Stdout Is Sacred
+   2. Stderr Is for Humans and Diagnostics
+   3. Wrapper-Enforced Separation
+   4. Silence Is Valid Output
+   5. Error Conditions and Output
+   6. Logging Helpers Must Respect the Contract
+   7. Design Intent Summary
+3. Logging Contract
+   1. Single Logging Authority
+   2. Log Capture Model
+   3. Log File Structure
+   4. Log Buckets and Placement
+   5. Structured Log Content
+   6. Logging Libraries Are Wrapper-Only
+   7. Failure Visibility Is Mandatory
+   8. Design Intent Summary
+4. Exit Code Semantics
+   1. Wrapper Propagation Is Authoritative
+   2. Meaning of 0
+   3. Meaning of Non-Zero
+   4. Reserved Exit Codes
+   5. Soft Failure vs Hard Failure
+   6. Caller Responsibilities
+   7. Wrapper Failures
+   8. Design Intent Summary
+5. Run Cadence & Freshness
+   1. Cadence Is a Property of the Job
+   2. Declaring Expected Run Frequency
+   3. Freshness Is Evaluated from Logs, Not Schedules
+   4. Stale vs Missing
+   5. Latest Pointer Is Not Authoritative
+   6. Partial or Failed Runs
+   7. Design Intent Summary
+6. Environment & Paths
+   1. Minimal, Explicit PATH
+   2. Stable Repo-Relative Resolution
+   3. job-wrap Discovery
+   4. Required Environment Variables
+   5. Working Directory
+   6. Temporary Files and Directories
+   7. Portability and Shell Assumptions
+   8. Design Intent Summary
+7. Idempotency & Side Effects
+   1. Idempotency Is the Default Expectation
+   2. Side Effects Must Be Intentional and Bounded
+   3. Safe Overwrite Beats Clever Deltas
+   4. Atomicity and Partial Failure
+   5. Git Side Effects Are Centralized
+   6. Time-Based Scripts and Determinism
+   7. Reruns Are a First-Class Use Case
+   8. Design Intent Summary
+
+---
+
 ## 1. Execution Contract (job-wrap)
 
 All scripts in `obsidian-note-tools` execute under a **single, mandatory wrapper**:
