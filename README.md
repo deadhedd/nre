@@ -24,21 +24,19 @@ order when running from other directories.
 ### When run through `utils/core/job-wrap.sh`
 
 * Resolves the requested command name by checking `JOB_WRAP_SEARCH_PATH`, then searching the repository for executables, and finally falling back to `PATH`; unknown commands abort with exit 127.
-* Sanitizes the derived job label (or `JOB_WRAP_JOB_NAME`, when set) to pick the log folder (daily/weekly/periodic), falling back to `${HOME:-/home/obsidian}/logs/other` for non-periodic jobs; creates the folder and names each run log `<job>-<UTC timestamp>.log` alongside a `latest` symlink.
-* Writes a header with start time, cwd, user, path, requested/resolved command, and argv, then appends all stdout/stderr from the invoked script, and finally records exit code, end time, and duration.
-* Rotates logs by keeping the newest `LOG_KEEP` (default 20) per job name, deleting older files after each run.
+* Sanitizes the derived job label (or `JOB_WRAP_JOB_NAME`, when set) to pick the log bucket (daily/weekly/long-cycle/other), falling back to `${HOME:-/home/obsidian}/logs/other` when no match is found. Each run creates `<job>-<UTC timestamp>Z.log` and updates a `<job>-latest.log` symlink.
+* Uses the structured logger from `utils/core/log.sh` to write header metadata (start/end times, cwd, user, PATH, requested/resolved command, argv, and log path) plus footer lines for exit code and end time.
+* Captures only the wrapped command's stderr as `OUT` log lines so leaf stdout stays untouched for pipelines. Log verbosity, ASCII sanitization, and rotation are controlled by `LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY`, and `LOG_KEEP_COUNT` (default 10).
 
 ### When a generator runs directly
 
-* Scripts such as `generators/generate-daily-note.sh` print status messages with `log_info`/`log_warn`/`log_err`, sending informational output to stdout and errors to stderr.
+* Scripts such as `generators/generate-daily-note.sh` print status messages with `printf`, sending informational output to stdout and errors to stderr.
 * The daily note script pins `PATH` to `/usr/local/bin:/usr/bin:/bin:${PATH:-}` before doing any work and logs high-level milestones like vault path selection or missing folder warnings.
-* Without the wrapper, these logs remain on the calling terminal; when invoked through `job-wrap.sh`, the same messages are captured in the run log alongside the wrapper's header/footer metadata.
+* When invoked through `job-wrap.sh`, only stderr lines are mirrored into the run log; stdout remains attached to the caller.
 
 ### Simple inline log helpers
 
-Generators and utilities define lightweight `log_info`/`log_warn`/`log_err` wrappers locally so they can emit clear status
-messages without sourcing shared helpers. When run under `job-wrap.sh`, these lines are captured alongside the wrapper's
-structured header/footer output.
+Generators and utilities rely on inline `printf` prefixes (e.g., `INFO`, `WARN`, `ERR`) for human-readable status without sourcing shared logging helpers. Under `job-wrap.sh`, only stderr-prefixed output is copied into the structured log alongside the wrapper's header/footer metadata.
 
 ## `generators/generate-daily-note.sh`
 
