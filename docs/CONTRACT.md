@@ -1,4 +1,67 @@
-**Status:** v0.1 — Early Draft  
+<!--
+Review checklist (Table of Contents):
+- [ ] 1. Execution Contract (job-wrap)
+  - [ ] 1.1 Mandatory Re-exec via job-wrap
+  - [ ] 1.2 job-wrap as the Sole Lifecycle Authority
+  - [ ] 1.3 Single-Process Execution Model
+  - [ ] 1.4 Wrapper Transparency
+  - [ ] 1.5 Wrapper Availability Guarantee
+  - [ ] 1.6 Design Intent Summary
+- [ ] 2. Stdout / Stderr Contract
+  - [ ] 2.1 Stdout Is Sacred
+  - [ ] 2.2 Stderr Is for Humans and Diagnostics
+  - [ ] 2.3 Wrapper-Enforced Separation
+  - [ ] 2.4 Silence Is Valid Output
+  - [ ] 2.5 Error Conditions and Output
+  - [ ] 2.6 Logging Helpers Must Respect the Contract
+  - [ ] 2.7 Design Intent Summary
+- [ ] 3. Logging Contract
+  - [ ] 3.1 Single Logging Authority
+  - [ ] 3.2 Log Capture Model
+  - [ ] 3.3 Log File Structure
+  - [ ] 3.4 Log Buckets and Placement
+  - [ ] 3.5 Structured Log Content
+  - [ ] 3.6 Logging Libraries Are Wrapper-Only
+  - [ ] 3.7 Failure Visibility Is Mandatory
+  - [ ] 3.8 Design Intent Summary
+- [ ] 4. Exit Code Semantics
+  - [ ] 4.1 Wrapper Propagation Is Authoritative
+  - [ ] 4.2 Meaning of 0
+  - [ ] 4.3 Meaning of Non-Zero
+  - [ ] 4.4 Reserved Exit Codes
+  - [ ] 4.5 Soft Failure vs Hard Failure
+  - [ ] 4.6 Caller Responsibilities
+  - [ ] 4.7 Wrapper Failures
+  - [ ] 4.8 Design Intent Summary
+- [ ] 5. Run Cadence & Freshness — includes planned update to fold in
+  - [ ] 5.1 Cadence Is a Property of the Job
+  - [ ] 5.2 Declaring Expected Run Frequency
+  - [ ] 5.3 Freshness Is Evaluated from Logs, Not Schedules
+  - [ ] 5.4 Stale vs Missing
+  - [ ] 5.5 Latest Pointer Is Not Authoritative
+  - [ ] 5.6 Partial or Failed Runs
+  - [ ] 5.7 Design Intent Summary
+- [ ] 6. Environment & Paths
+  - [ ] 6.1 Minimal, Explicit PATH
+  - [ ] 6.2 Stable Repo-Relative Resolution
+  - [ ] 6.3 job-wrap Discovery
+  - [ ] 6.4 Required Environment Variables
+  - [ ] 6.5 Working Directory
+  - [ ] 6.6 Temporary Files and Directories
+  - [ ] 6.7 Portability and Shell Assumptions
+  - [ ] 6.8 Design Intent Summary
+- [ ] 7. Idempotency & Side Effects
+  - [ ] 7.1 Idempotency Is the Default Expectation
+  - [ ] 7.2 Side Effects Must Be Intentional and Bounded
+  - [ ] 7.3 Safe Overwrite Beats Clever Deltas
+  - [ ] 7.4 Atomicity and Partial Failure
+  - [ ] 7.5 Git Side Effects Are Centralized
+  - [ ] 7.6 Time-Based Scripts and Determinism
+  - [ ] 7.7 Reruns Are a First-Class Use Case
+  - [ ] 7.8 Design Intent Summary
+-->
+
+**Status:** v0.1 — Early Draft
  
 This document is a preliminary draft of the script contracts for `obsidian-note-tools`.  
  
