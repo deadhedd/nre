@@ -131,7 +131,114 @@ Manual review and refinement are required before this document should be conside
 
 ## 1. Engine Overview
 
-_Placeholder: to be populated with a high-level description of the execution engine and its architecture._
+**Status:** v0.1 — Early Draft
+Heavy AI assistance. Requires manual review and validation.
+
+### 1.1 What the “Engine” Is
+
+The engine is the core execution and observability layer of obsidian-note-tools.
+
+It is composed of a small, tightly-scoped set of components that together provide:
+
+* Deterministic job execution
+* Strict stdout/stderr discipline
+* Centralized, structured logging
+* Optional automatic version control commits
+* A stable, human-readable system health report
+
+The engine exists to make scripts boring, predictable, and auditable.
+
+---
+
+### 1.2 Engine Components
+
+The engine consists of the following canonical components:
+
+* `job-wrap.sh`
+  The execution wrapper and lifecycle owner.
+  Responsible for:
+  * enforcing execution contracts
+  * environment normalization
+  * stdout/stderr routing
+  * log file creation and rotation
+  * optional commit orchestration
+* `log.sh`
+  The shared logging helper library.
+  Provides stable, minimal logging primitives.
+  Logging lifecycle ownership remains with `job-wrap.sh`.
+* `commit.sh`
+  The commit helper.
+  A single-purpose component that stages and commits an explicit file list when instructed.
+* `script-status-report.sh`
+  The status reporter.
+  An observational component that summarizes engine health by inspecting engine artifacts.
+
+No other scripts are considered part of the engine unless explicitly declared by contract.
+
+---
+
+### 1.3 Design Philosophy
+
+The engine is intentionally:
+
+* Opinionated
+  Contracts are strict. Violations are bugs.
+* Composable
+  Small components with narrow responsibilities compose into higher-level behavior.
+* Wrapper-centric
+  All jobs execute under a single wrapper to ensure uniform behavior.
+* Observability-first
+  Logs, exit codes, and reports are first-class outputs, not side effects.
+* Boring by design
+  Predictability is valued over cleverness.
+
+---
+
+### 1.4 Non-Goals
+
+The engine explicitly does not aim to:
+
+* Be a general workflow engine
+* Replace cron or external schedulers
+* Provide a generic logging framework
+* Perform automatic recovery or remediation
+* Make policy decisions about what should run or when
+
+Those responsibilities belong to higher-level orchestration or human operators.
+
+---
+
+### 1.5 Engine Boundaries
+
+The engine defines execution and observability contracts, not business logic.
+
+Leaf scripts:
+
+* contain domain-specific behavior
+* must comply with engine contracts
+* may evolve independently of the engine
+
+The engine:
+
+* enforces invariants
+* provides visibility
+* remains small, stable, and slow-moving
+
+---
+
+### 1.6 Stability & Contract Authority
+
+This document is the authoritative specification for engine behavior.
+
+Changes to:
+
+* engine component responsibilities
+* stdout/stderr semantics
+* logging ownership
+* exit code meanings
+* artifact locations or formats
+
+MUST be reflected here before being considered valid.
 
 ---
 
