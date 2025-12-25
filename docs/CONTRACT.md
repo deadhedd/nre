@@ -62,6 +62,18 @@ Review checklist (Table of Contents):
     - [ ] 3.1.4 Wrapper Transparency
     - [ ] 3.1.5 Wrapper Availability Guarantee
     - [ ] 3.1.6 Design Intent Summary
+  - [ ] 3.2 Logger Contract (log.sh)
+    - [ ] 3.2.1 Role & Responsibility
+    - [ ] 3.2.2 Library-Only (Sourcing) Contract
+    - [ ] 3.2.3 Ownership & Call-Site Contract
+    - [ ] 3.2.4 Output Contract (Stdout/Stderr)
+    - [ ] 3.2.5 Logging Primitives Contract
+    - [ ] 3.2.6 Determinism & Safety
+    - [ ] 3.2.7 Internal Debug (Opt-in Only)
+    - [ ] 3.2.8 Compatibility Contract
+    - [ ] 3.2.9 Exit Code & Return Semantics
+    - [ ] 3.2.10 Non-Goals
+    - [ ] 3.2.11 Stability Promise
   - [ ] 3.3 Commit Helper Contract (commit.sh)
     - [ ] 3.3.1 Role & Responsibility
     - [ ] 3.3.2 Invocation Contract
@@ -111,6 +123,7 @@ Manual review and refinement are required before this document should be conside
    6. Idempotency & Side Effects
 3. Component Contracts
    1. Execution Contract (job-wrap)
+   2. Logger Contract (log.sh)
    3. Commit Helper Contract (commit.sh)
    4. Status Report Contract (script-status-report.sh)
 
@@ -1030,6 +1043,129 @@ This execution contract exists to enforce the following invariants:
 * Leaf scripts remain simple, testable, and boring
 
 Any script that attempts to bypass or reimplement this contract is considered **incorrect by design**, even if it appears to “work”.
+
+### 3.2 Logger Contract (log.sh)
+
+**Status:** v0.1 — Early Draft
+
+Heavy AI assistance. Requires manual review and validation.
+
+#### 3.2.1 Role & Responsibility
+
+`log.sh` is the shared logging helper for the engine.
+
+It provides a small, stable set of logging primitives used by engine components, primarily `job-wrap.sh`.
+
+It is intentionally minimal and opinionated to preserve engine invariants.
+
+Violations of this contract are considered bugs.
+
+#### 3.2.2 Library-Only (Sourcing) Contract
+
+`log.sh` **MUST** be sourced, not executed.
+
+If executed directly, `log.sh` **MUST**:
+
+* emit a clear error to stderr
+* exit with code 2
+
+Rationale: the logger is a library, not a runnable job.
+
+#### 3.2.3 Ownership & Call-Site Contract
+
+`job-wrap.sh` is the primary owner of logging lifecycle (init, file selection, routing).
+
+Leaf scripts **MUST NOT** source `log.sh` unless explicitly approved by contract.
+
+Engine components other than `job-wrap.sh` **SHOULD NOT** source `log.sh` (default rule: wrapper-only).
+
+If an exception exists (e.g., a diagnostic-only tool), it **MUST** be explicitly documented as a contract override.
+
+#### 3.2.4 Output Contract (Stdout/Stderr)
+
+`log.sh` **MUST NOT** write to stdout, under any circumstance.
+
+All logger output **MUST** go to stderr or to an explicitly configured log file descriptor/path.
+
+This protects data pipelines and wrapper “stdout is sacred” guarantees.
+
+#### 3.2.5 Logging Primitives Contract
+
+`log.sh` **MUST** provide stable, consistent primitives with predictable formatting.
+
+At minimum:
+
+* `log_init` (or equivalent) to establish logging context
+* `log_info`, `log_warn`, `log_error` (and optionally `log_debug`)
+* A way to emit captured command output as clearly marked lines (if supported)
+
+Rules:
+
+* Message formatting **MUST** be stable (timestamp + level + message).
+* Timestamps **MUST** be in local time with timezone offset, or otherwise explicitly stated.
+* The logger **MUST** not require non-POSIX features.
+
+#### 3.2.6 Determinism & Safety
+
+Logging functions **MUST** be safe to call repeatedly.
+
+The logger **MUST NOT** mutate caller state unexpectedly (no silent `cd`, no `PATH` rewrites, no global traps).
+
+The logger **MUST** operate under `set -eu` callers without causing spurious exits.
+
+If the logger needs to handle failure internally (e.g., cannot open a log file), it **MUST** degrade gracefully to stderr and/or return a non-zero status for the caller to handle.
+
+#### 3.2.7 Internal Debug (Opt-in Only)
+
+If the logger supports internal debugging:
+
+* It **MUST** be strictly opt-in via environment knobs (e.g., `LOG_INTERNAL_DEBUG=1`)
+* Debug output **MUST** go to stderr or an explicit debug file
+* Debug output **MUST NOT** pollute stdout
+
+Debug mode must never change the semantics of normal log messages.
+
+#### 3.2.8 Compatibility Contract
+
+`log.sh` **MUST** remain compatible with POSIX `sh` environments (e.g., sh/dash/ksh/ash).
+
+* No bashisms
+* No reliance on GNU-only flags where avoidable
+* ASCII-only output is preferred if the repo standard requires it
+
+#### 3.2.9 Exit Code & Return Semantics
+
+Logging functions **SHOULD** return 0 on success.
+
+When a logging operation fails (e.g., file open failure), functions **MAY** return non-zero.
+
+`log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
+
+The caller (typically `job-wrap.sh`) owns decisions about whether logging failures should fail the job.
+
+#### 3.2.10 Non-Goals
+
+`log.sh` **MUST NOT**:
+
+* Manage job execution lifecycle
+* Decide log file paths or rotation policy (wrapper owns this)
+* Implement auto-commit behavior
+* Attempt to be a general logging framework
+
+It exists to provide stable primitives that the wrapper composes.
+
+#### 3.2.11 Stability Promise
+
+The logger’s public function names, message format, and stdout/stderr behavior are engine-stable.
+
+Any breaking change to:
+
+* function names or signatures
+* log line format (timestamp/level prefixing)
+* destination semantics (stderr vs file)
+* library-only behavior
+
+**MUST** be accompanied by a contract revision.
 
 ### 3.3 Commit Helper Contract (commit.sh)
 
