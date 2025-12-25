@@ -1,5 +1,6 @@
 <!--
 Review checklist (Table of Contents):
+- Status: draft content added; pending review/acceptance
 - [ ] 1. Engine Overview
 - [ ] 2. Cross-Cutting Contracts
   - [ ] 2.1 Stdout / Stderr Contract
