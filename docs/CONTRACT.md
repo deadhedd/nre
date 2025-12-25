@@ -62,6 +62,16 @@ Review checklist (Table of Contents):
     - [ ] 3.1.4 Wrapper Transparency
     - [ ] 3.1.5 Wrapper Availability Guarantee
     - [ ] 3.1.6 Design Intent Summary
+  - [ ] 3.3 Commit Helper Contract (commit.sh)
+    - [ ] 3.3.1 Role & Responsibility
+    - [ ] 3.3.2 Invocation Contract
+    - [ ] 3.3.3 Logging & Output Contract
+    - [ ] 3.3.4 Stdout / Stderr Semantics
+    - [ ] 3.3.5 Input Contract
+    - [ ] 3.3.6 Idempotency & Safety
+    - [ ] 3.3.7 Exit Code Semantics
+    - [ ] 3.3.8 Non-Goals
+    - [ ] 3.3.9 Stability Promise
 -->
 
 **Status:** v0.1 — Early Draft
@@ -88,6 +98,7 @@ Manual review and refinement are required before this document should be conside
    6. Idempotency & Side Effects
 3. Component Contracts
    1. Execution Contract (job-wrap)
+   3. Commit Helper Contract (commit.sh)
 
 ---
 
@@ -1005,3 +1016,119 @@ This execution contract exists to enforce the following invariants:
 * Leaf scripts remain simple, testable, and boring
 
 Any script that attempts to bypass or reimplement this contract is considered **incorrect by design**, even if it appears to “work”.
+
+### 3.3 Commit Helper Contract (commit.sh)
+
+**Status:** v0.1 — Early Draft
+
+Heavy AI assistance. Requires manual review and validation.
+
+#### 3.3.1 Role & Responsibility
+
+The commit helper is a single-purpose engine component responsible for:
+
+* Staging an explicit set of files
+* Creating a single Git commit in the configured repository
+* Reporting the outcome via exit code only
+
+The commit helper is not a general Git interface and not a standalone automation entrypoint.
+
+Violations of this contract are considered bugs.
+
+#### 3.3.2 Invocation Contract
+
+The commit helper MUST be invoked by job-wrap.sh, either directly or via re-exec.
+
+It MUST NOT be called directly from cron.
+
+It MUST assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTIVE=1`).
+
+If invoked outside job-wrap, behavior is undefined unless explicitly guarded.
+
+#### 3.3.3 Logging & Output Contract
+
+The commit helper MUST NOT source log.sh.
+
+The commit helper MUST NOT implement its own logging system.
+
+The commit helper MUST NOT write anything to stdout.
+
+Any human-readable or diagnostic output MAY be written to stderr.
+
+All logging, capture, and persistence is owned exclusively by job-wrap.sh.
+
+#### 3.3.4 Stdout / Stderr Semantics
+
+**Stdout:**
+
+* Reserved for data pipelines
+* MUST remain empty at all times
+
+**Stderr:**
+
+* May be used for operational messages (e.g., “nothing to commit”)
+* May be captured and logged by job-wrap
+* Must not be relied upon programmatically
+
+#### 3.3.5 Input Contract
+
+The commit helper MUST operate only on explicitly provided inputs.
+
+Typical inputs include:
+
+* Work tree root
+* Commit message (or message template)
+* Explicit file list to stage and commit
+
+Rules:
+
+* The commit helper MUST NOT implicitly stage files (e.g., no `git add -A`)
+* The commit helper MUST NOT infer files from directory state
+* The commit helper MUST NOT modify files it was not explicitly given
+
+#### 3.3.6 Idempotency & Safety
+
+Re-running the commit helper with the same inputs MUST NOT corrupt repository state.
+
+If there are no changes to commit, the helper MUST exit cleanly with a documented non-failure code.
+
+Partial commits, mixed commits, or stateful retries are forbidden.
+
+The commit helper is assumed to run in a controlled, deterministic environment.
+
+#### 3.3.7 Exit Code Semantics
+
+Exit codes are part of the public engine contract.
+
+Recommended semantics (exact values may change, but meanings must not):
+
+* `0` — Commit created successfully
+* `3` — No changes to commit (non-failure)
+* `10+` — Operational failure (Git error, invalid input, repository unavailable)
+
+Exit codes below the failure threshold MUST NOT be interpreted as job failure by job-wrap.
+
+#### 3.3.8 Non-Goals
+
+The commit helper MUST NOT:
+
+* Perform repository discovery
+* Manage branches
+* Resolve conflicts
+* Implement retries or backoff
+* Decide when commits should happen
+* Decide what should be committed beyond its explicit inputs
+
+Those responsibilities belong to the caller (`job-wrap.sh`) or higher-level orchestration.
+
+#### 3.3.9 Stability Promise
+
+The commit helper’s interface and semantics are considered engine-stable.
+
+Any breaking change to:
+
+* invocation shape
+* exit code meanings
+* stdout/stderr behavior
+
+MUST be accompanied by a contract revision.
