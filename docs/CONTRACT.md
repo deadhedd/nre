@@ -2,6 +2,12 @@
 Review checklist (Table of Contents):
 - Status: draft content added; pending review/acceptance
 - [ ] 1. Engine Overview
+  - [ ] 1.1 What the “Engine” Is
+  - [ ] 1.2 Engine Components
+  - [ ] 1.3 Design Philosophy
+  - [ ] 1.4 Non-Goals
+  - [ ] 1.5 Engine Boundaries
+  - [ ] 1.6 Stability & Contract Authority
 - [ ] 2. Cross-Cutting Contracts
   - [ ] 2.1 Stdout / Stderr Contract
     - [ ] 2.1.1 Stdout Is Sacred
