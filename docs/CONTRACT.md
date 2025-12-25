@@ -72,6 +72,19 @@ Review checklist (Table of Contents):
     - [ ] 3.3.7 Exit Code Semantics
     - [ ] 3.3.8 Non-Goals
     - [ ] 3.3.9 Stability Promise
+  - [ ] 3.4 Status Report Contract (script-status-report.sh)
+    - [ ] 3.4.1 Role & Responsibility
+    - [ ] 3.4.2 Invocation Contract
+    - [ ] 3.4.3 Logging & Output Contract
+    - [ ] 3.4.4 Inputs & Data Sources
+    - [ ] 3.4.5 Freshness Model
+    - [ ] 3.4.6 Classification Semantics
+    - [ ] 3.4.7 Required Signals
+    - [ ] 3.4.8 Output Contract (Markdown Report)
+    - [ ] 3.4.9 Side Effects & Idempotency
+    - [ ] 3.4.10 Exit Code Semantics
+    - [ ] 3.4.11 Non-Goals
+    - [ ] 3.4.12 Stability Promise
 -->
 
 **Status:** v0.1 — Early Draft
@@ -99,6 +112,7 @@ Manual review and refinement are required before this document should be conside
 3. Component Contracts
    1. Execution Contract (job-wrap)
    3. Commit Helper Contract (commit.sh)
+   4. Status Report Contract (script-status-report.sh)
 
 ---
 
@@ -1132,3 +1146,195 @@ Any breaking change to:
 * stdout/stderr behavior
 
 MUST be accompanied by a contract revision.
+
+### 3.4 Status Report Contract (`script-status-report.sh`)
+
+**Status:** v0.1 — Early Draft
+Heavy AI assistance. Requires manual review and validation.
+
+#### 3.4.1 Role & Responsibility
+
+The status reporter is an **observational engine component** responsible for:
+
+* Scanning job output artifacts (primarily `*-latest.log` pointers and their target logs)
+* Classifying job health using documented heuristics
+* Writing a **single, stable Markdown report** into the vault
+
+It **MUST NOT** perform orchestration, scheduling, or remediation.
+
+Violations of this contract are considered bugs.
+
+---
+
+#### 3.4.2 Invocation Contract
+
+* The status reporter **MUST** be invoked by `job-wrap.sh`, either directly or via re-exec.
+* It **MUST NOT** be called directly from cron.
+* It **MUST** assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTIVE=1`).
+
+If invoked outside job-wrap, behavior is undefined unless explicitly guarded.
+
+---
+
+#### 3.4.3 Logging & Output Contract
+
+* The status reporter **MUST NOT** source `log.sh`.
+* The status reporter **MUST NOT** implement its own logging system.
+* The status reporter **MUST NOT** write report content to stdout.
+* Any human-readable operational output **MAY** be written to stderr.
+
+All logging capture/persistence is owned exclusively by `job-wrap.sh`.
+
+---
+
+#### 3.4.4 Inputs & Data Sources
+
+The status reporter’s inputs are **read-only** and **restricted** to engine artifacts.
+
+It **MAY** read:
+
+* The log root directory (canonical engine log location)
+* `*-latest.log` pointers (files or symlinks) and their referenced latest run logs
+* Optional per-job metadata files if explicitly defined by contract later
+
+It **MUST NOT**:
+
+* Execute leaf jobs
+* Parse or modify vault notes as part of “fixing” anything
+* Depend on external network resources
+
+---
+
+#### 3.4.5 Freshness Model
+
+The reporter’s notion of “current state” is defined as:
+
+* The **latest available run** per job, as indicated by that job’s `*-latest.log` pointer.
+
+Rules:
+
+* The reporter **MUST** treat the `*-latest.log` pointer as authoritative.
+* It **MUST NOT** scan arbitrary historical logs unless explicitly configured to do so.
+* It **MAY** flag a job as **stale** if the latest run timestamp exceeds a documented threshold.
+
+Staleness thresholds (if present) **MUST** be explicit and deterministic.
+
+---
+
+#### 3.4.6 Classification Semantics
+
+The reporter **MUST** classify each job into a small set of stable states. Recommended minimum set:
+
+* **OK** — latest run indicates success
+* **WARN** — latest run succeeded but contains warn patterns, or is stale
+* **FAIL** — latest run indicates failure (exit code or error patterns)
+* **UNKNOWN** — missing logs/pointers, unreadable log, or unparseable format
+
+Classification rules **MUST** be:
+
+* deterministic
+* documented
+* stable across releases unless contract-revved
+
+If multiple signals conflict, precedence **MUST** be documented (e.g., FAIL > WARN > OK; UNKNOWN if missing required inputs).
+
+---
+
+#### 3.4.7 Required Signals
+
+At minimum, the reporter **MUST** support:
+
+* **Exit code extraction** from latest logs (canonical job-wrap emitted value)
+* **Error/warn pattern detection** using a documented pattern set
+
+Pattern sets:
+
+* **MUST** be centralized (not hidden inside ad-hoc code paths)
+* **MUST** avoid false positives where feasible
+* **MUST** be treated as contract-affecting when changed
+
+---
+
+#### 3.4.8 Output Contract (Markdown Report)
+
+The reporter **MUST** write exactly one Markdown report file at a stable path.
+
+The report **MUST** be:
+
+* valid Markdown
+* stable in structure (headings/sections/table columns)
+* safe to diff (minimal nondeterministic ordering)
+
+At minimum, the report **SHOULD** include:
+
+* generation timestamp (local + UTC recommended)
+* summary counts by state (OK/WARN/FAIL/UNKNOWN)
+* per-job rows including:
+
+  * job name
+  * latest run timestamp
+  * latest exit code (if known)
+  * classification state
+  * short reason / key signal (e.g., “stale 3d”, “exit=1”, “pattern: ERROR”)
+  * link or path hint to the latest log artifact (format may vary)
+
+Ordering:
+
+* Per-job listing order **MUST** be deterministic (e.g., lexical by job name).
+
+---
+
+#### 3.4.9 Side Effects & Idempotency
+
+The status reporter is observational.
+
+* It **MUST** only write its own output report file (and temporary files, if any).
+* It **MUST NOT** modify logs, pointers, repositories, or other notes.
+* It **MUST** be safe to run repeatedly without accumulating junk artifacts.
+
+Any temporary files **MUST** be cleaned up on success and failure.
+
+---
+
+#### 3.4.10 Exit Code Semantics
+
+Exit codes are part of the public engine contract.
+
+Recommended semantics (exact values may change, but meanings must not):
+
+* `0` — No failures detected (overall status OK/WARN only)
+* `1` — One or more failures detected (any job classified FAIL)
+* `2` — Reporter error (cannot read log root, cannot write report, internal error)
+
+The reporter **MUST NOT** return `1` merely due to WARN or stale status (unless explicitly defined otherwise).
+
+---
+
+#### 3.4.11 Non-Goals
+
+The status reporter **MUST NOT**:
+
+* Trigger jobs
+* Retry failures
+* Auto-fix problems
+* Modify job schedules
+* Interpret business meaning of failures beyond documented heuristics
+
+It is a *dashboard generator*, not an orchestrator.
+
+---
+
+#### 3.4.12 Stability Promise
+
+The reporter’s **output structure and exit code meanings are engine-stable**.
+
+Any breaking change to:
+
+* report file path
+* report section structure or table columns
+* classification states or their meanings
+* exit code meanings
+
+**MUST** be accompanied by a contract revision.
+
+---
