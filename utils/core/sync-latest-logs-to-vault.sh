@@ -46,6 +46,8 @@ skipped_missing=0
 skipped_unreadable=0
 
 list_file=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.XXXXXX") || exit 1
+trap 'rm -f -- "$list_file" 2>/dev/null || true' EXIT INT HUP TERM
+
 find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file" || true
 
 while IFS= read -r link || [ -n "$link" ]; do
@@ -82,7 +84,8 @@ while IFS= read -r link || [ -n "$link" ]; do
     continue
   fi
 
-  if cp "$link" "$dest" 2>/dev/null; then
+  # Follow symlinks so the vault gets real log content (portable across devices).
+  if cp -L -- "$link" "$dest" 2>/dev/null; then
     copied=$((copied + 1))
     log_msg "Copied $link -> $dest"
   else
@@ -91,8 +94,6 @@ while IFS= read -r link || [ -n "$link" ]; do
   fi
 
 done <"$list_file"
-
-rm -f "$list_file" 2>/dev/null || true
 
 log_msg "Summary: found=$found copied=$copied failed=$failed skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
 
