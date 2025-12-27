@@ -698,6 +698,7 @@ Cadence knowledge **MUST NOT** live in:
 
 * `script-status-report.sh`
 * Cron configuration alone
+* Internal registries or status indexes
 * External documentation
 * Hardcoded tables in summary tools
 
@@ -708,6 +709,9 @@ If a job’s cadence changes, the job itself must change.
 #### 2.4.2 Declaring Expected Run Frequency
 
 Each job **MUST declare** its expected run cadence in a machine-readable form that is emitted into its log on every run.
+
+Failure of a leaf script to declare cadence is an **error condition**, not an implicit “unknown” cadence.
+Jobs with ad-hoc or inherently unknowable cadence **MUST still declare that fact explicitly** (e.g. `cadence=ad-hoc`).
 
 This declaration must be:
 
