@@ -7,7 +7,8 @@ Review checklist (Table of Contents):
   - [ ] 1.3 Design Philosophy
   - [ ] 1.4 Non-Goals
   - [ ] 1.5 Engine Boundaries
-  - [ ] 1.6 Stability & Contract Authority
+- [ ] 1.6 Stability & Contract Authority
+- [ ] 1.7 End-to-End Execution Flow
 - [ ] 2. Cross-Cutting Contracts
   - [ ] 2.1 Stdout / Stderr Contract
     - [ ] 2.1.1 Stdout Is Sacred
@@ -246,6 +247,21 @@ Changes to:
 * artifact locations or formats
 
 MUST be reflected here before being considered valid.
+
+---
+
+### 1.7 End-to-End Execution Flow
+
+Engine execution follows a single linear path from invocation to reporting:
+
+1. **Invocation and re-exec** — Every leaf script immediately re-execs itself through `utils/core/job-wrap.sh`, ensuring the wrapper owns lifecycle, environment normalization, and stdout/stderr discipline.
+2. **Wrapper initialization** — `job-wrap.sh` sets predictable `PATH`, detects the repository root, and establishes logging context before the leaf script logic runs.
+3. **Logging bootstrapping** — The wrapper creates a dedicated log file under the logs root, binds `stderr` to structured logging (including per-line annotation), and keeps `stdout` pristine for data output.
+4. **Leaf execution and artifacts** — The leaf script runs with wrapper-provided context, emits data to stdout (if any), and produces primary artifacts (files, markdown, JSON) directly in the repository or vault locations as defined by the script’s contract.
+5. **Optional commit orchestration** — If the job configuration requests it, `job-wrap.sh` invokes `utils/core/commit.sh` with an explicit file list to stage and commit generated artifacts; commits never occur implicitly from the leaf script.
+6. **Out-of-band status reporting** — After runs, `utils/core/script-status-report.sh` reads wrapper-generated logs and pointers (not stdout) to classify job health and produce human-readable reports independent of the jobs’ data outputs.
+
+Each run yields clean stdout for consumers, structured stderr-backed logs for humans, and optional commits and reports that remain fully deterministic.
 
 ---
 
