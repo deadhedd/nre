@@ -513,13 +513,16 @@ If a leaf script emits diagnostics, it does so by writing to `stderr` only.
 
 #### 2.2.7 Failure Visibility Is Mandatory
 
+Generated notes and data artifacts are the priority; logging is **best-effort**.
+
 Even when a job fails catastrophically:
 
-* A log file **MUST** exist
+* A log file **SHOULD** exist
 * Partial logs are acceptable
 * Silent failure is not
 
-If logging cannot be initialized, the wrapper must fail fast and loudly rather than executing the job without logs.
+Logging failure **MUST NOT** fail an otherwise healthy job.
+An exception exists only when the logging failure implies the execution environment is unsafe or corrupted (e.g., disk errors, permissions regressions that also threaten artifacts).
 
 ---
 
@@ -1256,6 +1259,8 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
 
 The caller (typically `job-wrap.sh`) owns decisions about whether logging failures should fail the job.
+The default posture is **non-fatal**: logging failures **MUST NOT** fail a job that can still produce its primary notes or data artifacts.
+If a logging failure implies the execution environment is unsafe or corrupted (e.g., disk is read-only, filesystem errors), the caller **MAY** treat it as fatal to protect artifact integrity.
 
 #### 3.2.10 Non-Goals
 
