@@ -10,65 +10,65 @@ Review checklist (Table of Contents):
   - [ ] 1.6 Stability & Contract Authority
 - [ ] 2. Cross-Cutting Contracts
   - [ ] 2.1 Stdout / Stderr Contract
-    - [ ] 2.1.1 Design Intent Summary
-    - [ ] 2.1.2 Stdout Is Sacred
-    - [ ] 2.1.3 Stderr Is for Humans and Diagnostics
-    - [ ] 2.1.4 Wrapper-Enforced Separation
-    - [ ] 2.1.5 Silence Is Valid Output
-    - [ ] 2.1.6 Error Conditions and Output
-    - [ ] 2.1.7 Logging Helpers Must Respect the Contract
+    - [ ] 2.1.1 Stdout Is Sacred
+    - [ ] 2.1.2 Stderr Is for Humans and Diagnostics
+    - [ ] 2.1.3 Wrapper-Enforced Separation
+    - [ ] 2.1.4 Silence Is Valid Output
+    - [ ] 2.1.5 Error Conditions and Output
+    - [ ] 2.1.6 Logging Helpers Must Respect the Contract
+    - [ ] 2.1.7 Design Intent Summary
   - [ ] 2.2 Logging Contract
-    - [ ] 2.2.1 Design Intent Summary
-    - [ ] 2.2.2 Single Logging Authority
-    - [ ] 2.2.3 Log Capture Model
-    - [ ] 2.2.4 Log File Structure
-    - [ ] 2.2.5 Log Buckets and Placement
-    - [ ] 2.2.6 Structured Log Content
-    - [ ] 2.2.7 Logging Libraries Are Wrapper-Only
-    - [ ] 2.2.8 Failure Visibility Is Mandatory
+    - [ ] 2.2.1 Single Logging Authority
+    - [ ] 2.2.2 Log Capture Model
+    - [ ] 2.2.3 Log File Structure
+    - [ ] 2.2.4 Log Buckets and Placement
+    - [ ] 2.2.5 Structured Log Content
+    - [ ] 2.2.6 Logging Libraries Are Wrapper-Only
+    - [ ] 2.2.7 Failure Visibility Is Mandatory
+    - [ ] 2.2.8 Design Intent Summary
   - [ ] 2.3 Exit Code Semantics
-    - [ ] 2.3.1 Design Intent Summary
-    - [ ] 2.3.2 Wrapper Propagation Is Authoritative
-    - [ ] 2.3.3 Meaning of 0
-    - [ ] 2.3.4 Meaning of Non-Zero
-    - [ ] 2.3.5 Reserved Exit Codes
-    - [ ] 2.3.6 Soft Failure vs Hard Failure
-    - [ ] 2.3.7 Caller Responsibilities
-    - [ ] 2.3.8 Wrapper Failures
+    - [ ] 2.3.1 Wrapper Propagation Is Authoritative
+    - [ ] 2.3.2 Meaning of 0
+    - [ ] 2.3.3 Meaning of Non-Zero
+    - [ ] 2.3.4 Reserved Exit Codes
+    - [ ] 2.3.5 Soft Failure vs Hard Failure
+    - [ ] 2.3.6 Caller Responsibilities
+    - [ ] 2.3.7 Wrapper Failures
+    - [ ] 2.3.8 Design Intent Summary
   - [ ] 2.4 Run Cadence & Freshness — includes planned update to fold in
-    - [ ] 2.4.1 Design Intent Summary
-    - [ ] 2.4.2 Cadence Is a Property of the Job
-    - [ ] 2.4.3 Declaring Expected Run Frequency
-    - [ ] 2.4.4 Freshness Is Evaluated from Logs, Not Schedules
-    - [ ] 2.4.5 Stale vs Missing
-    - [ ] 2.4.6 Latest Pointer Is Not Authoritative
-    - [ ] 2.4.7 Partial or Failed Runs
+    - [ ] 2.4.1 Cadence Is a Property of the Job
+    - [ ] 2.4.2 Declaring Expected Run Frequency
+    - [ ] 2.4.3 Freshness Is Evaluated from Logs, Not Schedules
+    - [ ] 2.4.4 Stale vs Missing
+    - [ ] 2.4.5 Latest Pointer Is Not Authoritative
+    - [ ] 2.4.6 Partial or Failed Runs
+    - [ ] 2.4.7 Design Intent Summary
   - [ ] 2.5 Environment & Paths
-    - [ ] 2.5.1 Design Intent Summary
-    - [ ] 2.5.2 Minimal, Explicit PATH
-    - [ ] 2.5.3 Stable Repo-Relative Resolution
-    - [ ] 2.5.4 job-wrap Discovery
-    - [ ] 2.5.5 Required Environment Variables
-    - [ ] 2.5.6 Working Directory
-    - [ ] 2.5.7 Temporary Files and Directories
-    - [ ] 2.5.8 Portability and Shell Assumptions
+    - [ ] 2.5.1 Minimal, Explicit PATH
+    - [ ] 2.5.2 Stable Repo-Relative Resolution
+    - [ ] 2.5.3 job-wrap Discovery
+    - [ ] 2.5.4 Required Environment Variables
+    - [ ] 2.5.5 Working Directory
+    - [ ] 2.5.6 Temporary Files and Directories
+    - [ ] 2.5.7 Portability and Shell Assumptions
+    - [ ] 2.5.8 Design Intent Summary
   - [ ] 2.6 Idempotency & Side Effects
-    - [ ] 2.6.1 Design Intent Summary
-    - [ ] 2.6.2 Idempotency Is the Default Expectation
-    - [ ] 2.6.3 Side Effects Must Be Intentional and Bounded
-    - [ ] 2.6.4 Safe Overwrite Beats Clever Deltas
-    - [ ] 2.6.5 Atomicity and Partial Failure
-    - [ ] 2.6.6 Git Side Effects Are Centralized
-    - [ ] 2.6.7 Time-Based Scripts and Determinism
-    - [ ] 2.6.8 Reruns Are a First-Class Use Case
-  - [ ] 3. Component Contracts
+    - [ ] 2.6.1 Idempotency Is the Default Expectation
+    - [ ] 2.6.2 Side Effects Must Be Intentional and Bounded
+    - [ ] 2.6.3 Safe Overwrite Beats Clever Deltas
+    - [ ] 2.6.4 Atomicity and Partial Failure
+    - [ ] 2.6.5 Git Side Effects Are Centralized
+    - [ ] 2.6.6 Time-Based Scripts and Determinism
+    - [ ] 2.6.7 Reruns Are a First-Class Use Case
+    - [ ] 2.6.8 Design Intent Summary
+- [ ] 3. Component Contracts
   - [ ] 3.1 Execution Contract (job-wrap)
-    - [ ] 3.1.1 Design Intent Summary
-    - [ ] 3.1.2 Mandatory Re-exec via job-wrap
-    - [ ] 3.1.3 job-wrap as the Sole Lifecycle Authority
-    - [ ] 3.1.4 Single-Process Execution Model
-    - [ ] 3.1.5 Wrapper Transparency
-    - [ ] 3.1.6 Wrapper Availability Guarantee
+    - [ ] 3.1.1 Mandatory Re-exec via job-wrap
+    - [ ] 3.1.2 job-wrap as the Sole Lifecycle Authority
+    - [ ] 3.1.3 Single-Process Execution Model
+    - [ ] 3.1.4 Wrapper Transparency
+    - [ ] 3.1.5 Wrapper Availability Guarantee
+    - [ ] 3.1.6 Design Intent Summary
   - [ ] 3.2 Logger Contract (log.sh)
     - [ ] 3.2.1 Role & Responsibility
     - [ ] 3.2.2 Library-Only (Sourcing) Contract
@@ -253,27 +253,6 @@ MUST be reflected here before being considered valid.
 
 ### 2.1 Stdout / Stderr Contract
 
-#### 2.1.1 Design Intent Summary
-
-This contract exists to preserve a hard boundary:
-
-| Stream | Purpose                     |
-| ------ | --------------------------- |
-| stdout | Structured, consumable data |
-| stderr | Human diagnostics and logs  |
-
-This enables:
-
-* Safe composition of scripts
-* Redirection without fear
-* Debugging without data corruption
-* Long-term maintainability
-
-Once stdout is polluted, every downstream consumer becomes fragile.
-This contract prevents that class of failure entirely.
-
----
-
 Standard output (`stdout`) and standard error (`stderr`) have **strict, non-overlapping roles** across all scripts in `obsidian-note-tools`.
 
 This contract exists to ensure scripts are:
@@ -287,7 +266,7 @@ Violations of this contract are considered **bugs**, even if no immediate failur
 
 ---
 
-#### 2.1.2 Stdout Is Sacred
+#### 2.1.1 Stdout Is Sacred
 
 **`stdout` is reserved exclusively for primary data output.**
 
@@ -308,7 +287,7 @@ If a consumer script redirects or captures stdout, it must be able to do so **wi
 
 ---
 
-#### 2.1.3 Stderr Is for Humans and Diagnostics
+#### 2.1.2 Stderr Is for Humans and Diagnostics
 
 **All non-data output MUST go to `stderr`.**
 
@@ -335,7 +314,7 @@ The system assumes that stderr:
 
 ---
 
-#### 2.1.4 Wrapper-Enforced Separation
+#### 2.1.3 Wrapper-Enforced Separation
 
 `job-wrap.sh` enforces this contract by design:
 
@@ -351,7 +330,7 @@ This guarantees that:
 
 ---
 
-#### 2.1.5 Silence Is Valid Output
+#### 2.1.4 Silence Is Valid Output
 
 A script producing **no stdout output** is valid and meaningful.
 
@@ -372,7 +351,7 @@ Consumers **MUST NOT** infer failure solely from empty stdout.
 
 ---
 
-#### 2.1.6 Error Conditions and Output
+#### 2.1.5 Error Conditions and Output
 
 On failure:
 
@@ -388,7 +367,7 @@ If a script cannot guarantee the correctness of its data output, it must:
 
 ---
 
-#### 2.1.7 Logging Helpers Must Respect the Contract
+#### 2.1.6 Logging Helpers Must Respect the Contract
 
 Shared helpers (e.g. `log.sh`) are designed to:
 
@@ -400,21 +379,26 @@ Leaf scripts **MUST NOT** implement ad-hoc `echo`-based logging that risks stdou
 
 ---
 
+#### 2.1.7 Design Intent Summary
+
+This contract exists to preserve a hard boundary:
+
+| Stream | Purpose                     |
+| ------ | --------------------------- |
+| stdout | Structured, consumable data |
+| stderr | Human diagnostics and logs  |
+
+This enables:
+
+* Safe composition of scripts
+* Redirection without fear
+* Debugging without data corruption
+* Long-term maintainability
+
+Once stdout is polluted, every downstream consumer becomes fragile.
+This contract prevents that class of failure entirely.
+
 ### 2.2 Logging Contract
-
-#### 2.2.1 Design Intent Summary
-
-This logging contract exists to enforce these invariants:
-
-* Logs are **complete**
-* Logs are **centralized**
-* Logs are **consistent**
-* Logs are **boring**
-
-Leaf scripts should never need to think about logging.
-If they are thinking about logging, the architecture has already failed.
-
----
 
 All logging behavior in `obsidian-note-tools` is **centralized, structured, and enforced** by `job-wrap.sh`.
 
@@ -422,7 +406,7 @@ Logging is not an optional feature, nor a per-script concern. It is a **system-l
 
 ---
 
-#### 2.2.2 Single Logging Authority
+#### 2.2.1 Single Logging Authority
 
 `job-wrap.sh` is the **only component permitted to create, write, rotate, or manage log files**.
 
@@ -439,7 +423,7 @@ Any script that writes directly to a log file is in violation of this contract.
 
 ---
 
-#### 2.2.3 Log Capture Model
+#### 2.2.2 Log Capture Model
 
 The logging model is intentionally simple and robust:
 
@@ -457,7 +441,7 @@ This guarantees:
 
 ---
 
-#### 2.2.4 Log File Structure
+#### 2.2.3 Log File Structure
 
 Each job execution produces:
 
@@ -480,7 +464,7 @@ Consumers must treat it as a *pointer*, not an authoritative record.
 
 ---
 
-#### 2.2.5 Log Buckets and Placement
+#### 2.2.4 Log Buckets and Placement
 
 Logs are stored under a shared log root, grouped into **buckets** that reflect job cadence and purpose (e.g. daily, weekly, long-cycle, other).
 
@@ -496,7 +480,7 @@ This decoupling allows log layout to evolve without touching jobs.
 
 ---
 
-#### 2.2.6 Structured Log Content
+#### 2.2.5 Structured Log Content
 
 Logs may contain:
 
@@ -511,7 +495,7 @@ Machine interpretation, when needed, must be layered on top by consumer tools (e
 
 ---
 
-#### 2.2.7 Logging Libraries Are Wrapper-Only
+#### 2.2.6 Logging Libraries Are Wrapper-Only
 
 Shared logging helpers (e.g. `utils/core/log.sh`) exist to support the wrapper.
 
@@ -527,7 +511,7 @@ If a leaf script emits diagnostics, it does so by writing to `stderr` only.
 
 ---
 
-#### 2.2.8 Failure Visibility Is Mandatory
+#### 2.2.7 Failure Visibility Is Mandatory
 
 Even when a job fails catastrophically:
 
@@ -539,21 +523,19 @@ If logging cannot be initialized, the wrapper must fail fast and loudly rather t
 
 ---
 
+#### 2.2.8 Design Intent Summary
+
+This logging contract exists to enforce these invariants:
+
+* Logs are **complete**
+* Logs are **centralized**
+* Logs are **consistent**
+* Logs are **boring**
+
+Leaf scripts should never need to think about logging.
+If they are thinking about logging, the architecture has already failed.
+
 ### 2.3 Exit Code Semantics
-
-#### 2.3.1 Design Intent Summary
-
-Exit codes are designed to be:
-
-* Boring
-* Standard
-* Dependable
-* Interpretable by cron and automation without special casing
-
-The system rejects “creative exit codes” as a communication channel.
-If you need richer semantics, write richer artifacts—not weirder integers.
-
----
 
 Exit codes are the **primary machine-readable signal** of success or failure across the entire `obsidian-note-tools` ecosystem.
 
@@ -561,7 +543,7 @@ Exit codes must remain simple, predictable, and composable. Any script that exit
 
 ---
 
-#### 2.3.2 Wrapper Propagation Is Authoritative
+#### 2.3.1 Wrapper Propagation Is Authoritative
 
 `job-wrap.sh` MUST propagate the leaf script’s exit status as the wrapper’s own exit status.
 
@@ -572,7 +554,7 @@ This guarantees that cron, calling scripts, and status-report tooling can treat 
 
 ---
 
-#### 2.3.3 Meaning of `0`
+### 4.2 Meaning of `0`
 
 Exit code `0` means:
 
@@ -584,7 +566,7 @@ Exit code `0` means:
 
 ---
 
-#### 2.3.4 Meaning of Non-Zero
+#### 2.3.3 Meaning of Non-Zero
 
 Any non-zero exit code means:
 
@@ -598,7 +580,7 @@ On non-zero exit:
 
 ---
 
-#### 2.3.5 Reserved Exit Codes
+#### 2.3.4 Reserved Exit Codes
 
 Some exit codes are reserved for **infrastructure / contract enforcement** rather than job-specific failure.
 
@@ -625,7 +607,7 @@ Leaf scripts should not attempt to “paper over” these. Let them surface.
 
 ---
 
-#### 2.3.6 Soft Failure vs Hard Failure
+#### 2.3.5 Soft Failure vs Hard Failure
 
 The system intentionally does **not** define multiple success classes at the exit-code layer.
 
@@ -642,7 +624,7 @@ If nuance must be machine-readable, it belongs in:
 
 ---
 
-#### 2.3.7 Caller Responsibilities
+#### 2.3.6 Caller Responsibilities
 
 Any script that calls another script MUST:
 
@@ -657,7 +639,7 @@ If a caller intentionally handles a failure (rare), it must:
 
 ---
 
-#### 2.3.8 Wrapper Failures
+#### 2.3.7 Wrapper Failures
 
 If `job-wrap.sh` fails before the leaf script runs, the wrapper MUST exit non-zero and treat the failure as authoritative.
 
@@ -671,21 +653,19 @@ Wrapper failures must be loud on stderr and present in logs when possible.
 
 ---
 
+#### 2.3.8 Design Intent Summary
+
+Exit codes are designed to be:
+
+* Boring
+* Standard
+* Dependable
+* Interpretable by cron and automation without special casing
+
+The system rejects “creative exit codes” as a communication channel.
+If you need richer semantics, write richer artifacts—not weirder integers.
+
 ### 2.4 Run Cadence & Freshness
-
-#### 2.4.1 Design Intent Summary
-
-This contract exists to enforce the following principles:
-
-* Jobs describe their own expectations
-* Observed reality beats configured intent
-* Status reporting scales without central knowledge
-* Staleness is a first-class failure mode
-
-If a job doesn’t state how often it should run,
-the system cannot know whether silence is acceptable—or a fire alarm.
-
----
 
 Many scripts in `obsidian-note-tools` are expected to run on a **defined cadence** (daily, weekly, hourly, ad-hoc, etc.).
 Correctness is therefore not just *“did it run?”* but also *“did it run recently enough?”*.
@@ -694,7 +674,7 @@ This section defines how **run expectations** are communicated and how **freshne
 
 ---
 
-#### 2.4.2 Cadence Is a Property of the Job
+#### 2.4.1 Cadence Is a Property of the Job
 
 Each job is the **authoritative source** of truth for how often it is expected to run.
 
@@ -709,7 +689,7 @@ If a job’s cadence changes, the job itself must change.
 
 ---
 
-#### 2.4.3 Declaring Expected Run Frequency
+#### 2.4.2 Declaring Expected Run Frequency
 
 Each job **MUST declare** its expected run cadence in a machine-readable form that is emitted into its log on every run.
 
@@ -726,7 +706,7 @@ The exact mechanism (e.g. a standardized stderr line or wrapper-supported metada
 
 ---
 
-#### 2.4.4 Freshness Is Evaluated from Logs, Not Schedules
+#### 2.4.3 Freshness Is Evaluated from Logs, Not Schedules
 
 Freshness checks are based on **observed execution**, not intent.
 
@@ -742,7 +722,7 @@ A missing or stale log is treated as a failure condition.
 
 ---
 
-#### 2.4.5 Stale vs Missing
+#### 2.4.4 Stale vs Missing
 
 The system distinguishes between:
 
@@ -756,7 +736,7 @@ Both conditions are failures, but they indicate different classes of problems:
 
 ---
 
-#### 2.4.6 Latest Pointer Is Not Authoritative
+#### 2.4.5 Latest Pointer Is Not Authoritative
 
 The presence of `<job>-latest.log` does **not** imply freshness.
 
@@ -770,7 +750,7 @@ A stale symlink pointing to an old run is a detectable and reportable failure.
 
 ---
 
-#### 2.4.7 Partial or Failed Runs
+#### 2.4.6 Partial or Failed Runs
 
 If a job fails:
 
@@ -788,20 +768,19 @@ These are orthogonal dimensions and must not be conflated.
 
 ---
 
+#### 2.4.7 Design Intent Summary
+
+This contract exists to enforce the following principles:
+
+* Jobs describe their own expectations
+* Observed reality beats configured intent
+* Status reporting scales without central knowledge
+* Staleness is a first-class failure mode
+
+If a job doesn’t state how often it should run,
+the system cannot know whether silence is acceptable—or a fire alarm.
+
 ### 2.5 Environment & Paths
-
-#### 2.5.1 Design Intent Summary
-
-This contract exists to ensure scripts are:
-
-* Cron-safe
-* Location-independent
-* Deterministic
-* Portable within the intended host constraints
-
-If a script works “only when run from the repo root” or “only in my interactive shell”, that is a bug—not a quirk.
-
----
 
 Scripts in `obsidian-note-tools` must execute reliably under cron, interactive shells, and automation contexts.
 Therefore, scripts must treat the runtime environment as **hostile by default** and must not depend on implicit shell state.
@@ -810,7 +789,7 @@ This section defines what may be assumed and what must be explicitly established
 
 ---
 
-#### 2.5.2 Minimal, Explicit PATH
+#### 2.5.1 Minimal, Explicit PATH
 
 Scripts MUST NOT assume an interactive PATH.
 
@@ -826,7 +805,7 @@ The goal is:
 
 ---
 
-#### 2.5.3 Stable Repo-Relative Resolution
+#### 2.5.2 Stable Repo-Relative Resolution
 
 Scripts MUST locate other repo components by resolving paths relative to the script’s own location, not the current working directory.
 
@@ -845,7 +824,7 @@ Scripts MUST NOT:
 
 ---
 
-#### 2.5.4 job-wrap Discovery
+#### 2.5.3 job-wrap Discovery
 
 Leaf scripts MUST locate `job-wrap.sh` in a repo-stable way and re-exec through it as defined in the Execution Contract.
 
@@ -853,7 +832,7 @@ If `job-wrap.sh` cannot be found or is not executable, scripts MUST fail fast ra
 
 ---
 
-#### 2.5.5 Required Environment Variables
+#### 2.5.4 Required Environment Variables
 
 Scripts may rely on a small set of environment variables **only if explicitly defined as part of the ecosystem contract**.
 
@@ -870,7 +849,7 @@ If a script requires an environment variable to behave correctly, it MUST:
 
 ---
 
-#### 2.5.6 Working Directory
+#### 2.5.5 Working Directory
 
 Scripts MUST NOT depend on the working directory.
 
@@ -885,7 +864,7 @@ If a script intentionally changes directories, it must:
 
 ---
 
-#### 2.5.7 Temporary Files and Directories
+#### 2.5.6 Temporary Files and Directories
 
 Temporary resources MUST be created in a safe temp location:
 
@@ -899,7 +878,7 @@ Temp artifacts MUST:
 
 ---
 
-#### 2.5.8 Portability and Shell Assumptions
+#### 2.5.7 Portability and Shell Assumptions
 
 All scripts target **POSIX `sh`**.
 
@@ -918,20 +897,18 @@ Where platform behavior differs (BSD vs GNU), scripts must:
 
 ---
 
+#### 2.5.8 Design Intent Summary
+
+This contract exists to ensure scripts are:
+
+* Cron-safe
+* Location-independent
+* Deterministic
+* Portable within the intended host constraints
+
+If a script works “only when run from the repo root” or “only in my interactive shell”, that is a bug—not a quirk.
+
 ### 2.6 Idempotency & Side Effects
-
-#### 2.6.1 Design Intent Summary
-
-This contract exists to ensure that:
-
-* Automation is safe
-* Recovery is easy
-* Failure is survivable
-* Re-runs are boring
-
-A script that only works “the first time” is not automated—it is fragile.
-
----
 
 Scripts in `obsidian-note-tools` operate in an automated, often scheduled environment.
 They must therefore be safe to run **repeatedly**, **out of order**, or **after partial failure** without causing corruption, duplication, or unintended drift.
@@ -940,7 +917,7 @@ This section defines expectations around idempotency and how side effects are ha
 
 ---
 
-#### 2.6.2 Idempotency Is the Default Expectation
+#### 2.6.1 Idempotency Is the Default Expectation
 
 Unless explicitly documented otherwise, scripts are expected to be **idempotent** with respect to their intended outcomes.
 
@@ -955,7 +932,7 @@ Idempotency does **not** mean “no work happens”; it means “no unintended c
 
 ---
 
-#### 2.6.3 Side Effects Must Be Intentional and Bounded
+#### 2.6.2 Side Effects Must Be Intentional and Bounded
 
 Side effects (file writes, commits, state changes) are allowed, but they must be:
 
@@ -975,7 +952,7 @@ If a script mutates state, that mutation must be the *reason the script exists*�
 
 ---
 
-#### 2.6.4 Safe Overwrite Beats Clever Deltas
+#### 2.6.3 Safe Overwrite Beats Clever Deltas
 
 When generating files or sections, scripts should prefer:
 
@@ -995,7 +972,7 @@ If it’s easier to delete and regenerate something deterministically, that is t
 
 ---
 
-#### 2.6.5 Atomicity and Partial Failure
+#### 2.6.4 Atomicity and Partial Failure
 
 Where feasible, scripts should aim for atomic outcomes:
 
@@ -1011,7 +988,7 @@ If a script fails mid-run:
 
 ---
 
-#### 2.6.6 Git Side Effects Are Centralized
+#### 2.6.5 Git Side Effects Are Centralized
 
 Scripts MUST NOT perform Git operations directly.
 
@@ -1026,7 +1003,7 @@ This separation ensures that:
 
 ---
 
-#### 2.6.7 Time-Based Scripts and Determinism
+#### 2.6.6 Time-Based Scripts and Determinism
 
 Scripts that depend on “now” (current date/time) must do so explicitly and carefully.
 
@@ -1040,7 +1017,7 @@ If a script is inherently non-idempotent (e.g. snapshotting external state), tha
 
 ---
 
-#### 2.6.8 Reruns Are a First-Class Use Case
+#### 2.6.7 Reruns Are a First-Class Use Case
 
 The system assumes scripts may be:
 
@@ -1055,29 +1032,27 @@ If a script cannot be safely re-run, that is an exceptional constraint and must 
 
 ---
 
+#### 2.6.8 Design Intent Summary
+
+This contract exists to ensure that:
+
+* Automation is safe
+* Recovery is easy
+* Failure is survivable
+* Re-runs are boring
+
+A script that only works “the first time” is not automated—it is fragile.
+
 ## 3. Component Contracts
 
 ### 3.1 Execution Contract (job-wrap)
-
-#### 3.1.1 Design Intent Summary
-
-This execution contract exists to enforce the following invariants:
-
-* There is exactly **one execution model**
-* There is exactly **one logging authority**
-* There is exactly **one place to reason about job behavior**
-* Leaf scripts remain simple, testable, and boring
-
-Any script that attempts to bypass or reimplement this contract is considered **incorrect by design**, even if it appears to “work”.
-
----
 
 All scripts in `obsidian-note-tools` execute under a **single, mandatory wrapper**:
 `utils/core/job-wrap.sh`.
 
 This wrapper defines the canonical execution environment for all jobs and is the *only* component permitted to manage logging, lifecycle metadata, and optional auto-commit behavior.
 
-#### 3.1.2 Mandatory Re-exec via job-wrap
+#### 3.1.1 Mandatory Re-exec via job-wrap
 
 All leaf scripts **MUST** execute under `job-wrap.sh`.
 
@@ -1107,7 +1082,7 @@ This guarantees:
 
 ---
 
-#### 3.1.3 job-wrap as the Sole Lifecycle Authority
+#### 3.1.2 job-wrap as the Sole Lifecycle Authority
 
 `job-wrap.sh` is the **exclusive authority** for:
 
@@ -1130,7 +1105,7 @@ Any such behavior is a contract violation.
 
 ---
 
-#### 3.1.4 Single-Process Execution Model
+#### 3.1.3 Single-Process Execution Model
 
 The execution model is intentionally **single-process, single-shell**:
 
@@ -1147,7 +1122,7 @@ This enables:
 
 ---
 
-#### 3.1.5 Wrapper Transparency
+#### 3.1.4 Wrapper Transparency
 
 From the perspective of the leaf script:
 
@@ -1160,7 +1135,7 @@ The wrapper is designed to be **behaviorally transparent**, except where explici
 
 ---
 
-#### 3.1.6 Wrapper Availability Guarantee
+#### 3.1.5 Wrapper Availability Guarantee
 
 All production execution paths (cron jobs, automation pipelines, manual invocations) **ASSUME** that:
 
@@ -1171,6 +1146,17 @@ All production execution paths (cron jobs, automation pipelines, manual invocati
 If `job-wrap.sh` is missing or non-executable, execution **MUST fail fast** rather than silently degrading behavior.
 
 ---
+
+#### 3.1.6 Design Intent Summary
+
+This execution contract exists to enforce the following invariants:
+
+* There is exactly **one execution model**
+* There is exactly **one logging authority**
+* There is exactly **one place to reason about job behavior**
+* Leaf scripts remain simple, testable, and boring
+
+Any script that attempts to bypass or reimplement this contract is considered **incorrect by design**, even if it appears to “work”.
 
 ### 3.2 Logger Contract (log.sh)
 
