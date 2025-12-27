@@ -168,12 +168,12 @@ The engine consists of the following canonical components:
   * enforcing execution contracts
   * environment normalization
   * stdout/stderr routing
-  * log file creation and rotation
+  * delegating logging lifecycle to the logger
   * optional commit orchestration
 * `log.sh`
   The shared logging helper library.
   Provides stable, minimal logging primitives.
-  Logging lifecycle ownership remains with `job-wrap.sh`.
+  Owns logging lifecycle (creation, rotation, placement) on behalf of the wrapper.
 * `commit.sh`
   The commit helper.
   A single-purpose component that stages and commits an explicit file list when instructed.
@@ -416,7 +416,7 @@ This contract prevents that class of failure entirely.
 
 ### 2.2 Logging Contract
 
-All logging behavior in `obsidian-note-tools` is **centralized, structured, and enforced** by `job-wrap.sh`.
+All logging behavior in `obsidian-note-tools` is **centralized, structured, and enforced** by `log.sh`.
 
 Logging is not an optional feature, nor a per-script concern. It is a **system-level responsibility** with strict boundaries.
 
@@ -424,7 +424,7 @@ Logging is not an optional feature, nor a per-script concern. It is a **system-l
 
 #### 2.2.1 Single Logging Authority
 
-`job-wrap.sh` is the **only component permitted to create, write, rotate, or manage log files**.
+`log.sh` is the **only component permitted to create, write, rotate, or manage log files**.
 
 Leaf scripts **MUST NOT**:
 
@@ -484,7 +484,7 @@ Consumers must treat it as a *pointer*, not an authoritative record.
 
 Logs are stored under a shared log root, grouped into **buckets** that reflect job cadence and purpose (e.g. daily, weekly, long-cycle, other).
 
-Bucket placement is a **wrapper concern**, not a leaf concern.
+Bucket placement is a **logger concern**, not a leaf concern.
 
 Leaf scripts:
 
@@ -1107,9 +1107,9 @@ This guarantees:
 `job-wrap.sh` is the **exclusive authority** for:
 
 * Execution lifecycle boundaries
-* Log file creation and rotation
-* Capturing and annotating stderr
-* Recording start/end metadata
+* Delegating log lifecycle and annotation to `log.sh`
+* Capturing and annotating stderr (via `log.sh`)
+* Recording start/end metadata (via `log.sh`)
 * Exit code propagation
 * Optional commit behavior
 
@@ -1282,9 +1282,9 @@ The caller (typically `job-wrap.sh`) owns decisions about whether logging failur
 `log.sh` **MUST NOT**:
 
 * Manage job execution lifecycle
-* Decide log file paths or rotation policy (wrapper owns this)
 * Implement auto-commit behavior
 * Attempt to be a general logging framework
+* Own scheduling, invocation, or wrapper responsibilities beyond logging
 
 It exists to provide stable primitives that the wrapper composes.
 
