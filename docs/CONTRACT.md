@@ -172,7 +172,7 @@ The engine consists of the following canonical components:
 * `log.sh`
   The shared logging helper library.
   Provides stable, minimal logging primitives.
-  Owns logging lifecycle (creation, rotation, placement) on behalf of the wrapper.
+  Owns logging lifecycle (creation, rotation, placement).
 * `commit.sh`
   The commit helper.
   A single-purpose component that stages and commits an explicit file list when instructed.
