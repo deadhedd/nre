@@ -1106,9 +1106,6 @@ This guarantees:
 `job-wrap.sh` is the **exclusive authority** for:
 
 * Execution lifecycle boundaries
-* Delegating log lifecycle and annotation to `log.sh`
-* Capturing and annotating stderr (via `log.sh`)
-* Recording start/end metadata (via `log.sh`)
 * Exit code propagation
 * Optional commit behavior
 
