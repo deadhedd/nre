@@ -253,6 +253,27 @@ MUST be reflected here before being considered valid.
 
 ### 2.1 Stdout / Stderr Contract
 
+#### 2.1.7 Design Intent Summary
+
+This contract exists to preserve a hard boundary:
+
+| Stream | Purpose                     |
+| ------ | --------------------------- |
+| stdout | Structured, consumable data |
+| stderr | Human diagnostics and logs  |
+
+This enables:
+
+* Safe composition of scripts
+* Redirection without fear
+* Debugging without data corruption
+* Long-term maintainability
+
+Once stdout is polluted, every downstream consumer becomes fragile.
+This contract prevents that class of failure entirely.
+
+---
+
 Standard output (`stdout`) and standard error (`stderr`) have **strict, non-overlapping roles** across all scripts in `obsidian-note-tools`.
 
 This contract exists to ensure scripts are:
@@ -379,26 +400,21 @@ Leaf scripts **MUST NOT** implement ad-hoc `echo`-based logging that risks stdou
 
 ---
 
-#### 2.1.7 Design Intent Summary
-
-This contract exists to preserve a hard boundary:
-
-| Stream | Purpose                     |
-| ------ | --------------------------- |
-| stdout | Structured, consumable data |
-| stderr | Human diagnostics and logs  |
-
-This enables:
-
-* Safe composition of scripts
-* Redirection without fear
-* Debugging without data corruption
-* Long-term maintainability
-
-Once stdout is polluted, every downstream consumer becomes fragile.
-This contract prevents that class of failure entirely.
-
 ### 2.2 Logging Contract
+
+#### 2.2.8 Design Intent Summary
+
+This logging contract exists to enforce these invariants:
+
+* Logs are **complete**
+* Logs are **centralized**
+* Logs are **consistent**
+* Logs are **boring**
+
+Leaf scripts should never need to think about logging.
+If they are thinking about logging, the architecture has already failed.
+
+---
 
 All logging behavior in `obsidian-note-tools` is **centralized, structured, and enforced** by `job-wrap.sh`.
 
@@ -523,19 +539,21 @@ If logging cannot be initialized, the wrapper must fail fast and loudly rather t
 
 ---
 
-#### 2.2.8 Design Intent Summary
-
-This logging contract exists to enforce these invariants:
-
-* Logs are **complete**
-* Logs are **centralized**
-* Logs are **consistent**
-* Logs are **boring**
-
-Leaf scripts should never need to think about logging.
-If they are thinking about logging, the architecture has already failed.
-
 ### 2.3 Exit Code Semantics
+
+#### 2.3.8 Design Intent Summary
+
+Exit codes are designed to be:
+
+* Boring
+* Standard
+* Dependable
+* Interpretable by cron and automation without special casing
+
+The system rejects “creative exit codes” as a communication channel.
+If you need richer semantics, write richer artifacts—not weirder integers.
+
+---
 
 Exit codes are the **primary machine-readable signal** of success or failure across the entire `obsidian-note-tools` ecosystem.
 
@@ -653,19 +671,21 @@ Wrapper failures must be loud on stderr and present in logs when possible.
 
 ---
 
-#### 2.3.8 Design Intent Summary
-
-Exit codes are designed to be:
-
-* Boring
-* Standard
-* Dependable
-* Interpretable by cron and automation without special casing
-
-The system rejects “creative exit codes” as a communication channel.
-If you need richer semantics, write richer artifacts—not weirder integers.
-
 ### 2.4 Run Cadence & Freshness
+
+#### 2.4.7 Design Intent Summary
+
+This contract exists to enforce the following principles:
+
+* Jobs describe their own expectations
+* Observed reality beats configured intent
+* Status reporting scales without central knowledge
+* Staleness is a first-class failure mode
+
+If a job doesn’t state how often it should run,
+the system cannot know whether silence is acceptable—or a fire alarm.
+
+---
 
 Many scripts in `obsidian-note-tools` are expected to run on a **defined cadence** (daily, weekly, hourly, ad-hoc, etc.).
 Correctness is therefore not just *“did it run?”* but also *“did it run recently enough?”*.
@@ -768,19 +788,20 @@ These are orthogonal dimensions and must not be conflated.
 
 ---
 
-#### 2.4.7 Design Intent Summary
-
-This contract exists to enforce the following principles:
-
-* Jobs describe their own expectations
-* Observed reality beats configured intent
-* Status reporting scales without central knowledge
-* Staleness is a first-class failure mode
-
-If a job doesn’t state how often it should run,
-the system cannot know whether silence is acceptable—or a fire alarm.
-
 ### 2.5 Environment & Paths
+
+#### 2.5.8 Design Intent Summary
+
+This contract exists to ensure scripts are:
+
+* Cron-safe
+* Location-independent
+* Deterministic
+* Portable within the intended host constraints
+
+If a script works “only when run from the repo root” or “only in my interactive shell”, that is a bug—not a quirk.
+
+---
 
 Scripts in `obsidian-note-tools` must execute reliably under cron, interactive shells, and automation contexts.
 Therefore, scripts must treat the runtime environment as **hostile by default** and must not depend on implicit shell state.
@@ -897,18 +918,20 @@ Where platform behavior differs (BSD vs GNU), scripts must:
 
 ---
 
-#### 2.5.8 Design Intent Summary
-
-This contract exists to ensure scripts are:
-
-* Cron-safe
-* Location-independent
-* Deterministic
-* Portable within the intended host constraints
-
-If a script works “only when run from the repo root” or “only in my interactive shell”, that is a bug—not a quirk.
-
 ### 2.6 Idempotency & Side Effects
+
+#### 2.6.8 Design Intent Summary
+
+This contract exists to ensure that:
+
+* Automation is safe
+* Recovery is easy
+* Failure is survivable
+* Re-runs are boring
+
+A script that only works “the first time” is not automated—it is fragile.
+
+---
 
 Scripts in `obsidian-note-tools` operate in an automated, often scheduled environment.
 They must therefore be safe to run **repeatedly**, **out of order**, or **after partial failure** without causing corruption, duplication, or unintended drift.
@@ -1032,20 +1055,22 @@ If a script cannot be safely re-run, that is an exceptional constraint and must 
 
 ---
 
-#### 2.6.8 Design Intent Summary
-
-This contract exists to ensure that:
-
-* Automation is safe
-* Recovery is easy
-* Failure is survivable
-* Re-runs are boring
-
-A script that only works “the first time” is not automated—it is fragile.
-
 ## 3. Component Contracts
 
 ### 3.1 Execution Contract (job-wrap)
+
+#### 3.1.6 Design Intent Summary
+
+This execution contract exists to enforce the following invariants:
+
+* There is exactly **one execution model**
+* There is exactly **one logging authority**
+* There is exactly **one place to reason about job behavior**
+* Leaf scripts remain simple, testable, and boring
+
+Any script that attempts to bypass or reimplement this contract is considered **incorrect by design**, even if it appears to “work”.
+
+---
 
 All scripts in `obsidian-note-tools` execute under a **single, mandatory wrapper**:
 `utils/core/job-wrap.sh`.
@@ -1146,17 +1171,6 @@ All production execution paths (cron jobs, automation pipelines, manual invocati
 If `job-wrap.sh` is missing or non-executable, execution **MUST fail fast** rather than silently degrading behavior.
 
 ---
-
-#### 3.1.6 Design Intent Summary
-
-This execution contract exists to enforce the following invariants:
-
-* There is exactly **one execution model**
-* There is exactly **one logging authority**
-* There is exactly **one place to reason about job behavior**
-* Leaf scripts remain simple, testable, and boring
-
-Any script that attempts to bypass or reimplement this contract is considered **incorrect by design**, even if it appears to “work”.
 
 ### 3.2 Logger Contract (log.sh)
 
