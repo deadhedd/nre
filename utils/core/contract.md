@@ -1224,7 +1224,7 @@ At minimum:
 Rules:
 
 * Message formatting **MUST** be stable (timestamp + level + message).
-* Timestamps **MUST** be in local time and explicitly labeled as such.
+* Timestamps **MUST** be in local time and explicitly labeled as such (see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt)).
 * The logger **MUST** not require non-POSIX features.
 
 #### 3.2.6 Determinism & Safety
