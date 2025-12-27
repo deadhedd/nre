@@ -449,7 +449,7 @@ Each job execution produces:
   Example:
 
   ```
-  <job>-<UTC timestamp>.log
+  <job>-<local timestamp>.log
   ```
 
 * A **stable pointer** to the most recent run:
@@ -1224,7 +1224,7 @@ At minimum:
 Rules:
 
 * Message formatting **MUST** be stable (timestamp + level + message).
-* Timestamps **MUST** be in local time with timezone offset, or otherwise explicitly stated.
+* Timestamps **MUST** be in local time and explicitly labeled as such.
 * The logger **MUST** not require non-POSIX features.
 
 #### 3.2.6 Determinism & Safety
@@ -1528,7 +1528,7 @@ The report **MUST** be:
 
 At minimum, the report **SHOULD** include:
 
-* generation timestamp (local + UTC recommended)
+* generation timestamp (local time; see the [Time Manifesto](https://noah.org/time-manifesto))
 * summary counts by state (OK/WARN/FAIL/UNKNOWN)
 * per-job rows including:
 
