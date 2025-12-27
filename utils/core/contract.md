@@ -1528,7 +1528,7 @@ The report **MUST** be:
 
 At minimum, the report **SHOULD** include:
 
-* generation timestamp (local time; see the [Time Manifesto](https://noah.org/time-manifesto))
+* generation timestamp (local time; see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt))
 * summary counts by state (OK/WARN/FAIL/UNKNOWN)
 * per-job rows including:
 
