@@ -168,7 +168,6 @@ The engine consists of the following canonical components:
   * enforcing execution contracts
   * environment normalization
   * stdout/stderr routing
-  * delegating logging lifecycle to the logger
   * optional commit orchestration
 * `log.sh`
   The shared logging helper library.
