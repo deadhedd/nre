@@ -891,7 +891,12 @@ Scripts MUST NOT assume:
 * Arrays
 * `pipefail`
 * Non-POSIX `[[ ... ]]`
-* GNU-only flags unless explicitly documented and constrained to a host
+* GNU-only flags
+
+For portability across shells and hosts:
+
+* Unformatted data artifacts (e.g., `.log` files) MUST remain ASCII-only
+* Formatted documents (e.g., Markdown) MAY use Unicode when it improves clarity and renders safely
 
 Where platform behavior differs (BSD vs GNU), scripts must:
 
@@ -1247,8 +1252,9 @@ Debug mode must never change the semantics of normal log messages.
 `log.sh` **MUST** remain compatible with POSIX `sh` environments (e.g., sh/dash/ksh/ash).
 
 * No bashisms
-* No reliance on GNU-only flags where avoidable
-* ASCII-only output is preferred if the repo standard requires it
+* No reliance on GNU-only flags
+* Unformatted data files (e.g., `.log`) MUST be ASCII-only for compatibility
+* Formatted documents (e.g., Markdown) MAY use Unicode when it improves clarity and renders safely
 
 #### 3.2.9 Exit Code & Return Semantics
 
