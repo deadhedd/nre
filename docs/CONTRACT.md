@@ -283,7 +283,7 @@ Leaf scripts **MUST NOT** write any of the following to stdout:
 
 If a consumer script redirects or captures stdout, it must be able to do so **without filtering**.
 
-> If a human can read it and it isn’t the primary data product, it does not belong on stdout.
+> Nothing may be written to stdout unless it is part of the primary data product.
 
 ---
 
