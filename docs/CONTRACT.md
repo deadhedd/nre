@@ -1307,7 +1307,7 @@ It MUST NOT be called directly from cron.
 
 It MUST assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTIVE=1`).
 
-If invoked outside job-wrap, behavior is undefined unless explicitly guarded.
+If invoked outside job-wrap, no guarantees are made about correctness or side effects unless the helper explicitly detects and rejects such invocation.
 
 #### 3.3.3 Logging & Output Contract
 
