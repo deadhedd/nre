@@ -78,7 +78,6 @@ Review checklist (Table of Contents):
     - [ ] 3.2.5 Logging Primitives Contract
     - [ ] 3.2.6 Determinism & Safety
     - [ ] 3.2.7 Internal Debug (Opt-in Only)
-    - [ ] 3.2.8 Compatibility Contract
     - [ ] 3.2.9 Exit Code & Return Semantics
     - [ ] 3.2.10 Non-Goals
     - [ ] 3.2.11 Stability Promise
@@ -506,7 +505,7 @@ Logs may contain:
 
 Logs **MAY** be human-readable, but they are not required to be machine-parseable.
 
-Machine interpretation, when needed, must be layered on top by consumer tools (e.g. status reports).
+Any machine interpretation of log content (e.g., classification, warnings, or health status) MUST be performed by separate consumer tools, not implied by the log format itself.
 
 ---
 
@@ -741,18 +740,13 @@ A missing or stale log is treated as a failure condition.
 
 ---
 
-#### 2.4.4 Stale vs Missing
-
-The system distinguishes between:
-
-* **Missing**: no log exists for a job
-* **Stale**: a log exists, but is older than allowed by cadence
-
-Both conditions are failures, but they indicate different classes of problems:
-
-* Missing → job never ran or logging broke
-* Stale → scheduler failure, crash, or drift
-
+2.4.4 Stale vs Missing
+The reporter MAY distinguish between:
+• Missing: no log exists for a job
+• Stale: a log exists, but is older than allowed by cadence
+Both conditions indicate an unhealthy job, but suggest different problem classes:
+• Missing → job never ran, job not registered, or logging broke
+• Stale → scheduler failure, crash, hang, or drift
 ---
 
 #### 2.4.5 Latest Pointer Is Not Authoritative
@@ -1254,14 +1248,6 @@ If the logger supports internal debugging:
 * Debug output **MUST NOT** pollute stdout
 
 Debug mode must never change the semantics of normal log messages.
-
-#### 3.2.8 Compatibility Contract
-
-`log.sh` **MUST** remain compatible with POSIX `sh` environments (e.g., sh/dash/ksh/ash).
-
-* No bashisms
-* No reliance on GNU-only flags where avoidable
-* ASCII-only output is preferred if the repo standard requires it
 
 #### 3.2.9 Exit Code & Return Semantics
 
