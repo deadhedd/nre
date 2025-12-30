@@ -1527,20 +1527,20 @@ Staleness thresholds (if present) **MUST** be explicit and deterministic.
 
 #### 3.4.6 Classification Semantics
 
-The reporter **MUST** classify each job into a small set of stable states. Recommended minimum set:
+The reporter **MUST** classify each job into a small, fixed set of states.
 
-* **OK** — latest run indicates success
-* **WARN** — latest run succeeded but contains warn patterns, or is stale
-* **FAIL** — latest run indicates failure (exit code or error patterns)
-* **UNKNOWN** — missing logs/pointers, unreadable log, or unparseable format
+The set of classification states, including their identifiers and meanings, is defined in Appendix B — Reporter Classification States.
 
 Classification rules **MUST** be:
 
-* deterministic
-* documented
-* stable across releases unless the contract version is explicitly changed
+* Deterministic
+* Fully documented
+* Stable across releases unless the contract version is explicitly changed
 
-If multiple signals conflict, precedence **MUST** be documented (e.g., FAIL > WARN > OK; UNKNOWN if missing required inputs).
+The reporter **MUST** define explicit precedence rules for resolving conflicting classification signals.
+Precedence rules **MUST** be deterministic and documented.
+
+If required inputs for classification are missing, unreadable, or unparseable, the reporter **MUST** assign the designated indeterminate state defined in the appendix.
 
 ---
 
