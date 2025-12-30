@@ -1604,13 +1604,13 @@ Any temporary files **MUST** be cleaned up on success and failure.
 
 Exit codes are part of the public engine contract.
 
-Recommended semantics (exact values may change, but meanings must not):
+The reporter **MUST** use a stable set of exit outcomes with documented meanings. The authoritative mapping of exit codes to outcomes is defined in **Appendix C — Engine Exit Codes**.
 
-* `0` — No failures detected (overall status OK/WARN only)
-* `1` — One or more failures detected (any job classified FAIL)
-* `2` — Reporter error (cannot read log root, cannot write report, internal error)
+The reporter **MUST** return the designated failure outcome if one or more jobs are classified as failure according to the classification semantics.
 
-The reporter **MUST NOT** return `1` merely due to WARN or stale status (unless explicitly defined otherwise).
+The reporter **MUST NOT** return a failure outcome solely due to warning or stale classifications, unless explicitly defined by the contract.
+
+If the reporter cannot complete its function due to missing inputs, unreadable state, or internal error, it **MUST** return an engine-reserved error outcome as defined in the appendix.
 
 ---
 
