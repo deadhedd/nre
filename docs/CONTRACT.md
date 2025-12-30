@@ -78,7 +78,6 @@ Review checklist (Table of Contents):
     - [ ] 3.2.5 Logging Primitives Contract
     - [ ] 3.2.6 Determinism & Safety
     - [ ] 3.2.7 Internal Debug (Opt-in Only)
-    - [ ] 3.2.8 Compatibility Contract
     - [ ] 3.2.9 Exit Code & Return Semantics
     - [ ] 3.2.10 Non-Goals
     - [ ] 3.2.11 Stability Promise
@@ -1249,14 +1248,6 @@ If the logger supports internal debugging:
 * Debug output **MUST NOT** pollute stdout
 
 Debug mode must never change the semantics of normal log messages.
-
-#### 3.2.8 Compatibility Contract
-
-`log.sh` **MUST** remain compatible with POSIX `sh` environments (e.g., sh/dash/ksh/ash).
-
-* No bashisms
-* No reliance on GNU-only flags where avoidable
-* ASCII-only output is preferred if the repo standard requires it
 
 #### 3.2.9 Exit Code & Return Semantics
 
