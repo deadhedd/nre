@@ -546,14 +546,38 @@ Exit codes must remain simple, predictable, and composable. Any script that exit
 
 ---
 
-#### 2.3.1 Wrapper Propagation Is Authoritative
+#### 2.3.1 Wrapper Propagation Is Authoritative (Transparent Unless Wrapper Breaks)
 
-`job-wrap.sh` MUST propagate the leaf script’s exit status as the wrapper’s own exit status.
+`job-wrap.sh` MUST behave as a transparent execution harness unless the wrapper itself fails.
 
-* If the leaf exits `0`, the wrapper exits `0`.
-* If the leaf exits non-zero, the wrapper exits that same code (unless the wrapper itself fails earlier).
+Exit Status Propagation
+    •If the wrapper successfully starts and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
+    •If the leaf exits 0, the wrapper exits 0.
+    •If the leaf exits non-zero, the wrapper exits the same non-zero code.
 
-This guarantees that cron, calling scripts, and status-report tooling can treat the wrapper as transparent for success/failure.
+This ensures that cron, calling scripts, and status-report tooling can treat the wrapper as transparent for leaf success or failure when the wrapper is healthy.
+
+Wrapper Failure Override
+    •If the wrapper fails before executing the leaf script, the wrapper MUST exit non-zero with a wrapper-defined failure code.
+    •If the wrapper fails after executing the leaf script in a way that prevents reliable observability or publication of the run (e.g., required logs, markers, or vault commit cannot be produced), the wrapper MUST exit non-zero with a wrapper-defined failure code, even if the leaf script exited 0.
+
+In such cases, the wrapper’s failure is considered authoritative, as the run is effectively lost or unverifiable.
+
+Failure Classification
+
+Wrapper failures MUST be classified as either:
+    •Hard failures — failures that prevent reliable execution, observability, or publication of results; these override the leaf exit status.
+    •Soft failures — ancillary or telemetry-related failures that do not prevent observability; these MUST be logged and reported but MUST NOT affect the wrapper’s exit status.
+
+Exit Code Assignment (Deferred)
+    •Specific numeric exit codes for wrapper-defined failures are intentionally not fixed in this section.
+    •Wrapper failure codes MUST be:
+    •non-zero
+    •deterministic
+    •documented
+    •stable once defined
+
+Assignment and reservation of specific wrapper exit codes will be specified in a future contract revision.
 
 ---
 
