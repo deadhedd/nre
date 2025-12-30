@@ -1630,3 +1630,119 @@ Any breaking change to:
 **MUST** be accompanied by a contract revision.
 
 ---
+
+## Appendix A — Core Engine Environment Variable Inventory (Informative)
+
+> **Status:** Informative / Non-Normative
+> **Scope:** Core engine components only (`job-wrap.sh`, logging sink, commit helper).
+>
+> This appendix documents environment variables **observed in use by the core engine** at the time of writing.
+> It does **not** grant permission to introduce new variables, nor does it define required behavior by itself.
+> Normative rules governing environment variable usage are defined in Section 2.5.4.
+
+### A.1 Summary
+
+| Variable         | Component          | Role / Default                                      | Validation                        |
+| ---------------- | ------------------ | --------------------------------------------------- | --------------------------------- |
+| JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; must be `1` inside wrapper | Required; hard exit if invalid    |
+| JOB_NAME         | Log sink           | Job identifier used for log naming                  | Required; hard exit if missing    |
+| LOG_FILE         | Log sink           | Timestamped log file path                           | Required; hard exit if missing    |
+| LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                    | Checked early                     |
+| VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                       | Defaulted; not strictly validated |
+| LOG_ROOT         | Wrapper / Log sink | Base log directory                                  | Defaulted; not strictly validated |
+| TMPDIR           | Wrapper / Log sink | Temporary file parent                               | Default `/tmp`; not validated     |
+| COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                         | Used directly; git validates      |
+| GIT_BIN          | Commit helper      | Optional git binary override                        | Executable verified               |
+| PATH             | All                | Command search path                                 | Reset with safe defaults          |
+
+---
+
+### A.2 Required Variables
+
+The following variables are **required by the core engine** and MUST be present and valid when their owning component initializes:
+
+#### JOB_WRAP_ACTIVE
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Recursion guard to ensure exactly one wrapper instance per job
+* **Expected value:** `1` when executing under `job-wrap.sh`
+* **Failure behavior:** Hard exit if required and missing/invalid
+
+#### JOB_NAME
+
+* **Owner:** Logging sink
+* **Purpose:** Stable job identifier for log naming and latest pointers
+* **Failure behavior:** Hard exit if missing or empty
+
+#### LOG_FILE
+
+* **Owner:** Logging sink
+* **Purpose:** Path to the current run’s timestamped log file
+* **Failure behavior:** Hard exit if missing or empty
+
+---
+
+### A.3 Recognized Optional Overrides
+
+These variables MAY be set to override default behavior.
+The core engine MUST remain correct when they are unset.
+
+#### VAULT_PATH
+
+* **Owner:** Wrapper / Commit helper
+* **Purpose:** Override vault work tree root
+* **Default:** Repo-defined path (e.g. `/home/obsidian/vaults/Main`)
+* **Validation:** Downstream existence checks only
+
+#### LOG_ROOT
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Base directory for job logs
+* **Default:** Derived (often `${HOME}/logs`)
+* **Validation:** Not strictly validated
+
+#### TMPDIR
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Temporary file location
+* **Default:** `/tmp`
+* **Validation:** Not validated beyond mktemp behavior
+
+#### COMMIT_BARE_REPO
+
+* **Owner:** Commit helper
+* **Purpose:** Override bare git repository path
+* **Default:** Computed internally
+* **Validation:** Deferred to git
+
+#### GIT_BIN
+
+* **Owner:** Commit helper
+* **Purpose:** Override git executable
+* **Validation:** Must resolve to an executable file
+
+---
+
+### A.4 Internal Guards and Debug Knobs
+
+The following variables are **internal implementation details**.
+They are documented here for auditability only and are **not part of the public contract surface**:
+
+* `LOG_SINK_LOADED` — prevents double initialization of logging sink
+* Wrapper debug and tracing flags (`JOB_WRAP_DEBUG`, `JOB_WRAP_XTRACE`, etc.)
+* Logging verbosity / formatting controls (`LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY`, etc.)
+
+These variables MUST NOT be relied upon by external callers or leaf scripts.
+
+---
+
+### A.5 Explicitly Out of Scope
+
+This appendix intentionally omits:
+
+* Leaf script domain variables (e.g. sleep summaries, vault snapshots, celestial timing)
+* Content-specific overrides
+* Feature- or job-specific knobs
+
+Such variables are governed by the contracts of their respective components, not the core engine.
+
