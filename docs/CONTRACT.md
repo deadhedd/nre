@@ -1500,7 +1500,7 @@ Classification rules **MUST** be:
 
 * deterministic
 * documented
-* stable across releases unless contract-revved
+* stable across releases unless the contract version is explicitly changed
 
 If multiple signals conflict, precedence **MUST** be documented (e.g., FAIL > WARN > OK; UNKNOWN if missing required inputs).
 
