@@ -1418,13 +1418,13 @@ The commit helper is assumed to run in a controlled, deterministic environment.
 
 Exit codes are part of the public engine contract.
 
-Recommended semantics (exact values may change, but meanings must not):
+The commit helper MUST use a stable set of exit outcomes with documented meanings. The authoritative mapping of exit codes to outcomes is defined in Appendix C — Engine Exit Codes.
 
-* `0` — Commit created successfully
-* `3` — No changes to commit (non-failure)
-* `10+` — Operational failure (Git error, invalid input, repository unavailable)
+job-wrap.sh MUST treat the commit helper’s “no-op / nothing to commit” outcome as non-failure.
 
-Exit codes below the failure threshold MUST NOT be interpreted as job failure by job-wrap.
+Any exit outcome designated as failure in the appendix MUST be treated as an engine failure by job-wrap.sh, and job-wrap.sh MUST exit with an engine-reserved failure code as defined in the appendix.
+
+Exit outcomes designated as non-failure in the appendix MUST NOT be interpreted as job failure by job-wrap.sh.
 
 #### 3.3.8 Non-Goals
 
