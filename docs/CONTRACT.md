@@ -1758,3 +1758,35 @@ This appendix intentionally omits:
 
 Such variables are governed by the contracts of their respective components, not the core engine.
 
+---
+
+## Appendix B — Classification States
+
+### B.1 Classification States
+
+The reporter uses the following classification states:
+
+**OK**
+
+The most recent job run completed successfully and no warning conditions were detected.
+
+**WARN**
+
+The most recent job run completed successfully, but one or more warning conditions were detected, or the job’s latest run is considered stale according to documented criteria.
+
+**FAIL**
+
+The most recent job run indicates failure, as determined by exit status or documented error-detection rules.
+
+**UNKNOWN**
+
+The job’s state cannot be determined due to missing required inputs, unreadable or missing logs or pointers, or unparseable data.
+
+### B.2 Stability and Evolution
+
+The set of classification states is finite and explicitly enumerated.
+
+The identifiers and semantic meanings defined in this appendix MUST NOT change without a corresponding contract version change.
+
+Additional states MAY be introduced only via a contract revision.
+
