@@ -25,8 +25,9 @@ Review checklist (Table of Contents):
     - [ ] 2.2.4 Log Buckets and Placement
     - [ ] 2.2.5 Structured Log Content
     - [ ] 2.2.6 Logging Libraries Are Wrapper-Only
-    - [ ] 2.2.7 Failure Visibility Is Mandatory
-    - [ ] 2.2.8 Design Intent Summary
+    - [ ] 2.2.7 Character Encoding
+    - [ ] 2.2.8 Failure Visibility Is Mandatory
+    - [ ] 2.2.9 Design Intent Summary
   - [ ] 2.3 Exit Code Semantics
     - [ ] 2.3.1 Wrapper Propagation Is Authoritative
     - [ ] 2.3.2 Meaning of 0
@@ -525,7 +526,18 @@ If a leaf script emits diagnostics, it does so by writing to `stderr` only.
 
 ---
 
-#### 2.2.7 Failure Visibility Is Mandatory
+#### 2.2.7 Character Encoding
+
+Unformatted data outputs (e.g., `*.log` files) **MUST** remain ASCII-only:
+
+* Avoid locale-dependent characters in raw logs
+* Treat non-ASCII bytes in log output as a bug to be fixed
+
+Formatted human-facing documents (e.g., Markdown `*.md`) **MAY** include Unicode characters when it improves clarity.
+
+---
+
+#### 2.2.8 Failure Visibility Is Mandatory
 
 Even when a job fails catastrophically:
 
@@ -537,7 +549,7 @@ If logging cannot be initialized, the wrapper must fail fast and loudly rather t
 
 ---
 
-#### 2.2.8 Design Intent Summary
+#### 2.2.9 Design Intent Summary
 
 This logging contract exists to enforce these invariants:
 
@@ -937,7 +949,7 @@ Scripts MUST NOT assume:
 * Arrays
 * `pipefail`
 * Non-POSIX `[[ ... ]]`
-* GNU-only flags unless explicitly documented and constrained to a host
+* GNU-only flags
 
 Where platform behavior differs (BSD vs GNU), scripts must:
 
