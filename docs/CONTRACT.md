@@ -25,8 +25,9 @@ Review checklist (Table of Contents):
     - [ ] 2.2.4 Log Buckets and Placement
     - [ ] 2.2.5 Structured Log Content
     - [ ] 2.2.6 Logging Libraries Are Wrapper-Only
-    - [ ] 2.2.7 Failure Visibility Is Mandatory
-    - [ ] 2.2.8 Design Intent Summary
+    - [ ] 2.2.7 Character Encoding
+    - [ ] 2.2.8 Failure Visibility Is Mandatory
+    - [ ] 2.2.9 Design Intent Summary
   - [ ] 2.3 Exit Code Semantics
     - [ ] 2.3.1 Wrapper Propagation Is Authoritative
     - [ ] 2.3.2 Meaning of 0
@@ -48,7 +49,7 @@ Review checklist (Table of Contents):
     - [ ] 2.5.1 Minimal, Explicit PATH
     - [ ] 2.5.2 Stable Repo-Relative Resolution
     - [ ] 2.5.3 job-wrap Discovery
-    - [ ] 2.5.4 Required Environment Variables
+    - [ ] 2.5.4 Environment Variable Usage
     - [ ] 2.5.5 Working Directory
     - [ ] 2.5.6 Temporary Files and Directories
     - [ ] 2.5.7 Portability and Shell Assumptions
@@ -463,7 +464,7 @@ Each job execution produces:
   Example:
 
   ```
-  <job>-<UTC timestamp>.log
+  <job>-<local timestamp>.log
   ```
 
 * A **stable pointer** to the most recent run:
@@ -525,7 +526,18 @@ If a leaf script emits diagnostics, it does so by writing to `stderr` only.
 
 ---
 
-#### 2.2.7 Failure Visibility Is Mandatory
+#### 2.2.7 Character Encoding
+
+Unformatted data outputs (e.g., `*.log` files) **MUST** remain ASCII-only:
+
+* Avoid locale-dependent characters in raw logs
+* Treat non-ASCII bytes in log output as a bug to be fixed
+
+Formatted human-facing documents (e.g., Markdown `*.md`) **MAY** include Unicode characters when it improves clarity.
+
+---
+
+#### 2.2.8 Failure Visibility Is Mandatory
 
 Even when a job fails catastrophically:
 
@@ -533,11 +545,14 @@ Even when a job fails catastrophically:
 * Partial logs are acceptable
 * Silent failure is not
 
-If logging cannot be initialized, the wrapper must fail fast and loudly rather than executing the job without logs.
+Generated notes and data artifacts are the priority.
+
+Logging must be best-effort and must not fail jobs.
+Exception: logging failure may fail a job only if it implies the execution environment is unsafe or corrupted.
 
 ---
 
-#### 2.2.8 Design Intent Summary
+#### 2.2.9 Design Intent Summary
 
 This logging contract exists to enforce these invariants:
 
@@ -557,14 +572,42 @@ Exit codes must remain simple, predictable, and composable. Any script that exit
 
 ---
 
-#### 2.3.1 Wrapper Propagation Is Authoritative
+#### 2.3.1 Wrapper Propagation Is Authoritative (Transparent Unless Wrapper Breaks)
 
-`job-wrap.sh` MUST propagate the leaf script’s exit status as the wrapper’s own exit status.
+`job-wrap.sh` MUST behave as a transparent execution harness unless the wrapper itself fails.
 
+**Exit Status Propagation**
+
+* If the wrapper successfully starts and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
 * If the leaf exits `0`, the wrapper exits `0`.
-* If the leaf exits non-zero, the wrapper exits that same code (unless the wrapper itself fails earlier).
+* If the leaf exits non-zero, the wrapper exits the same non-zero code.
 
-This guarantees that cron, calling scripts, and status-report tooling can treat the wrapper as transparent for success/failure.
+This ensures that cron, calling scripts, and status-report tooling can treat the wrapper as transparent for leaf success or failure when the wrapper is healthy.
+
+**Wrapper Failure Override**
+
+* If the wrapper fails before executing the leaf script, the wrapper MUST exit non-zero with a wrapper-defined failure code.
+* If the wrapper fails after executing the leaf script in a way that prevents reliable observability or publication of the run (e.g., required logs, markers, or vault commit cannot be produced), the wrapper MUST exit non-zero with a wrapper-defined failure code, even if the leaf script exited `0`.
+
+In such cases, the wrapper’s failure is considered authoritative, as the run is effectively lost or unverifiable.
+
+**Failure Classification**
+
+Wrapper failures MUST be classified as either:
+
+* Hard failures — failures that prevent reliable execution, observability, or publication of results; these override the leaf exit status.
+* Soft failures — ancillary or telemetry-related failures that do not prevent observability; these MUST be logged and reported but MUST NOT affect the wrapper’s exit status.
+
+**Exit Code Assignment (Deferred)**
+
+* Specific numeric exit codes for wrapper-defined failures are intentionally not fixed in this section.
+* Wrapper failure codes MUST be:
+  * non-zero
+  * deterministic
+  * documented
+  * stable once defined
+
+Assignment and reservation of specific wrapper exit codes will be specified in a future contract revision.
 
 ---
 
@@ -845,20 +888,28 @@ If `job-wrap.sh` cannot be found or is not executable, scripts MUST fail fast ra
 
 ---
 
-#### 2.5.4 Required Environment Variables
+#### 2.5.4 Environment Variable Usage
 
-Scripts may rely on a small set of environment variables **only if explicitly defined as part of the ecosystem contract**.
+Scripts in this ecosystem MUST NOT rely on arbitrary or ambient environment variables for correctness.
 
-Examples include (non-exhaustive):
+Only environment variables explicitly defined as part of the ecosystem contract are permitted to influence control flow, output location, or correctness.
 
-* `JOB_WRAP_ACTIVE` (wrapper recursion guard)
-* `VAULT_PATH` (work tree root for vault operations, if used in this repo)
-* `TMPDIR` (optional; defaults must exist)
+The authoritative list of environment variables currently observed in use — including their classification (required, optional override, or internal guard) — is maintained in Appendix A: Environment Variable Inventory (Informative).
 
-If a script requires an environment variable to behave correctly, it MUST:
+**Requirements**
 
-* Validate it early
-* Fail fast with a clear stderr error if missing/invalid
+If a script depends on an environment variable to behave correctly, it MUST:
+
+* Validate the variable early in execution
+* Fail fast with a clear, single-line stderr error if the variable is missing or invalid
+
+Scripts MUST:
+
+* Provide explicit defaults for optional overrides
+* Remain correct when optional environment variables are unset
+* Avoid implicit reliance on user- or host-specific ambient variables
+
+Introduction of any new environment variable that affects correctness, output location, or control flow MUST be accompanied by an update to this contract and the appendix.
 
 ---
 
@@ -901,7 +952,7 @@ Scripts MUST NOT assume:
 * Arrays
 * `pipefail`
 * Non-POSIX `[[ ... ]]`
-* GNU-only flags unless explicitly documented and constrained to a host
+* GNU-only flags
 
 Where platform behavior differs (BSD vs GNU), scripts must:
 
@@ -1226,7 +1277,7 @@ At minimum:
 Rules:
 
 * Message formatting **MUST** be stable (timestamp + level + message).
-* Timestamps **MUST** be in local time with timezone offset, or otherwise explicitly stated.
+* Timestamps **MUST** be in local time and explicitly labeled as such (see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt)).
 * The logger **MUST** not require non-POSIX features.
 
 #### 3.2.6 Determinism & Safety
@@ -1257,7 +1308,8 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
 
-The caller (typically `job-wrap.sh`) owns decisions about whether logging failures should fail the job.
+Generated notes and data artifacts are the priority.
+The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure implies the execution environment is unsafe or corrupted.
 
 #### 3.2.10 Non-Goals
 
@@ -1366,13 +1418,13 @@ The commit helper is assumed to run in a controlled, deterministic environment.
 
 Exit codes are part of the public engine contract.
 
-Recommended semantics (exact values may change, but meanings must not):
+The commit helper MUST use a stable set of exit outcomes with documented meanings. The authoritative mapping of exit codes to outcomes is defined in Appendix C — Engine Exit Codes.
 
-* `0` — Commit created successfully
-* `3` — No changes to commit (non-failure)
-* `10+` — Operational failure (Git error, invalid input, repository unavailable)
+job-wrap.sh MUST treat the commit helper’s “no-op / nothing to commit” outcome as non-failure.
 
-Exit codes below the failure threshold MUST NOT be interpreted as job failure by job-wrap.
+Any exit outcome designated as failure in the appendix MUST be treated as an engine failure by job-wrap.sh, and job-wrap.sh MUST exit with an engine-reserved failure code as defined in the appendix.
+
+Exit outcomes designated as non-failure in the appendix MUST NOT be interpreted as job failure by job-wrap.sh.
 
 #### 3.3.8 Non-Goals
 
@@ -1475,20 +1527,20 @@ Staleness thresholds (if present) **MUST** be explicit and deterministic.
 
 #### 3.4.6 Classification Semantics
 
-The reporter **MUST** classify each job into a small set of stable states. Recommended minimum set:
+The reporter **MUST** classify each job into a small, fixed set of states.
 
-* **OK** — latest run indicates success
-* **WARN** — latest run succeeded but contains warn patterns, or is stale
-* **FAIL** — latest run indicates failure (exit code or error patterns)
-* **UNKNOWN** — missing logs/pointers, unreadable log, or unparseable format
+The set of classification states, including their identifiers and meanings, is defined in Appendix B — Reporter Classification States.
 
 Classification rules **MUST** be:
 
-* deterministic
-* documented
-* stable across releases unless the contract version is explicitly changed
+* Deterministic
+* Fully documented
+* Stable across releases unless the contract version is explicitly changed
 
-If multiple signals conflict, precedence **MUST** be documented (e.g., FAIL > WARN > OK; UNKNOWN if missing required inputs).
+The reporter **MUST** define explicit precedence rules for resolving conflicting classification signals.
+Precedence rules **MUST** be deterministic and documented.
+
+If required inputs for classification are missing, unreadable, or unparseable, the reporter **MUST** assign the designated indeterminate state defined in the appendix.
 
 ---
 
@@ -1519,12 +1571,12 @@ The report **MUST** be:
 
 At minimum, the report **SHOULD** include:
 
-* generation timestamp (local + UTC recommended)
+* generation timestamp (local time; see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt))
 * summary counts by state (OK/WARN/FAIL/UNKNOWN)
 * per-job rows including:
 
   * job name
-  * latest run timestamp
+  * latest run timestamp (local time)
   * latest exit code (if known)
   * classification state
   * short reason / key signal (e.g., “stale 3d”, “exit=1”, “pattern: ERROR”)
@@ -1552,13 +1604,13 @@ Any temporary files **MUST** be cleaned up on success and failure.
 
 Exit codes are part of the public engine contract.
 
-Recommended semantics (exact values may change, but meanings must not):
+The reporter **MUST** use a stable set of exit outcomes with documented meanings. The authoritative mapping of exit codes to outcomes is defined in **Appendix C — Engine Exit Codes**.
 
-* `0` — No failures detected (overall status OK/WARN only)
-* `1` — One or more failures detected (any job classified FAIL)
-* `2` — Reporter error (cannot read log root, cannot write report, internal error)
+The reporter **MUST** return the designated failure outcome if one or more jobs are classified as failure according to the classification semantics.
 
-The reporter **MUST NOT** return `1` merely due to WARN or stale status (unless explicitly defined otherwise).
+The reporter **MUST NOT** return a failure outcome solely due to warning or stale classifications, unless explicitly defined by the contract.
+
+If the reporter cannot complete its function due to missing inputs, unreadable state, or internal error, it **MUST** return an engine-reserved error outcome as defined in the appendix.
 
 ---
 
@@ -1590,3 +1642,230 @@ Any breaking change to:
 **MUST** be accompanied by a contract revision.
 
 ---
+
+## Appendix A — Core Engine Environment Variable Inventory (Informative)
+
+> **Status:** Informative / Non-Normative
+> **Scope:** Core engine components only (`job-wrap.sh`, logging sink, commit helper).
+>
+> This appendix documents environment variables **observed in use by the core engine** at the time of writing.
+> It does **not** grant permission to introduce new variables, nor does it define required behavior by itself.
+> Normative rules governing environment variable usage are defined in Section 2.5.4.
+
+### A.1 Summary
+
+| Variable         | Component          | Role / Default                                      | Validation                        |
+| ---------------- | ------------------ | --------------------------------------------------- | --------------------------------- |
+| JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; must be `1` inside wrapper | Required; hard exit if invalid    |
+| JOB_NAME         | Log sink           | Job identifier used for log naming                  | Required; hard exit if missing    |
+| LOG_FILE         | Log sink           | Timestamped log file path                           | Required; hard exit if missing    |
+| LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                    | Checked early                     |
+| VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                       | Defaulted; not strictly validated |
+| LOG_ROOT         | Wrapper / Log sink | Base log directory                                  | Defaulted; not strictly validated |
+| TMPDIR           | Wrapper / Log sink | Temporary file parent                               | Default `/tmp`; not validated     |
+| COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                         | Used directly; git validates      |
+| GIT_BIN          | Commit helper      | Optional git binary override                        | Executable verified               |
+| PATH             | All                | Command search path                                 | Reset with safe defaults          |
+
+---
+
+### A.2 Required Variables
+
+The following variables are **required by the core engine** and MUST be present and valid when their owning component initializes:
+
+#### JOB_WRAP_ACTIVE
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Recursion guard to ensure exactly one wrapper instance per job
+* **Expected value:** `1` when executing under `job-wrap.sh`
+* **Failure behavior:** Hard exit if required and missing/invalid
+
+#### JOB_NAME
+
+* **Owner:** Logging sink
+* **Purpose:** Stable job identifier for log naming and latest pointers
+* **Failure behavior:** Hard exit if missing or empty
+
+#### LOG_FILE
+
+* **Owner:** Logging sink
+* **Purpose:** Path to the current run’s timestamped log file
+* **Failure behavior:** Hard exit if missing or empty
+
+---
+
+### A.3 Recognized Optional Overrides
+
+These variables MAY be set to override default behavior.
+The core engine MUST remain correct when they are unset.
+
+#### VAULT_PATH
+
+* **Owner:** Wrapper / Commit helper
+* **Purpose:** Override vault work tree root
+* **Default:** Repo-defined path (e.g. `/home/obsidian/vaults/Main`)
+* **Validation:** Downstream existence checks only
+
+#### LOG_ROOT
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Base directory for job logs
+* **Default:** Derived (often `${HOME}/logs`)
+* **Validation:** Not strictly validated
+
+#### TMPDIR
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Temporary file location
+* **Default:** `/tmp`
+* **Validation:** Not validated beyond mktemp behavior
+
+#### COMMIT_BARE_REPO
+
+* **Owner:** Commit helper
+* **Purpose:** Override bare git repository path
+* **Default:** Computed internally
+* **Validation:** Deferred to git
+
+#### GIT_BIN
+
+* **Owner:** Commit helper
+* **Purpose:** Override git executable
+* **Validation:** Must resolve to an executable file
+
+---
+
+### A.4 Internal Guards and Debug Knobs
+
+The following variables are **internal implementation details**.
+They are documented here for auditability only and are **not part of the public contract surface**:
+
+* `LOG_SINK_LOADED` — prevents double initialization of logging sink
+* Wrapper debug and tracing flags (`JOB_WRAP_DEBUG`, `JOB_WRAP_XTRACE`, etc.)
+* Logging verbosity / formatting controls (`LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY`, etc.)
+
+These variables MUST NOT be relied upon by external callers or leaf scripts.
+
+---
+
+### A.5 Explicitly Out of Scope
+
+This appendix intentionally omits:
+
+* Leaf script domain variables (e.g. sleep summaries, vault snapshots, celestial timing)
+* Content-specific overrides
+* Feature- or job-specific knobs
+
+Such variables are governed by the contracts of their respective components, not the core engine.
+
+---
+
+## Appendix B — Classification States
+
+### B.1 Classification States
+
+The reporter uses the following classification states:
+
+**OK**
+
+The most recent job run completed successfully and no warning conditions were detected.
+
+**WARN**
+
+The most recent job run completed successfully, but one or more warning conditions were detected, or the job’s latest run is considered stale according to documented criteria.
+
+**FAIL**
+
+The most recent job run indicates failure, as determined by exit status or documented error-detection rules.
+
+**UNKNOWN**
+
+The job’s state cannot be determined due to missing required inputs, unreadable or missing logs or pointers, or unparseable data.
+
+### B.2 Stability and Evolution
+
+The set of classification states is finite and explicitly enumerated.
+
+The identifiers and semantic meanings defined in this appendix MUST NOT change without a corresponding contract version change.
+
+Additional states MAY be introduced only via a contract revision.
+
+---
+
+## Appendix C — Engine Exit Codes
+
+> **Status:** Normative
+> **Applies to:** Sections 3.3.7 and 3.4.10
+
+This appendix defines the exit codes used by core engine components.
+
+Exit code meanings defined here are part of the public engine contract and MUST remain stable unless the contract version is explicitly changed.
+
+---
+
+### C.1 General Rules
+
+- Exit code 0 always indicates successful completion of the component’s primary responsibility.
+- Non-zero exit codes indicate either a non-failure outcome explicitly defined as such, or a failure.
+- `job-wrap.sh` is transparent with respect to leaf script exit codes unless it encounters an engine failure.
+- Engine-reserved failure codes are used only when the engine itself cannot fulfill its contract.
+
+---
+
+### C.2 Commit Helper Exit Codes
+
+| Exit Code | Meaning                                      |
+| --------- | -------------------------------------------- |
+| 0         | Commit created successfully                  |
+| 3         | No changes to commit (non-failure outcome)   |
+| 10        | Commit helper operational failure (e.g., git error, invalid input, repository unavailable) |
+
+**Rules:**
+
+- Exit code 3 MUST be treated as a successful, non-failure outcome by `job-wrap.sh`.
+- Exit code 10 indicates a failure of the commit helper itself and MUST be treated as an engine failure by `job-wrap.sh`.
+
+---
+
+### C.3 Wrapper Exit Code Semantics (`job-wrap.sh`)
+
+| Exit Code             | Meaning                                              |
+| --------------------- | ---------------------------------------------------- |
+| 0–255 (non-reserved)  | Exit code propagated directly from the leaf script   |
+| 120                   | Wrapper invocation or usage error                    |
+| 121                   | Wrapper initialization failure                       |
+| 122                   | Logging sink initialization or operation failure     |
+| 123                   | Commit helper failure                                |
+| 124                   | Internal wrapper error or invariant violation        |
+
+**Rules:**
+
+- If the wrapper completes normally, it MUST exit with the leaf script’s exit code unchanged.
+- If the wrapper cannot fulfill its responsibilities, it MUST exit with the appropriate engine-reserved failure code.
+- Engine-reserved exit codes MUST NOT be used by leaf scripts.
+
+---
+
+### C.4 Reporter Exit Codes
+
+| Exit Code | Meaning                                                                              |
+| --------- | ------------------------------------------------------------------------------------ |
+| 0         | Report generated successfully; no jobs classified as FAIL                            |
+| 1         | Report generated successfully; one or more jobs classified as FAIL                   |
+| 2         | Reporter usage or invocation error                                                   |
+| 3         | Reporter operational failure (missing inputs, unreadable state, cannot write report, internal error) |
+
+**Rules:**
+
+- The reporter MUST return 1 if and only if at least one job is classified as FAIL.
+- WARN or stale classifications MUST NOT cause a failure exit code unless explicitly defined by a future contract revision.
+- Reporter operational failures MUST use exit code 3.
+
+---
+
+### C.5 Stability and Evolution
+
+- Exit code meanings defined in this appendix are stable and normative.
+- Numeric values MUST NOT be reassigned to different meanings without a contract version change.
+- Additional exit codes MAY be introduced only via a contract revision.
+
