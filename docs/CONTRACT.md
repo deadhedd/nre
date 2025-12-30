@@ -506,7 +506,7 @@ Logs may contain:
 
 Logs **MAY** be human-readable, but they are not required to be machine-parseable.
 
-Machine interpretation, when needed, must be layered on top by consumer tools (e.g. status reports).
+Any machine interpretation of log content (e.g., classification, warnings, or health status) MUST be performed by separate consumer tools, not implied by the log format itself.
 
 ---
 
