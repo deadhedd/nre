@@ -1790,3 +1790,82 @@ The identifiers and semantic meanings defined in this appendix MUST NOT change w
 
 Additional states MAY be introduced only via a contract revision.
 
+---
+
+## Appendix C — Engine Exit Codes
+
+> **Status:** Normative
+> **Applies to:** Sections 3.3.7 and 3.4.10
+
+This appendix defines the exit codes used by core engine components.
+
+Exit code meanings defined here are part of the public engine contract and MUST remain stable unless the contract version is explicitly changed.
+
+---
+
+### C.1 General Rules
+
+- Exit code 0 always indicates successful completion of the component’s primary responsibility.
+- Non-zero exit codes indicate either a non-failure outcome explicitly defined as such, or a failure.
+- `job-wrap.sh` is transparent with respect to leaf script exit codes unless it encounters an engine failure.
+- Engine-reserved failure codes are used only when the engine itself cannot fulfill its contract.
+
+---
+
+### C.2 Commit Helper Exit Codes
+
+| Exit Code | Meaning                                      |
+| --------- | -------------------------------------------- |
+| 0         | Commit created successfully                  |
+| 3         | No changes to commit (non-failure outcome)   |
+| 10        | Commit helper operational failure (e.g., git error, invalid input, repository unavailable) |
+
+**Rules:**
+
+- Exit code 3 MUST be treated as a successful, non-failure outcome by `job-wrap.sh`.
+- Exit code 10 indicates a failure of the commit helper itself and MUST be treated as an engine failure by `job-wrap.sh`.
+
+---
+
+### C.3 Wrapper Exit Code Semantics (`job-wrap.sh`)
+
+| Exit Code             | Meaning                                              |
+| --------------------- | ---------------------------------------------------- |
+| 0–255 (non-reserved)  | Exit code propagated directly from the leaf script   |
+| 120                   | Wrapper invocation or usage error                    |
+| 121                   | Wrapper initialization failure                       |
+| 122                   | Logging sink initialization or operation failure     |
+| 123                   | Commit helper failure                                |
+| 124                   | Internal wrapper error or invariant violation        |
+
+**Rules:**
+
+- If the wrapper completes normally, it MUST exit with the leaf script’s exit code unchanged.
+- If the wrapper cannot fulfill its responsibilities, it MUST exit with the appropriate engine-reserved failure code.
+- Engine-reserved exit codes MUST NOT be used by leaf scripts.
+
+---
+
+### C.4 Reporter Exit Codes
+
+| Exit Code | Meaning                                                                              |
+| --------- | ------------------------------------------------------------------------------------ |
+| 0         | Report generated successfully; no jobs classified as FAIL                            |
+| 1         | Report generated successfully; one or more jobs classified as FAIL                   |
+| 2         | Reporter usage or invocation error                                                   |
+| 3         | Reporter operational failure (missing inputs, unreadable state, cannot write report, internal error) |
+
+**Rules:**
+
+- The reporter MUST return 1 if and only if at least one job is classified as FAIL.
+- WARN or stale classifications MUST NOT cause a failure exit code unless explicitly defined by a future contract revision.
+- Reporter operational failures MUST use exit code 3.
+
+---
+
+### C.5 Stability and Evolution
+
+- Exit code meanings defined in this appendix are stable and normative.
+- Numeric values MUST NOT be reassigned to different meanings without a contract version change.
+- Additional exit codes MAY be introduced only via a contract revision.
+
