@@ -449,7 +449,7 @@ Each job execution produces:
   Example:
 
   ```
-  <job>-<UTC timestamp>.log
+  <job>-<local timestamp>.log
   ```
 
 * A **stable pointer** to the most recent run:
@@ -513,13 +513,16 @@ If a leaf script emits diagnostics, it does so by writing to `stderr` only.
 
 #### 2.2.7 Failure Visibility Is Mandatory
 
+Generated notes and data artifacts are the priority; logging is **best-effort**.
+
 Even when a job fails catastrophically:
 
-* A log file **MUST** exist
+* A log file **SHOULD** exist
 * Partial logs are acceptable
 * Silent failure is not
 
-If logging cannot be initialized, the wrapper must fail fast and loudly rather than executing the job without logs.
+Logging failure **MUST NOT** fail an otherwise healthy job.
+An exception exists only when the logging failure implies the execution environment is unsafe or corrupted (e.g., disk errors, permissions regressions that also threaten artifacts).
 
 ---
 
@@ -888,7 +891,12 @@ Scripts MUST NOT assume:
 * Arrays
 * `pipefail`
 * Non-POSIX `[[ ... ]]`
-* GNU-only flags unless explicitly documented and constrained to a host
+* GNU-only flags
+
+For portability across shells and hosts:
+
+* Unformatted data artifacts (e.g., `.log` files) MUST remain ASCII-only
+* Formatted documents (e.g., Markdown) MAY use Unicode when it improves clarity and renders safely
 
 Where platform behavior differs (BSD vs GNU), scripts must:
 
@@ -1216,7 +1224,7 @@ At minimum:
 Rules:
 
 * Message formatting **MUST** be stable (timestamp + level + message).
-* Timestamps **MUST** be in local time with timezone offset, or otherwise explicitly stated.
+* Timestamps **MUST** be in local time and explicitly labeled as such (see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt)).
 * The logger **MUST** not require non-POSIX features.
 
 #### 3.2.6 Determinism & Safety
@@ -1244,8 +1252,9 @@ Debug mode must never change the semantics of normal log messages.
 `log.sh` **MUST** remain compatible with POSIX `sh` environments (e.g., sh/dash/ksh/ash).
 
 * No bashisms
-* No reliance on GNU-only flags where avoidable
-* ASCII-only output is preferred if the repo standard requires it
+* No reliance on GNU-only flags
+* Unformatted data files (e.g., `.log`) MUST be ASCII-only for compatibility
+* Formatted documents (e.g., Markdown) MAY use Unicode when it improves clarity and renders safely
 
 #### 3.2.9 Exit Code & Return Semantics
 
@@ -1256,6 +1265,8 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
 
 The caller (typically `job-wrap.sh`) owns decisions about whether logging failures should fail the job.
+The default posture is **non-fatal**: logging failures **MUST NOT** fail a job that can still produce its primary notes or data artifacts.
+If a logging failure implies the execution environment is unsafe or corrupted (e.g., disk is read-only, filesystem errors), the caller **MAY** treat it as fatal to protect artifact integrity.
 
 #### 3.2.10 Non-Goals
 
@@ -1517,7 +1528,7 @@ The report **MUST** be:
 
 At minimum, the report **SHOULD** include:
 
-* generation timestamp (local + UTC recommended)
+* generation timestamp (local time; see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt))
 * summary counts by state (OK/WARN/FAIL/UNKNOWN)
 * per-job rows including:
 

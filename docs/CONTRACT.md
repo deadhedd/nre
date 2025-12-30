@@ -7,7 +7,8 @@ Review checklist (Table of Contents):
   - [ ] 1.3 Design Philosophy
   - [ ] 1.4 Non-Goals
   - [ ] 1.5 Engine Boundaries
-  - [ ] 1.6 Stability & Contract Authority
+- [ ] 1.6 Stability & Contract Authority
+- [ ] 1.7 End-to-End Execution Flow
 - [ ] 2. Cross-Cutting Contracts
   - [ ] 2.1 Stdout / Stderr Contract
     - [ ] 2.1.1 Stdout Is Sacred
@@ -167,12 +168,11 @@ The engine consists of the following canonical components:
   * enforcing execution contracts
   * environment normalization
   * stdout/stderr routing
-  * log file creation and rotation
   * optional commit orchestration
 * `log.sh`
   The shared logging helper library.
   Provides stable, minimal logging primitives.
-  Logging lifecycle ownership remains with `job-wrap.sh`.
+  Owns logging lifecycle (creation, rotation, placement).
 * `commit.sh`
   The commit helper.
   A single-purpose component that stages and commits an explicit file list when instructed.
@@ -246,6 +246,21 @@ Changes to:
 * artifact locations or formats
 
 MUST be reflected here before being considered valid.
+
+---
+
+### 1.7 End-to-End Execution Flow
+
+Engine execution follows a single linear path from invocation to reporting:
+
+1. **Invocation and re-exec** — Every leaf script immediately re-execs itself through `utils/core/job-wrap.sh`, ensuring the wrapper owns lifecycle, environment normalization, and stdout/stderr discipline.
+2. **Wrapper initialization** — `job-wrap.sh` sets predictable `PATH`, detects the repository root, and establishes logging context before the leaf script logic runs.
+3. **Logging bootstrapping** — The wrapper creates a dedicated log file under the logs root, binds `stderr` to structured logging (including per-line annotation), and keeps `stdout` pristine for data output.
+4. **Leaf execution and artifacts** — The leaf script runs with wrapper-provided context, emits data to stdout (if any), and produces primary artifacts (files, markdown, JSON) directly in the repository or vault locations as defined by the script’s contract.
+5. **Optional commit orchestration** — If the job configuration requests it, `job-wrap.sh` invokes `utils/core/commit.sh` with an explicit file list to stage and commit generated artifacts; commits never occur implicitly from the leaf script.
+6. **Out-of-band status reporting** — After runs, `utils/core/script-status-report.sh` reads wrapper-generated logs and pointers (not stdout) to classify job health and produce human-readable reports independent of the jobs’ data outputs.
+
+Each run yields clean stdout for consumers, structured stderr-backed logs for humans, and optional commits and reports that remain fully deterministic.
 
 ---
 
@@ -400,7 +415,7 @@ This contract prevents that class of failure entirely.
 
 ### 2.2 Logging Contract
 
-All logging behavior in `obsidian-note-tools` is **centralized, structured, and enforced** by `job-wrap.sh`.
+All logging behavior in `obsidian-note-tools` is **centralized, structured, and enforced** by `log.sh`.
 
 Logging is not an optional feature, nor a per-script concern. It is a **system-level responsibility** with strict boundaries.
 
@@ -408,7 +423,7 @@ Logging is not an optional feature, nor a per-script concern. It is a **system-l
 
 #### 2.2.1 Single Logging Authority
 
-`job-wrap.sh` is the **only component permitted to create, write, rotate, or manage log files**.
+`log.sh` is the **only component permitted to create, write, rotate, or manage log files**.
 
 Leaf scripts **MUST NOT**:
 
@@ -468,7 +483,7 @@ Consumers must treat it as a *pointer*, not an authoritative record.
 
 Logs are stored under a shared log root, grouped into **buckets** that reflect job cadence and purpose (e.g. daily, weekly, long-cycle, other).
 
-Bucket placement is a **wrapper concern**, not a leaf concern.
+Bucket placement is a **logger concern**, not a leaf concern.
 
 Leaf scripts:
 
@@ -682,6 +697,7 @@ Cadence knowledge **MUST NOT** live in:
 
 * `script-status-report.sh`
 * Cron configuration alone
+* Internal registries or status indexes
 * External documentation
 * Hardcoded tables in summary tools
 
@@ -692,6 +708,9 @@ If a job’s cadence changes, the job itself must change.
 #### 2.4.2 Declaring Expected Run Frequency
 
 Each job **MUST declare** its expected run cadence in a machine-readable form that is emitted into its log on every run.
+
+Failure of a leaf script to declare cadence is an **error condition**, not an implicit “unknown” cadence.
+Jobs with ad-hoc or inherently unknowable cadence **MUST still declare that fact explicitly** (e.g. `cadence=ad-hoc`).
 
 This declaration must be:
 
@@ -1087,9 +1106,6 @@ This guarantees:
 `job-wrap.sh` is the **exclusive authority** for:
 
 * Execution lifecycle boundaries
-* Log file creation and rotation
-* Capturing and annotating stderr
-* Recording start/end metadata
 * Exit code propagation
 * Optional commit behavior
 
@@ -1262,9 +1278,9 @@ The caller (typically `job-wrap.sh`) owns decisions about whether logging failur
 `log.sh` **MUST NOT**:
 
 * Manage job execution lifecycle
-* Decide log file paths or rotation policy (wrapper owns this)
 * Implement auto-commit behavior
 * Attempt to be a general logging framework
+* Own scheduling, invocation, or wrapper responsibilities beyond logging
 
 It exists to provide stable primitives that the wrapper composes.
 

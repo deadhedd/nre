@@ -32,12 +32,12 @@ LC_ALL=C
 LANG=C
 export LC_ALL LANG
 
-now_utc() {
-  date -u '+%Y-%m-%dT%H:%M:%SZ'
+now_local() {
+  date '+%Y-%m-%dT%H:%M:%S'
 }
 
 log_msg() {
-  printf '%s %s\n' "$(now_utc)" "$*" >&2
+  printf '%s %s\n' "$(now_local)" "$*" >&2
 }
 
 extract_exit_code() {
@@ -94,7 +94,7 @@ cleanup() {
 
 {
   printf '# Script Status Report\n\n'
-  printf 'Generated: %s\n\n' "$(now_utc)"
+  printf 'Generated: %s\n\n' "$(now_local)"
   printf 'This report summarizes the latest known status for each script, based on its `*-latest.log` log file.\n\n'
   printf '## Status Table\n\n'
   printf '| Script | Status | Exit Code | Warns | Errs | Log |\n'
