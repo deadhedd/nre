@@ -741,18 +741,13 @@ A missing or stale log is treated as a failure condition.
 
 ---
 
-#### 2.4.4 Stale vs Missing
-
-The system distinguishes between:
-
-* **Missing**: no log exists for a job
-* **Stale**: a log exists, but is older than allowed by cadence
-
-Both conditions are failures, but they indicate different classes of problems:
-
-* Missing → job never ran or logging broke
-* Stale → scheduler failure, crash, or drift
-
+2.4.4 Stale vs Missing
+The reporter MAY distinguish between:
+• Missing: no log exists for a job
+• Stale: a log exists, but is older than allowed by cadence
+Both conditions indicate an unhealthy job, but suggest different problem classes:
+• Missing → job never ran, job not registered, or logging broke
+• Stale → scheduler failure, crash, hang, or drift
 ---
 
 #### 2.4.5 Latest Pointer Is Not Authoritative
