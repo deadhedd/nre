@@ -47,7 +47,7 @@ Review checklist (Table of Contents):
     - [ ] 2.5.1 Minimal, Explicit PATH
     - [ ] 2.5.2 Stable Repo-Relative Resolution
     - [ ] 2.5.3 job-wrap Discovery
-    - [ ] 2.5.4 Required Environment Variables
+    - [ ] 2.5.4 Environment Variable Usage
     - [ ] 2.5.5 Working Directory
     - [ ] 2.5.6 Temporary Files and Directories
     - [ ] 2.5.7 Portability and Shell Assumptions
@@ -859,20 +859,28 @@ If `job-wrap.sh` cannot be found or is not executable, scripts MUST fail fast ra
 
 ---
 
-#### 2.5.4 Required Environment Variables
+#### 2.5.4 Environment Variable Usage
 
-Scripts may rely on a small set of environment variables **only if explicitly defined as part of the ecosystem contract**.
+Scripts in this ecosystem MUST NOT rely on arbitrary or ambient environment variables for correctness.
 
-Examples include (non-exhaustive):
+Only environment variables explicitly defined as part of the ecosystem contract are permitted to influence control flow, output location, or correctness.
 
-* `JOB_WRAP_ACTIVE` (wrapper recursion guard)
-* `VAULT_PATH` (work tree root for vault operations, if used in this repo)
-* `TMPDIR` (optional; defaults must exist)
+The authoritative list of environment variables currently observed in use — including their classification (required, optional override, or internal guard) — is maintained in Appendix A: Environment Variable Inventory (Informative).
 
-If a script requires an environment variable to behave correctly, it MUST:
+**Requirements**
 
-* Validate it early
-* Fail fast with a clear stderr error if missing/invalid
+If a script depends on an environment variable to behave correctly, it MUST:
+
+* Validate the variable early in execution
+* Fail fast with a clear, single-line stderr error if the variable is missing or invalid
+
+Scripts MUST:
+
+* Provide explicit defaults for optional overrides
+* Remain correct when optional environment variables are unset
+* Avoid implicit reliance on user- or host-specific ambient variables
+
+Introduction of any new environment variable that affects correctness, output location, or control flow MUST be accompanied by an update to this contract and the appendix.
 
 ---
 
