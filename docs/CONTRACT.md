@@ -533,7 +533,10 @@ Even when a job fails catastrophically:
 * Partial logs are acceptable
 * Silent failure is not
 
-If logging cannot be initialized, the wrapper must fail fast and loudly rather than executing the job without logs.
+Generated notes and data artifacts are the priority.
+
+Logging must be best-effort and must not fail jobs.
+Exception: logging failure may fail a job only if it implies the execution environment is unsafe or corrupted.
 
 ---
 
@@ -1293,7 +1296,8 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
 
-The caller (typically `job-wrap.sh`) owns decisions about whether logging failures should fail the job.
+Generated notes and data artifacts are the priority.
+The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure implies the execution environment is unsafe or corrupted.
 
 #### 3.2.10 Non-Goals
 
