@@ -1512,17 +1512,31 @@ It **MUST NOT**:
 
 #### 3.4.5 Freshness Model
 
-The reporter’s notion of “current state” is defined as:
+The reporter’s notion of a job’s current state is derived from the latest observed execution and the job’s self-declared run cadence.
 
-* The **latest available run** per job, as indicated by that job’s `*-latest.log` pointer.
+**Source of Execution State**
 
-Rules:
+* For each job, the reporter locates the most recent execution by resolving that job’s `*-latest.log` pointer.
+* The resolved log identifies the latest observed run, but does not, by itself, imply freshness or correctness.
 
-* The reporter **MUST** treat the `*-latest.log` pointer as authoritative.
-* It **MUST NOT** scan arbitrary historical logs unless explicitly configured to do so.
-* It **MAY** flag a job as **stale** if the latest run timestamp exceeds a documented threshold.
+**Cadence Authority**
 
-Staleness thresholds (if present) **MUST** be explicit and deterministic.
+* Each job is the authoritative source of its own expected run cadence.
+* The reporter **MUST** extract cadence declarations from the latest log and use them when evaluating freshness.
+* Freshness **MUST** be evaluated by comparing:
+  * the timestamp of the latest run
+  * against the job-declared cadence
+  * relative to the current time
+
+**Rules**
+
+* The reporter **MUST** use the `*-latest.log` pointer solely to identify the most recent run.
+* The reporter **MUST NOT** infer freshness from pointer presence alone.
+* The reporter **MUST NOT** scan arbitrary historical logs unless explicitly configured to do so.
+* A job **MAY** be flagged as stale if the elapsed time since its latest run exceeds what is permitted by its declared cadence.
+* If cadence information is missing, unreadable, or unparseable, the reporter **MUST** classify the job as indeterminate according to the classification semantics.
+
+All staleness thresholds and cadence interpretations **MUST** be explicit, deterministic, and derived from job-declared metadata rather than reporter-side assumptions.
 
 ---
 
