@@ -102,9 +102,10 @@ Review checklist (Table of Contents):
     - [ ] 3.4.7 Required Signals
     - [ ] 3.4.8 Output Contract (Markdown Report)
     - [ ] 3.4.9 Side Effects & Idempotency
-    - [ ] 3.4.10 Exit Code Semantics
-    - [ ] 3.4.11 Non-Goals
-    - [ ] 3.4.12 Stability Promise
+    - [ ] 3.4.10 Vault Log Copies (Presentation Artifacts)
+    - [ ] 3.4.11 Exit Code Semantics
+    - [ ] 3.4.12 Non-Goals
+    - [ ] 3.4.13 Stability Promise
 -->
 
 **Status:** v0.1 — Early Draft
@@ -1600,7 +1601,51 @@ Any temporary files **MUST** be cleaned up on success and failure.
 
 ---
 
-#### 3.4.10 Exit Code Semantics
+#### 3.4.10 Vault Log Copies (Presentation Artifacts)
+
+The status reporter **MAY** create vault-visible copies of job log artifacts for human inspection and linking from the status report.
+
+These copies exist solely to support navigation, review, and debugging from within the vault and are **not** authoritative execution records.
+
+**Role & Ownership**
+
+* `script-status-report.sh` is the **sole** engine component permitted to create or update vault log copies.
+* No other engine component (including `job-wrap.sh`, `log.sh`, or leaf scripts) may write logs into the vault.
+
+Vault log copies are considered **presentation artifacts**, not execution artifacts.
+
+**Source of Truth**
+
+* The authoritative log files remain under the engine log root (`LOG_ROOT`).
+* Vault copies are derived from the resolved target of each job’s `*-latest.log` pointer.
+* The vault copy **MUST NOT** be used as input to freshness evaluation, classification, or exit code determination.
+
+All classification logic **MUST** continue to operate exclusively on engine logs.
+
+**Copy Semantics**
+
+When producing vault log copies, the status reporter:
+
+* **MUST** copy or mirror only the latest resolved log per job.
+* **MUST** overwrite existing vault copies deterministically.
+* **MUST NOT** append or accumulate historical logs.
+* **MUST** ensure that reruns are idempotent.
+
+The vault copy **SHOULD** preserve the original filename or include enough context to clearly identify the job and run timestamp.
+
+**Failure Behavior**
+
+Failure to create or update vault log copies:
+
+* **MUST** be logged and surfaced in the status report.
+* **MUST NOT** invalidate the status report itself.
+* **MUST NOT** retroactively alter job classification.
+
+Vault log copy failures are considered presentation-layer degradation, not execution failure.
+
+---
+
+#### 3.4.11 Exit Code Semantics
 
 Exit codes are part of the public engine contract.
 
@@ -1614,7 +1659,7 @@ If the reporter cannot complete its function due to missing inputs, unreadable s
 
 ---
 
-#### 3.4.11 Non-Goals
+#### 3.4.12 Non-Goals
 
 The status reporter **MUST NOT**:
 
@@ -1628,7 +1673,7 @@ It is a *dashboard generator*, not an orchestrator.
 
 ---
 
-#### 3.4.12 Stability Promise
+#### 3.4.13 Stability Promise
 
 The reporter’s **output structure and exit code meanings are engine-stable**.
 
@@ -1795,7 +1840,7 @@ Additional states MAY be introduced only via a contract revision.
 ## Appendix C — Engine Exit Codes
 
 > **Status:** Normative
-> **Applies to:** Sections 3.3.7 and 3.4.10
+> **Applies to:** Sections 3.3.7 and 3.4.11
 
 This appendix defines the exit codes used by core engine components.
 
