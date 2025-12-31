@@ -1303,7 +1303,7 @@ Debug mode must never change the semantics of normal log messages.
 
 #### 3.2.9 Exit Code & Return Semantics
 
-Logging functions **SHOULD** return 0 on success.
+Logging functions **MUST** return 0 on success.
 
 When a logging operation fails (e.g., file open failure), functions **MAY** return non-zero.
 
