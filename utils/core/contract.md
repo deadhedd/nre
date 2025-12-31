@@ -7,7 +7,8 @@ Review checklist (Table of Contents):
   - [ ] 1.3 Design Philosophy
   - [ ] 1.4 Non-Goals
   - [ ] 1.5 Engine Boundaries
-  - [ ] 1.6 Stability & Contract Authority
+- [ ] 1.6 Stability & Contract Authority
+- [ ] 1.7 End-to-End Execution Flow
 - [ ] 2. Cross-Cutting Contracts
   - [ ] 2.1 Stdout / Stderr Contract
     - [ ] 2.1.1 Stdout Is Sacred
@@ -24,8 +25,9 @@ Review checklist (Table of Contents):
     - [ ] 2.2.4 Log Buckets and Placement
     - [ ] 2.2.5 Structured Log Content
     - [ ] 2.2.6 Logging Libraries Are Wrapper-Only
-    - [ ] 2.2.7 Failure Visibility Is Mandatory
-    - [ ] 2.2.8 Design Intent Summary
+    - [ ] 2.2.7 Character Encoding
+    - [ ] 2.2.8 Failure Visibility Is Mandatory
+    - [ ] 2.2.9 Design Intent Summary
   - [ ] 2.3 Exit Code Semantics
     - [ ] 2.3.1 Wrapper Propagation Is Authoritative
     - [ ] 2.3.2 Meaning of 0
@@ -77,7 +79,6 @@ Review checklist (Table of Contents):
     - [ ] 3.2.5 Logging Primitives Contract
     - [ ] 3.2.6 Determinism & Safety
     - [ ] 3.2.7 Internal Debug (Opt-in Only)
-    - [ ] 3.2.8 Compatibility Contract
     - [ ] 3.2.9 Exit Code & Return Semantics
     - [ ] 3.2.10 Non-Goals
     - [ ] 3.2.11 Stability Promise
@@ -101,9 +102,10 @@ Review checklist (Table of Contents):
     - [ ] 3.4.7 Required Signals
     - [ ] 3.4.8 Output Contract (Markdown Report)
     - [ ] 3.4.9 Side Effects & Idempotency
-    - [ ] 3.4.10 Exit Code Semantics
-    - [ ] 3.4.11 Non-Goals
-    - [ ] 3.4.12 Stability Promise
+    - [ ] 3.4.10 Vault Log Copies (Presentation Artifacts)
+    - [ ] 3.4.11 Exit Code Semantics
+    - [ ] 3.4.12 Non-Goals
+    - [ ] 3.4.13 Stability Promise
 -->
 
 **Status:** v0.1 — Early Draft
@@ -150,7 +152,7 @@ It is composed of a small, tightly-scoped set of components that together provid
 * Deterministic job execution
 * Strict stdout/stderr discipline
 * Centralized, structured logging
-* Optional automatic version control commits
+* Configurable, wrapper-managed auto-commit mode when enabled
 * A stable, human-readable system health report
 
 The engine exists to make scripts boring, predictable, and auditable.
@@ -167,18 +169,17 @@ The engine consists of the following canonical components:
   * enforcing execution contracts
   * environment normalization
   * stdout/stderr routing
-  * log file creation and rotation
-  * optional commit orchestration
+  * orchestrating auto-commit behavior **only when configured** (Git availability is not required for engine correctness)
 * `log.sh`
   The shared logging helper library.
   Provides stable, minimal logging primitives.
-  Logging lifecycle ownership remains with `job-wrap.sh`.
+  Owns logging lifecycle (creation, rotation, placement).
 * `commit.sh`
   The commit helper.
   A single-purpose component that stages and commits an explicit file list when instructed.
 * `script-status-report.sh`
   The status reporter.
-  An observational component that summarizes engine health by inspecting engine artifacts.
+  An observational component that summarizes engine and job health by inspecting engine artifacts.
 
 No other scripts are considered part of the engine unless explicitly declared by contract.
 
@@ -249,6 +250,22 @@ MUST be reflected here before being considered valid.
 
 ---
 
+### 1.7 End-to-End Execution Flow
+
+Engine execution follows a single linear path from invocation to reporting:
+
+1. **Invocation and re-exec** — Every leaf script immediately re-execs itself through `utils/core/job-wrap.sh`, ensuring the wrapper owns lifecycle, environment normalization, and stdout/stderr discipline.
+2. **Wrapper initialization** — `job-wrap.sh` sets predictable `PATH`, detects the repository root, and establishes logging context before the leaf script logic runs.
+3. **Logging bootstrapping** — The wrapper creates a dedicated log file under the logs root, binds `stderr` to structured logging (including per-line annotation), and keeps `stdout` pristine for data output.
+4. **Leaf execution and artifacts** — The leaf script runs with wrapper-provided context, emits data to stdout (if any), and produces primary artifacts (files, markdown, JSON) directly in the repository or vault locations as defined by the script’s contract.
+5. **Optional commit orchestration** — If the job configuration requests it, `job-wrap.sh` invokes `utils/core/commit.sh` with an explicit file list to stage and commit generated artifacts; commits never occur implicitly from the leaf script.
+   Leaf scripts MUST remain correct when commit orchestration is disabled or unavailable.
+6. **Out-of-band status reporting** — After runs, `utils/core/script-status-report.sh` reads wrapper-generated logs and pointers (not stdout) to classify job health and produce human-readable reports independent of the jobs’ data outputs.
+
+Each run yields clean stdout for consumers, structured stderr-backed logs for humans, and optional commits and reports that remain fully deterministic.
+
+---
+
 ## 2. Cross-Cutting Contracts
 
 ### 2.1 Stdout / Stderr Contract
@@ -283,7 +300,7 @@ Leaf scripts **MUST NOT** write any of the following to stdout:
 
 If a consumer script redirects or captures stdout, it must be able to do so **without filtering**.
 
-> If a human can read it and it isn’t the primary data product, it does not belong on stdout.
+> Nothing may be written to stdout unless it is part of the primary data product.
 
 ---
 
@@ -400,7 +417,7 @@ This contract prevents that class of failure entirely.
 
 ### 2.2 Logging Contract
 
-All logging behavior in `obsidian-note-tools` is **centralized, structured, and enforced** by `job-wrap.sh`.
+All logging behavior in `obsidian-note-tools` is **centralized, structured, and enforced** by `log.sh`.
 
 Logging is not an optional feature, nor a per-script concern. It is a **system-level responsibility** with strict boundaries.
 
@@ -408,7 +425,7 @@ Logging is not an optional feature, nor a per-script concern. It is a **system-l
 
 #### 2.2.1 Single Logging Authority
 
-`job-wrap.sh` is the **only component permitted to create, write, rotate, or manage log files**.
+`log.sh` is the **only component permitted to create, write, rotate, or manage log files**.
 
 Leaf scripts **MUST NOT**:
 
@@ -468,7 +485,7 @@ Consumers must treat it as a *pointer*, not an authoritative record.
 
 Logs are stored under a shared log root, grouped into **buckets** that reflect job cadence and purpose (e.g. daily, weekly, long-cycle, other).
 
-Bucket placement is a **wrapper concern**, not a leaf concern.
+Bucket placement is a **logger concern**, not a leaf concern.
 
 Leaf scripts:
 
@@ -491,7 +508,7 @@ Logs may contain:
 
 Logs **MAY** be human-readable, but they are not required to be machine-parseable.
 
-Machine interpretation, when needed, must be layered on top by consumer tools (e.g. status reports).
+Any machine interpretation of log content (e.g., classification, warnings, or health status) MUST be performed by separate consumer tools, not implied by the log format itself.
 
 ---
 
@@ -511,22 +528,33 @@ If a leaf script emits diagnostics, it does so by writing to `stderr` only.
 
 ---
 
-#### 2.2.7 Failure Visibility Is Mandatory
+#### 2.2.7 Character Encoding
 
-Generated notes and data artifacts are the priority; logging is **best-effort**.
+Unformatted data outputs (e.g., `*.log` files) **MUST** remain ASCII-only:
 
-Even when a job fails catastrophically:
+* Avoid locale-dependent characters in raw logs
+* Treat non-ASCII bytes in log output as a bug to be fixed
 
-* A log file **SHOULD** exist
-* Partial logs are acceptable
-* Silent failure is not
-
-Logging failure **MUST NOT** fail an otherwise healthy job.
-An exception exists only when the logging failure implies the execution environment is unsafe or corrupted (e.g., disk errors, permissions regressions that also threaten artifacts).
+Formatted human-facing documents (e.g., Markdown `*.md`) **MAY** include Unicode characters when it improves clarity.
 
 ---
 
-#### 2.2.8 Design Intent Summary
+#### 2.2.8 Failure Visibility Is Mandatory
+
+Even when a job fails catastrophically:
+
+* A log file **MUST** exist
+* Partial logs are acceptable
+* Silent failure is not
+
+Generated notes and data artifacts are the priority.
+
+Logging must be best-effort and must not fail jobs.
+Exception: logging failure may fail a job only if it implies the execution environment is unsafe or corrupted.
+
+---
+
+#### 2.2.9 Design Intent Summary
 
 This logging contract exists to enforce these invariants:
 
@@ -550,32 +578,36 @@ Exit codes must remain simple, predictable, and composable. Any script that exit
 
 `job-wrap.sh` MUST behave as a transparent execution harness unless the wrapper itself fails.
 
-Exit Status Propagation
-    •If the wrapper successfully starts and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
-    •If the leaf exits 0, the wrapper exits 0.
-    •If the leaf exits non-zero, the wrapper exits the same non-zero code.
+**Exit Status Propagation**
+
+* If the wrapper successfully starts and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
+* If the leaf exits `0`, the wrapper exits `0`.
+* If the leaf exits non-zero, the wrapper exits the same non-zero code.
 
 This ensures that cron, calling scripts, and status-report tooling can treat the wrapper as transparent for leaf success or failure when the wrapper is healthy.
 
-Wrapper Failure Override
-    •If the wrapper fails before executing the leaf script, the wrapper MUST exit non-zero with a wrapper-defined failure code.
-    •If the wrapper fails after executing the leaf script in a way that prevents reliable observability or publication of the run (e.g., required logs, markers, or vault commit cannot be produced), the wrapper MUST exit non-zero with a wrapper-defined failure code, even if the leaf script exited 0.
+**Wrapper Failure Override**
+
+* If the wrapper fails before executing the leaf script, the wrapper MUST exit non-zero with a wrapper-defined failure code.
+* If the wrapper fails after executing the leaf script in a way that prevents reliable observability or publication of the run (e.g., required logs, markers, or vault commit cannot be produced), the wrapper MUST exit non-zero with a wrapper-defined failure code, even if the leaf script exited `0`.
 
 In such cases, the wrapper’s failure is considered authoritative, as the run is effectively lost or unverifiable.
 
-Failure Classification
+**Failure Classification**
 
 Wrapper failures MUST be classified as either:
-    •Hard failures — failures that prevent reliable execution, observability, or publication of results; these override the leaf exit status.
-    •Soft failures — ancillary or telemetry-related failures that do not prevent observability; these MUST be logged and reported but MUST NOT affect the wrapper’s exit status.
 
-Exit Code Assignment (Deferred)
-    •Specific numeric exit codes for wrapper-defined failures are intentionally not fixed in this section.
-    •Wrapper failure codes MUST be:
-    •non-zero
-    •deterministic
-    •documented
-    •stable once defined
+* Hard failures — failures that prevent reliable execution, observability, or publication of results; these override the leaf exit status.
+* Soft failures — ancillary or telemetry-related failures that do not prevent observability; these MUST be logged and reported but MUST NOT affect the wrapper’s exit status.
+
+**Exit Code Assignment (Deferred)**
+
+* Specific numeric exit codes for wrapper-defined failures are intentionally not fixed in this section.
+* Wrapper failure codes MUST be:
+  * non-zero
+  * deterministic
+  * documented
+  * stable once defined
 
 Assignment and reservation of specific wrapper exit codes will be specified in a future contract revision.
 
@@ -611,7 +643,7 @@ On non-zero exit:
 
 Some exit codes are reserved for **infrastructure / contract enforcement** rather than job-specific failure.
 
-#### `2` — Contract / Wrapper-Level Misuse
+##### `2` — Contract / Wrapper-Level Misuse
 
 Exit code `2` is reserved for cases like:
 
@@ -623,7 +655,7 @@ This is a “you called this wrong / you broke the rules” signal.
 
 > Leaf scripts SHOULD avoid using exit code `2` for their own failure modes.
 
-#### `126` / `127` — Standard Exec Failures
+##### `126` / `127` — Standard Exec Failures
 
 Standard shell semantics apply:
 
@@ -709,6 +741,7 @@ Cadence knowledge **MUST NOT** live in:
 
 * `script-status-report.sh`
 * Cron configuration alone
+* Internal registries or status indexes
 * External documentation
 * Hardcoded tables in summary tools
 
@@ -719,6 +752,9 @@ If a job’s cadence changes, the job itself must change.
 #### 2.4.2 Declaring Expected Run Frequency
 
 Each job **MUST declare** its expected run cadence in a machine-readable form that is emitted into its log on every run.
+
+Failure of a leaf script to declare cadence is an **error condition**, not an implicit “unknown” cadence.
+Jobs with ad-hoc or inherently unknowable cadence **MUST still declare that fact explicitly** (e.g. `cadence=ad-hoc`).
 
 This declaration must be:
 
@@ -749,18 +785,13 @@ A missing or stale log is treated as a failure condition.
 
 ---
 
-#### 2.4.4 Stale vs Missing
-
-The system distinguishes between:
-
-* **Missing**: no log exists for a job
-* **Stale**: a log exists, but is older than allowed by cadence
-
-Both conditions are failures, but they indicate different classes of problems:
-
-* Missing → job never ran or logging broke
-* Stale → scheduler failure, crash, or drift
-
+2.4.4 Stale vs Missing
+The reporter MAY distinguish between:
+• Missing: no log exists for a job
+• Stale: a log exists, but is older than allowed by cadence
+Both conditions indicate an unhealthy job, but suggest different problem classes:
+• Missing → job never ran, job not registered, or logging broke
+• Stale → scheduler failure, crash, hang, or drift
 ---
 
 #### 2.4.5 Latest Pointer Is Not Authoritative
@@ -855,7 +886,7 @@ Scripts MUST NOT:
 
 Leaf scripts MUST locate `job-wrap.sh` in a repo-stable way and re-exec through it as defined in the Execution Contract.
 
-If `job-wrap.sh` cannot be found or is not executable, scripts MUST fail fast rather than silently running “unwrapped”.
+If `job-wrap.sh` cannot be found or is not executable, scripts MUST fail fast and loud rather than silently running “unwrapped”.
 
 ---
 
@@ -924,11 +955,6 @@ Scripts MUST NOT assume:
 * `pipefail`
 * Non-POSIX `[[ ... ]]`
 * GNU-only flags
-
-For portability across shells and hosts:
-
-* Unformatted data artifacts (e.g., `.log` files) MUST remain ASCII-only
-* Formatted documents (e.g., Markdown) MAY use Unicode when it improves clarity and renders safely
 
 Where platform behavior differs (BSD vs GNU), scripts must:
 
@@ -1035,6 +1061,7 @@ Scripts MUST NOT perform Git operations directly.
 * Commits, staging, and repository interaction are handled by `job-wrap.sh`
 * Scripts may create or modify files, but must not assume commit behavior
 * Scripts must tolerate being run with commits disabled
+* Git presence is not an engine prerequisite; correctness of leaf scripts must not depend on auto-commit being available
 
 This separation ensures that:
 
@@ -1127,11 +1154,8 @@ This guarantees:
 `job-wrap.sh` is the **exclusive authority** for:
 
 * Execution lifecycle boundaries
-* Log file creation and rotation
-* Capturing and annotating stderr
-* Recording start/end metadata
 * Exit code propagation
-* Optional commit behavior
+* An optional auto-commit mode that may be disabled without affecting engine correctness
 
 Leaf scripts **MUST NOT**:
 
@@ -1183,7 +1207,7 @@ All production execution paths (cron jobs, automation pipelines, manual invocati
 * It is executable
 * Its path is stable relative to the repository root
 
-If `job-wrap.sh` is missing or non-executable, execution **MUST fail fast** rather than silently degrading behavior.
+If `job-wrap.sh` is missing or non-executable, execution **MUST fail fast and loud** rather than silently degrading behavior.
 
 ---
 
@@ -1193,7 +1217,7 @@ This execution contract exists to enforce the following invariants:
 
 * There is exactly **one execution model**
 * There is exactly **one logging authority**
-* There is exactly **one place to reason about job behavior**
+* There is exactly **one place to reason about job behavior** and, when enabled, commit orchestration
 * Leaf scripts remain simple, testable, and boring
 
 Any script that attempts to bypass or reimplement this contract is considered **incorrect by design**, even if it appears to “work”.
@@ -1279,35 +1303,25 @@ If the logger supports internal debugging:
 
 Debug mode must never change the semantics of normal log messages.
 
-#### 3.2.8 Compatibility Contract
-
-`log.sh` **MUST** remain compatible with POSIX `sh` environments (e.g., sh/dash/ksh/ash).
-
-* No bashisms
-* No reliance on GNU-only flags
-* Unformatted data files (e.g., `.log`) MUST be ASCII-only for compatibility
-* Formatted documents (e.g., Markdown) MAY use Unicode when it improves clarity and renders safely
-
 #### 3.2.9 Exit Code & Return Semantics
 
-Logging functions **SHOULD** return 0 on success.
+Logging functions **MUST** return 0 on success.
 
 When a logging operation fails (e.g., file open failure), functions **MAY** return non-zero.
 
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
 
-The caller (typically `job-wrap.sh`) owns decisions about whether logging failures should fail the job.
-The default posture is **non-fatal**: logging failures **MUST NOT** fail a job that can still produce its primary notes or data artifacts.
-If a logging failure implies the execution environment is unsafe or corrupted (e.g., disk is read-only, filesystem errors), the caller **MAY** treat it as fatal to protect artifact integrity.
+Generated notes and data artifacts are the priority.
+The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure implies the execution environment is unsafe or corrupted.
 
 #### 3.2.10 Non-Goals
 
 `log.sh` **MUST NOT**:
 
 * Manage job execution lifecycle
-* Decide log file paths or rotation policy (wrapper owns this)
 * Implement auto-commit behavior
 * Attempt to be a general logging framework
+* Own scheduling, invocation, or wrapper responsibilities beyond logging
 
 It exists to provide stable primitives that the wrapper composes.
 
@@ -1342,6 +1356,8 @@ The commit helper is not a general Git interface and not a standalone automation
 
 Violations of this contract are considered bugs.
 
+The helper is only engaged when job-wrap is operating in auto-commit mode; absence of Git or disabled commit mode does not imply an engine failure.
+
 #### 3.3.2 Invocation Contract
 
 The commit helper MUST be invoked by job-wrap.sh, either directly or via re-exec.
@@ -1350,7 +1366,9 @@ It MUST NOT be called directly from cron.
 
 It MUST assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTIVE=1`).
 
-If invoked outside job-wrap, behavior is undefined unless explicitly guarded.
+job-wrap.sh owns the decision of whether to invoke the helper at all; leaf scripts must be correct regardless of whether commit orchestration runs.
+
+If invoked outside job-wrap, no guarantees are made about correctness or side effects unless the helper explicitly detects and rejects such invocation.
 
 #### 3.3.3 Logging & Output Contract
 
@@ -1407,13 +1425,13 @@ The commit helper is assumed to run in a controlled, deterministic environment.
 
 Exit codes are part of the public engine contract.
 
-Recommended semantics (exact values may change, but meanings must not):
+The commit helper MUST use a stable set of exit outcomes with documented meanings. The authoritative mapping of exit codes to outcomes is defined in Appendix C — Engine Exit Codes.
 
-* `0` — Commit created successfully
-* `3` — No changes to commit (non-failure)
-* `10+` — Operational failure (Git error, invalid input, repository unavailable)
+job-wrap.sh MUST treat the commit helper’s “no-op / nothing to commit” outcome as non-failure.
 
-Exit codes below the failure threshold MUST NOT be interpreted as job failure by job-wrap.
+Any exit outcome designated as failure in the appendix MUST be treated as an engine failure by job-wrap.sh, and job-wrap.sh MUST exit with an engine-reserved failure code as defined in the appendix.
+
+Exit outcomes designated as non-failure in the appendix MUST NOT be interpreted as job failure by job-wrap.sh.
 
 #### 3.3.8 Non-Goals
 
@@ -1450,7 +1468,7 @@ Heavy AI assistance. Requires manual review and validation.
 The status reporter is an **observational engine component** responsible for:
 
 * Scanning job output artifacts (primarily `*-latest.log` pointers and their target logs)
-* Classifying job health using documented heuristics
+* Classifying engine and job health using documented heuristics
 * Writing a **single, stable Markdown report** into the vault
 
 It **MUST NOT** perform orchestration, scheduling, or remediation.
@@ -1500,36 +1518,50 @@ It **MUST NOT**:
 
 #### 3.4.5 Freshness Model
 
-The reporter’s notion of “current state” is defined as:
+The reporter’s notion of a job’s current state is derived from the latest observed execution and the job’s self-declared run cadence.
 
-* The **latest available run** per job, as indicated by that job’s `*-latest.log` pointer.
+**Source of Execution State**
 
-Rules:
+* For each job, the reporter locates the most recent execution by resolving that job’s `*-latest.log` pointer.
+* The resolved log identifies the latest observed run, but does not, by itself, imply freshness or correctness.
 
-* The reporter **MUST** treat the `*-latest.log` pointer as authoritative.
-* It **MUST NOT** scan arbitrary historical logs unless explicitly configured to do so.
-* It **MAY** flag a job as **stale** if the latest run timestamp exceeds a documented threshold.
+**Cadence Authority**
 
-Staleness thresholds (if present) **MUST** be explicit and deterministic.
+* Each job is the authoritative source of its own expected run cadence.
+* The reporter **MUST** extract cadence declarations from the latest log and use them when evaluating freshness.
+* Freshness **MUST** be evaluated by comparing:
+  * the timestamp of the latest run
+  * against the job-declared cadence
+  * relative to the current time
+
+**Rules**
+
+* The reporter **MUST** use the `*-latest.log` pointer solely to identify the most recent run.
+* The reporter **MUST NOT** infer freshness from pointer presence alone.
+* The reporter **MUST NOT** scan arbitrary historical logs unless explicitly configured to do so.
+* A job **MAY** be flagged as stale if the elapsed time since its latest run exceeds what is permitted by its declared cadence.
+* If cadence information is missing, unreadable, or unparseable, the reporter **MUST** classify the job as indeterminate according to the classification semantics.
+
+All staleness thresholds and cadence interpretations **MUST** be explicit, deterministic, and derived from job-declared metadata rather than reporter-side assumptions.
 
 ---
 
 #### 3.4.6 Classification Semantics
 
-The reporter **MUST** classify each job into a small set of stable states. Recommended minimum set:
+The reporter **MUST** classify each job into a small, fixed set of states.
 
-* **OK** — latest run indicates success
-* **WARN** — latest run succeeded but contains warn patterns, or is stale
-* **FAIL** — latest run indicates failure (exit code or error patterns)
-* **UNKNOWN** — missing logs/pointers, unreadable log, or unparseable format
+The set of classification states, including their identifiers and meanings, is defined in Appendix B — Reporter Classification States.
 
 Classification rules **MUST** be:
 
-* deterministic
-* documented
-* stable across releases unless contract-revved
+* Deterministic
+* Fully documented
+* Stable across releases unless the contract version is explicitly changed
 
-If multiple signals conflict, precedence **MUST** be documented (e.g., FAIL > WARN > OK; UNKNOWN if missing required inputs).
+The reporter **MUST** define explicit precedence rules for resolving conflicting classification signals.
+Precedence rules **MUST** be deterministic and documented.
+
+If required inputs for classification are missing, unreadable, or unparseable, the reporter **MUST** assign the designated indeterminate state defined in the appendix.
 
 ---
 
@@ -1565,7 +1597,7 @@ At minimum, the report **SHOULD** include:
 * per-job rows including:
 
   * job name
-  * latest run timestamp
+  * latest run timestamp (local time)
   * latest exit code (if known)
   * classification state
   * short reason / key signal (e.g., “stale 3d”, “exit=1”, “pattern: ERROR”)
@@ -1589,21 +1621,65 @@ Any temporary files **MUST** be cleaned up on success and failure.
 
 ---
 
-#### 3.4.10 Exit Code Semantics
+#### 3.4.10 Vault Log Copies (Presentation Artifacts)
 
-Exit codes are part of the public engine contract.
+The status reporter **MAY** create vault-visible copies of job log artifacts for human inspection and linking from the status report.
 
-Recommended semantics (exact values may change, but meanings must not):
+These copies exist solely to support navigation, review, and debugging from within the vault and are **not** authoritative execution records.
 
-* `0` — No failures detected (overall status OK/WARN only)
-* `1` — One or more failures detected (any job classified FAIL)
-* `2` — Reporter error (cannot read log root, cannot write report, internal error)
+**Role & Ownership**
 
-The reporter **MUST NOT** return `1` merely due to WARN or stale status (unless explicitly defined otherwise).
+* `script-status-report.sh` is the **sole** engine component permitted to create or update vault log copies.
+* No other engine component (including `job-wrap.sh`, `log.sh`, or leaf scripts) may write logs into the vault.
+
+Vault log copies are considered **presentation artifacts**, not execution artifacts.
+
+**Source of Truth**
+
+* The authoritative log files remain under the engine log root (`LOG_ROOT`).
+* Vault copies are derived from the resolved target of each job’s `*-latest.log` pointer.
+* The vault copy **MUST NOT** be used as input to freshness evaluation, classification, or exit code determination.
+
+All classification logic **MUST** continue to operate exclusively on engine logs.
+
+**Copy Semantics**
+
+When producing vault log copies, the status reporter:
+
+* **MUST** copy or mirror only the latest resolved log per job.
+* **MUST** overwrite existing vault copies deterministically.
+* **MUST NOT** append or accumulate historical logs.
+* **MUST** ensure that reruns are idempotent.
+
+The vault copy **SHOULD** preserve the original filename or include enough context to clearly identify the job and run timestamp.
+
+**Failure Behavior**
+
+Failure to create or update vault log copies:
+
+* **MUST** be logged and surfaced in the status report.
+* **MUST NOT** invalidate the status report itself.
+* **MUST NOT** retroactively alter job classification.
+
+Vault log copy failures are considered presentation-layer degradation, not execution failure.
 
 ---
 
-#### 3.4.11 Non-Goals
+#### 3.4.11 Exit Code Semantics
+
+Exit codes are part of the public engine contract.
+
+The reporter **MUST** use a stable set of exit outcomes with documented meanings. The authoritative mapping of exit codes to outcomes is defined in **Appendix C — Engine Exit Codes**.
+
+The reporter **MUST** return the designated failure outcome if one or more jobs are classified as failure according to the classification semantics.
+
+The reporter **MUST NOT** return a failure outcome solely due to warning or stale classifications, unless explicitly defined by the contract.
+
+If the reporter cannot complete its function due to missing inputs, unreadable state, or internal error, it **MUST** return an engine-reserved error outcome as defined in the appendix.
+
+---
+
+#### 3.4.12 Non-Goals
 
 The status reporter **MUST NOT**:
 
@@ -1617,7 +1693,7 @@ It is a *dashboard generator*, not an orchestrator.
 
 ---
 
-#### 3.4.12 Stability Promise
+#### 3.4.13 Stability Promise
 
 The reporter’s **output structure and exit code meanings are engine-stable**.
 
@@ -1631,3 +1707,229 @@ Any breaking change to:
 **MUST** be accompanied by a contract revision.
 
 ---
+
+## Appendix A — Core Engine Environment Variable Inventory (Informative)
+
+> **Status:** Informative / Non-Normative
+> **Scope:** Core engine components only (`job-wrap.sh`, logging sink, commit helper).
+>
+> This appendix documents environment variables **observed in use by the core engine** at the time of writing.
+> It does **not** grant permission to introduce new variables, nor does it define required behavior by itself.
+> Normative rules governing environment variable usage are defined in Section 2.5.4.
+
+### A.1 Summary
+
+| Variable         | Component          | Role / Default                                      | Validation                        |
+| ---------------- | ------------------ | --------------------------------------------------- | --------------------------------- |
+| JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; must be `1` inside wrapper | Required; hard exit if invalid    |
+| JOB_NAME         | Log sink           | Job identifier used for log naming                  | Required; hard exit if missing    |
+| LOG_FILE         | Log sink           | Timestamped log file path                           | Required; hard exit if missing    |
+| LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                    | Checked early                     |
+| VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                       | Defaulted; not strictly validated |
+| LOG_ROOT         | Wrapper / Log sink | Base log directory                                  | Defaulted; not strictly validated |
+| TMPDIR           | Wrapper / Log sink | Temporary file parent                               | Default `/tmp`; not validated     |
+| COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                         | Used directly; git validates      |
+| GIT_BIN          | Commit helper      | Optional git binary override                        | Executable verified               |
+| PATH             | All                | Command search path                                 | Reset with safe defaults          |
+
+---
+
+### A.2 Required Variables
+
+The following variables are **required by the core engine** and MUST be present and valid when their owning component initializes:
+
+#### JOB_WRAP_ACTIVE
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Recursion guard to ensure exactly one wrapper instance per job
+* **Expected value:** `1` when executing under `job-wrap.sh`
+* **Failure behavior:** Hard exit if required and missing/invalid
+
+#### JOB_NAME
+
+* **Owner:** Logging sink
+* **Purpose:** Stable job identifier for log naming and latest pointers
+* **Failure behavior:** Hard exit if missing or empty
+
+#### LOG_FILE
+
+* **Owner:** Logging sink
+* **Purpose:** Path to the current run’s timestamped log file
+* **Failure behavior:** Hard exit if missing or empty
+
+---
+
+### A.3 Recognized Optional Overrides
+
+These variables MAY be set to override default behavior.
+The core engine MUST remain correct when they are unset.
+
+#### VAULT_PATH
+
+* **Owner:** Wrapper / Commit helper
+* **Purpose:** Override vault work tree root
+* **Default:** Repo-defined path (e.g. `/home/obsidian/vaults/Main`)
+* **Validation:** Downstream existence checks only
+
+#### LOG_ROOT
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Base directory for job logs
+* **Default:** Derived (often `${HOME}/logs`)
+* **Validation:** Not strictly validated
+
+#### TMPDIR
+
+* **Owner:** Wrapper / Log sink
+* **Purpose:** Temporary file location
+* **Default:** `/tmp`
+* **Validation:** Not validated beyond mktemp behavior
+
+#### COMMIT_BARE_REPO
+
+* **Owner:** Commit helper
+* **Purpose:** Override bare git repository path
+* **Default:** Computed internally
+* **Validation:** Deferred to git
+
+#### GIT_BIN
+
+* **Owner:** Commit helper
+* **Purpose:** Override git executable
+* **Validation:** Must resolve to an executable file
+
+---
+
+### A.4 Internal Guards and Debug Knobs
+
+The following variables are **internal implementation details**.
+They are documented here for auditability only and are **not part of the public contract surface**:
+
+* `LOG_SINK_LOADED` — prevents double initialization of logging sink
+* Wrapper debug and tracing flags (`JOB_WRAP_DEBUG`, `JOB_WRAP_XTRACE`, etc.)
+* Logging verbosity / formatting controls (`LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY`, etc.)
+
+These variables MUST NOT be relied upon by external callers or leaf scripts.
+
+---
+
+### A.5 Explicitly Out of Scope
+
+This appendix intentionally omits:
+
+* Leaf script domain variables (e.g. sleep summaries, vault snapshots, celestial timing)
+* Content-specific overrides
+* Feature- or job-specific knobs
+
+Such variables are governed by the contracts of their respective components, not the core engine.
+
+---
+
+## Appendix B — Classification States
+
+### B.1 Classification States
+
+The reporter uses the following classification states:
+
+**OK**
+
+The most recent job run completed successfully and no warning conditions were detected.
+
+**WARN**
+
+The most recent job run completed successfully, but one or more warning conditions were detected, or the job’s latest run is considered stale according to documented criteria.
+
+**FAIL**
+
+The most recent job run indicates failure, as determined by exit status or documented error-detection rules.
+
+**UNKNOWN**
+
+The job’s state cannot be determined due to missing required inputs, unreadable or missing logs or pointers, or unparseable data.
+
+### B.2 Stability and Evolution
+
+The set of classification states is finite and explicitly enumerated.
+
+The identifiers and semantic meanings defined in this appendix MUST NOT change without a corresponding contract version change.
+
+Additional states MAY be introduced only via a contract revision.
+
+---
+
+## Appendix C — Engine Exit Codes
+
+> **Status:** Normative
+> **Applies to:** Sections 3.3.7 and 3.4.11
+
+This appendix defines the exit codes used by core engine components.
+
+Exit code meanings defined here are part of the public engine contract and MUST remain stable unless the contract version is explicitly changed.
+
+---
+
+### C.1 General Rules
+
+- Exit code 0 always indicates successful completion of the component’s primary responsibility.
+- Non-zero exit codes indicate either a non-failure outcome explicitly defined as such, or a failure.
+- `job-wrap.sh` is transparent with respect to leaf script exit codes unless it encounters an engine failure.
+- Engine-reserved failure codes are used only when the engine itself cannot fulfill its contract.
+
+---
+
+### C.2 Commit Helper Exit Codes
+
+| Exit Code | Meaning                                      |
+| --------- | -------------------------------------------- |
+| 0         | Commit created successfully                  |
+| 3         | No changes to commit (non-failure outcome)   |
+| 10        | Commit helper operational failure (e.g., git error, invalid input, repository unavailable) |
+
+**Rules:**
+
+- Exit code 3 MUST be treated as a successful, non-failure outcome by `job-wrap.sh`.
+- Exit code 10 indicates a failure of the commit helper itself and MUST be treated as an engine failure by `job-wrap.sh`.
+
+---
+
+### C.3 Wrapper Exit Code Semantics (`job-wrap.sh`)
+
+| Exit Code             | Meaning                                              |
+| --------------------- | ---------------------------------------------------- |
+| 0–255 (non-reserved)  | Exit code propagated directly from the leaf script   |
+| 120                   | Wrapper invocation or usage error                    |
+| 121                   | Wrapper initialization failure                       |
+| 122                   | Logging sink initialization or operation failure     |
+| 123                   | Commit helper failure                                |
+| 124                   | Internal wrapper error or invariant violation        |
+
+**Rules:**
+
+- If the wrapper completes normally, it MUST exit with the leaf script’s exit code unchanged.
+- If the wrapper cannot fulfill its responsibilities, it MUST exit with the appropriate engine-reserved failure code.
+- Engine-reserved exit codes MUST NOT be used by leaf scripts.
+
+---
+
+### C.4 Reporter Exit Codes
+
+| Exit Code | Meaning                                                                              |
+| --------- | ------------------------------------------------------------------------------------ |
+| 0         | Report generated successfully; no jobs classified as FAIL                            |
+| 1         | Report generated successfully; one or more jobs classified as FAIL                   |
+| 2         | Reporter usage or invocation error                                                   |
+| 3         | Reporter operational failure (missing inputs, unreadable state, cannot write report, internal error) |
+
+**Rules:**
+
+- The reporter MUST return 1 if and only if at least one job is classified as FAIL.
+- WARN or stale classifications MUST NOT cause a failure exit code unless explicitly defined by a future contract revision.
+- Reporter operational failures MUST use exit code 3.
+
+---
+
+### C.5 Stability and Evolution
+
+- Exit code meanings defined in this appendix are stable and normative.
+- Numeric values MUST NOT be reassigned to different meanings without a contract version change.
+- Additional exit codes MAY be introduced only via a contract revision.
