@@ -886,7 +886,7 @@ Scripts MUST NOT:
 
 Leaf scripts MUST locate `job-wrap.sh` in a repo-stable way and re-exec through it as defined in the Execution Contract.
 
-If `job-wrap.sh` cannot be found or is not executable, scripts MUST fail fast rather than silently running “unwrapped”.
+If `job-wrap.sh` cannot be found or is not executable, scripts MUST fail fast and loud rather than silently running “unwrapped”.
 
 ---
 
@@ -1207,7 +1207,7 @@ All production execution paths (cron jobs, automation pipelines, manual invocati
 * It is executable
 * Its path is stable relative to the repository root
 
-If `job-wrap.sh` is missing or non-executable, execution **MUST fail fast** rather than silently degrading behavior.
+If `job-wrap.sh` is missing or non-executable, execution **MUST fail fast and loud** rather than silently degrading behavior.
 
 ---
 
