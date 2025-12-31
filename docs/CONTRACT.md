@@ -643,7 +643,7 @@ On non-zero exit:
 
 Some exit codes are reserved for **infrastructure / contract enforcement** rather than job-specific failure.
 
-#### `2` — Contract / Wrapper-Level Misuse
+##### `2` — Contract / Wrapper-Level Misuse
 
 Exit code `2` is reserved for cases like:
 
@@ -655,7 +655,7 @@ This is a “you called this wrong / you broke the rules” signal.
 
 > Leaf scripts SHOULD avoid using exit code `2` for their own failure modes.
 
-#### `126` / `127` — Standard Exec Failures
+##### `126` / `127` — Standard Exec Failures
 
 Standard shell semantics apply:
 
