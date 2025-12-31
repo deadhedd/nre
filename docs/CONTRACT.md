@@ -179,7 +179,7 @@ The engine consists of the following canonical components:
   A single-purpose component that stages and commits an explicit file list when instructed.
 * `script-status-report.sh`
   The status reporter.
-  An observational component that summarizes engine health by inspecting engine artifacts.
+  An observational component that summarizes engine and job health by inspecting engine artifacts.
 
 No other scripts are considered part of the engine unless explicitly declared by contract.
 
@@ -1468,7 +1468,7 @@ Heavy AI assistance. Requires manual review and validation.
 The status reporter is an **observational engine component** responsible for:
 
 * Scanning job output artifacts (primarily `*-latest.log` pointers and their target logs)
-* Classifying job health using documented heuristics
+* Classifying engine and job health using documented heuristics
 * Writing a **single, stable Markdown report** into the vault
 
 It **MUST NOT** perform orchestration, scheduling, or remediation.
