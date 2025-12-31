@@ -102,9 +102,10 @@ Review checklist (Table of Contents):
     - [ ] 3.4.7 Required Signals
     - [ ] 3.4.8 Output Contract (Markdown Report)
     - [ ] 3.4.9 Side Effects & Idempotency
-    - [ ] 3.4.10 Exit Code Semantics
-    - [ ] 3.4.11 Non-Goals
-    - [ ] 3.4.12 Stability Promise
+    - [ ] 3.4.10 Vault Log Copies (Presentation Artifacts)
+    - [ ] 3.4.11 Exit Code Semantics
+    - [ ] 3.4.12 Non-Goals
+    - [ ] 3.4.13 Stability Promise
 -->
 
 **Status:** v0.1 — Early Draft
@@ -1511,17 +1512,31 @@ It **MUST NOT**:
 
 #### 3.4.5 Freshness Model
 
-The reporter’s notion of “current state” is defined as:
+The reporter’s notion of a job’s current state is derived from the latest observed execution and the job’s self-declared run cadence.
 
-* The **latest available run** per job, as indicated by that job’s `*-latest.log` pointer.
+**Source of Execution State**
 
-Rules:
+* For each job, the reporter locates the most recent execution by resolving that job’s `*-latest.log` pointer.
+* The resolved log identifies the latest observed run, but does not, by itself, imply freshness or correctness.
 
-* The reporter **MUST** treat the `*-latest.log` pointer as authoritative.
-* It **MUST NOT** scan arbitrary historical logs unless explicitly configured to do so.
-* It **MAY** flag a job as **stale** if the latest run timestamp exceeds a documented threshold.
+**Cadence Authority**
 
-Staleness thresholds (if present) **MUST** be explicit and deterministic.
+* Each job is the authoritative source of its own expected run cadence.
+* The reporter **MUST** extract cadence declarations from the latest log and use them when evaluating freshness.
+* Freshness **MUST** be evaluated by comparing:
+  * the timestamp of the latest run
+  * against the job-declared cadence
+  * relative to the current time
+
+**Rules**
+
+* The reporter **MUST** use the `*-latest.log` pointer solely to identify the most recent run.
+* The reporter **MUST NOT** infer freshness from pointer presence alone.
+* The reporter **MUST NOT** scan arbitrary historical logs unless explicitly configured to do so.
+* A job **MAY** be flagged as stale if the elapsed time since its latest run exceeds what is permitted by its declared cadence.
+* If cadence information is missing, unreadable, or unparseable, the reporter **MUST** classify the job as indeterminate according to the classification semantics.
+
+All staleness thresholds and cadence interpretations **MUST** be explicit, deterministic, and derived from job-declared metadata rather than reporter-side assumptions.
 
 ---
 
@@ -1600,7 +1615,51 @@ Any temporary files **MUST** be cleaned up on success and failure.
 
 ---
 
-#### 3.4.10 Exit Code Semantics
+#### 3.4.10 Vault Log Copies (Presentation Artifacts)
+
+The status reporter **MAY** create vault-visible copies of job log artifacts for human inspection and linking from the status report.
+
+These copies exist solely to support navigation, review, and debugging from within the vault and are **not** authoritative execution records.
+
+**Role & Ownership**
+
+* `script-status-report.sh` is the **sole** engine component permitted to create or update vault log copies.
+* No other engine component (including `job-wrap.sh`, `log.sh`, or leaf scripts) may write logs into the vault.
+
+Vault log copies are considered **presentation artifacts**, not execution artifacts.
+
+**Source of Truth**
+
+* The authoritative log files remain under the engine log root (`LOG_ROOT`).
+* Vault copies are derived from the resolved target of each job’s `*-latest.log` pointer.
+* The vault copy **MUST NOT** be used as input to freshness evaluation, classification, or exit code determination.
+
+All classification logic **MUST** continue to operate exclusively on engine logs.
+
+**Copy Semantics**
+
+When producing vault log copies, the status reporter:
+
+* **MUST** copy or mirror only the latest resolved log per job.
+* **MUST** overwrite existing vault copies deterministically.
+* **MUST NOT** append or accumulate historical logs.
+* **MUST** ensure that reruns are idempotent.
+
+The vault copy **SHOULD** preserve the original filename or include enough context to clearly identify the job and run timestamp.
+
+**Failure Behavior**
+
+Failure to create or update vault log copies:
+
+* **MUST** be logged and surfaced in the status report.
+* **MUST NOT** invalidate the status report itself.
+* **MUST NOT** retroactively alter job classification.
+
+Vault log copy failures are considered presentation-layer degradation, not execution failure.
+
+---
+
+#### 3.4.11 Exit Code Semantics
 
 Exit codes are part of the public engine contract.
 
@@ -1614,7 +1673,7 @@ If the reporter cannot complete its function due to missing inputs, unreadable s
 
 ---
 
-#### 3.4.11 Non-Goals
+#### 3.4.12 Non-Goals
 
 The status reporter **MUST NOT**:
 
@@ -1628,7 +1687,7 @@ It is a *dashboard generator*, not an orchestrator.
 
 ---
 
-#### 3.4.12 Stability Promise
+#### 3.4.13 Stability Promise
 
 The reporter’s **output structure and exit code meanings are engine-stable**.
 
@@ -1795,7 +1854,7 @@ Additional states MAY be introduced only via a contract revision.
 ## Appendix C — Engine Exit Codes
 
 > **Status:** Normative
-> **Applies to:** Sections 3.3.7 and 3.4.10
+> **Applies to:** Sections 3.3.7 and 3.4.11
 
 This appendix defines the exit codes used by core engine components.
 
