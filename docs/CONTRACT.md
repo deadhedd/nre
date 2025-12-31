@@ -152,7 +152,7 @@ It is composed of a small, tightly-scoped set of components that together provid
 * Deterministic job execution
 * Strict stdout/stderr discipline
 * Centralized, structured logging
-* Optional automatic version control commits
+* Configurable, wrapper-managed auto-commit mode when enabled
 * A stable, human-readable system health report
 
 The engine exists to make scripts boring, predictable, and auditable.
@@ -169,7 +169,7 @@ The engine consists of the following canonical components:
   * enforcing execution contracts
   * environment normalization
   * stdout/stderr routing
-  * optional commit orchestration
+  * orchestrating auto-commit behavior **only when configured** (Git availability is not required for engine correctness)
 * `log.sh`
   The shared logging helper library.
   Provides stable, minimal logging primitives.
@@ -259,6 +259,7 @@ Engine execution follows a single linear path from invocation to reporting:
 3. **Logging bootstrapping** — The wrapper creates a dedicated log file under the logs root, binds `stderr` to structured logging (including per-line annotation), and keeps `stdout` pristine for data output.
 4. **Leaf execution and artifacts** — The leaf script runs with wrapper-provided context, emits data to stdout (if any), and produces primary artifacts (files, markdown, JSON) directly in the repository or vault locations as defined by the script’s contract.
 5. **Optional commit orchestration** — If the job configuration requests it, `job-wrap.sh` invokes `utils/core/commit.sh` with an explicit file list to stage and commit generated artifacts; commits never occur implicitly from the leaf script.
+   Leaf scripts MUST remain correct when commit orchestration is disabled or unavailable.
 6. **Out-of-band status reporting** — After runs, `utils/core/script-status-report.sh` reads wrapper-generated logs and pointers (not stdout) to classify job health and produce human-readable reports independent of the jobs’ data outputs.
 
 Each run yields clean stdout for consumers, structured stderr-backed logs for humans, and optional commits and reports that remain fully deterministic.
@@ -1060,6 +1061,7 @@ Scripts MUST NOT perform Git operations directly.
 * Commits, staging, and repository interaction are handled by `job-wrap.sh`
 * Scripts may create or modify files, but must not assume commit behavior
 * Scripts must tolerate being run with commits disabled
+* Git presence is not an engine prerequisite; correctness of leaf scripts must not depend on auto-commit being available
 
 This separation ensures that:
 
@@ -1153,7 +1155,7 @@ This guarantees:
 
 * Execution lifecycle boundaries
 * Exit code propagation
-* Optional commit behavior
+* An optional auto-commit mode that may be disabled without affecting engine correctness
 
 Leaf scripts **MUST NOT**:
 
@@ -1215,7 +1217,7 @@ This execution contract exists to enforce the following invariants:
 
 * There is exactly **one execution model**
 * There is exactly **one logging authority**
-* There is exactly **one place to reason about job behavior**
+* There is exactly **one place to reason about job behavior** and, when enabled, commit orchestration
 * Leaf scripts remain simple, testable, and boring
 
 Any script that attempts to bypass or reimplement this contract is considered **incorrect by design**, even if it appears to “work”.
@@ -1354,6 +1356,8 @@ The commit helper is not a general Git interface and not a standalone automation
 
 Violations of this contract are considered bugs.
 
+The helper is only engaged when job-wrap is operating in auto-commit mode; absence of Git or disabled commit mode does not imply an engine failure.
+
 #### 3.3.2 Invocation Contract
 
 The commit helper MUST be invoked by job-wrap.sh, either directly or via re-exec.
@@ -1361,6 +1365,8 @@ The commit helper MUST be invoked by job-wrap.sh, either directly or via re-exec
 It MUST NOT be called directly from cron.
 
 It MUST assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTIVE=1`).
+
+job-wrap.sh owns the decision of whether to invoke the helper at all; leaf scripts must be correct regardless of whether commit orchestration runs.
 
 If invoked outside job-wrap, no guarantees are made about correctness or side effects unless the helper explicitly detects and rejects such invocation.
 
