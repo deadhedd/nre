@@ -574,13 +574,13 @@ Exit codes must remain simple, predictable, and composable. Any script that exit
 
 ---
 
-#### 2.3.1 Wrapper Propagation Is Authoritative (Transparent Unless Wrapper Breaks)
+#### 2.3.1 Wrapper Propagation Is Authoritative (Transparency-with-Authority Rule)
 
-`job-wrap.sh` MUST behave as a transparent execution harness unless the wrapper itself fails.
+The **Transparency-with-Authority Rule**: `job-wrap.sh` behaves as a transparent execution harness while it can fulfill its contract; if the wrapper fails (pre-leaf or post-leaf) in a way that blocks reliable observability or publication, the wrapper’s reserved exit code overrides the leaf.
 
 **Exit Status Propagation**
 
-* If the wrapper successfully starts and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
+* If the wrapper is healthy and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
 * If the leaf exits `0`, the wrapper exits `0`.
 * If the leaf exits non-zero, the wrapper exits the same non-zero code.
 
@@ -590,6 +590,7 @@ This ensures that cron, calling scripts, and status-report tooling can treat the
 
 * If the wrapper fails before executing the leaf script, the wrapper MUST exit non-zero with a wrapper-defined failure code.
 * If the wrapper fails after executing the leaf script in a way that prevents reliable observability or publication of the run (e.g., required logs, markers, or vault commit cannot be produced), the wrapper MUST exit non-zero with a wrapper-defined failure code, even if the leaf script exited `0`.
+* Wrapper health → propagate leaf exit code; wrapper failure (pre- or post-leaf) that blocks required observability/publication → reserved wrapper code is authoritative.
 
 In such cases, the wrapper’s failure is considered authoritative, as the run is effectively lost or unverifiable.
 
@@ -1197,7 +1198,7 @@ From the perspective of the leaf script:
 * Standard input is preserved
 * Environment variables are preserved (with the addition of wrapper-specific variables)
 
-The wrapper is designed to be **behaviorally transparent**, except where explicitly defined by other contracts (stdout/stderr handling, logging, exit semantics).
+The wrapper is designed to be **behaviorally transparent** under the Transparency-with-Authority Rule, except where explicitly defined by other contracts (stdout/stderr handling, logging, exit semantics).
 
 ---
 
@@ -1911,6 +1912,7 @@ Exit code meanings defined here are part of the public engine contract and MUST 
 
 - If the wrapper completes normally, it MUST exit with the leaf script’s exit code unchanged.
 - If the wrapper cannot fulfill its responsibilities, it MUST exit with the appropriate engine-reserved failure code.
+- Engine-reserved codes apply only when wrapper responsibilities fail; otherwise the wrapper exits exactly with the leaf code.
 - Engine-reserved exit codes MUST NOT be used by leaf scripts.
 
 ---
