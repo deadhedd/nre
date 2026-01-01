@@ -350,6 +350,7 @@ This guarantees that:
 #### 2.1.4 Silence Is Valid Output
 
 A script producing **no stdout output** is valid and meaningful.
+Silence on stdout is valid only when paired with a meaningful exit code and logged stderr diagnostics.
 
 Examples include:
 
@@ -426,6 +427,7 @@ Logging is not an optional feature, nor a per-script concern. It is a **system-l
 #### 2.2.1 Single Logging Authority
 
 `log.sh` is the **only component permitted to create, write, rotate, or manage log files**.
+(This excludes presentation-layer copies produced by the status reporter.)
 
 Leaf scripts **MUST NOT**:
 
@@ -548,9 +550,12 @@ Even when a job fails catastrophically:
 * Silent failure is not
 
 Generated notes and data artifacts are the priority.
+Logging failures follow a two-tier rule:
 
-Logging must be best-effort and must not fail jobs.
-Exception: logging failure may fail a job only if it implies the execution environment is unsafe or corrupted.
+* **Soft**: the log file is unavailable but `stderr` is intact → the job continues
+* **Hard**: the logging failure implies a corrupted or unsafe execution context → wrapper failure
+
+Logging must be best-effort and must not fail jobs unless the hard condition is met.
 
 ---
 
@@ -574,13 +579,13 @@ Exit codes must remain simple, predictable, and composable. Any script that exit
 
 ---
 
-#### 2.3.1 Wrapper Propagation Is Authoritative (Transparent Unless Wrapper Breaks)
+#### 2.3.1 Wrapper Propagation Is Authoritative (Transparency-with-Authority Rule)
 
-`job-wrap.sh` MUST behave as a transparent execution harness unless the wrapper itself fails.
+The **Transparency-with-Authority Rule**: `job-wrap.sh` behaves as a transparent execution harness while it can fulfill its contract; if the wrapper fails (pre-leaf or post-leaf) in a way that blocks reliable observability or publication, the wrapper’s reserved exit code overrides the leaf.
 
 **Exit Status Propagation**
 
-* If the wrapper successfully starts and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
+* If the wrapper is healthy and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
 * If the leaf exits `0`, the wrapper exits `0`.
 * If the leaf exits non-zero, the wrapper exits the same non-zero code.
 
@@ -590,6 +595,7 @@ This ensures that cron, calling scripts, and status-report tooling can treat the
 
 * If the wrapper fails before executing the leaf script, the wrapper MUST exit non-zero with a wrapper-defined failure code.
 * If the wrapper fails after executing the leaf script in a way that prevents reliable observability or publication of the run (e.g., required logs, markers, or vault commit cannot be produced), the wrapper MUST exit non-zero with a wrapper-defined failure code, even if the leaf script exited `0`.
+* Wrapper health → propagate leaf exit code; wrapper failure (pre- or post-leaf) that blocks required observability/publication → reserved wrapper code is authoritative.
 
 In such cases, the wrapper’s failure is considered authoritative, as the run is effectively lost or unverifiable.
 
@@ -708,6 +714,11 @@ Examples:
 * Cannot create needed temporary resources (e.g. FIFO) safely
 * Required environment is missing in a way that makes execution unsafe
 
+Logging failures are classified per §2.2.8:
+
+* **Soft** failures (log file missing, `stderr` intact) are **not** wrapper failures and MUST allow the job to continue.
+* **Hard** failures (logging implies a corrupted or unsafe execution context) are wrapper failures and override the leaf exit.
+
 Wrapper failures must be loud on stderr and present in logs when possible.
 
 ---
@@ -797,6 +808,8 @@ Both conditions indicate an unhealthy job, but suggest different problem classes
 #### 2.4.5 Latest Pointer Is Not Authoritative
 
 The presence of `<job>-latest.log` does **not** imply freshness.
+
+The `*-latest.log` pointer is authoritative only for identifying the most recent observed run, not for determining freshness, correctness, or health.
 
 Consumers must:
 
@@ -1195,7 +1208,7 @@ From the perspective of the leaf script:
 * Standard input is preserved
 * Environment variables are preserved (with the addition of wrapper-specific variables)
 
-The wrapper is designed to be **behaviorally transparent**, except where explicitly defined by other contracts (stdout/stderr handling, logging, exit semantics).
+The wrapper is designed to be **behaviorally transparent** under the Transparency-with-Authority Rule, except where explicitly defined by other contracts (stdout/stderr handling, logging, exit semantics).
 
 ---
 
@@ -1312,7 +1325,7 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
 
 Generated notes and data artifacts are the priority.
-The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure implies the execution environment is unsafe or corrupted.
+The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure meets the **hard** criteria defined in §2.2.8 (corrupted or unsafe execution context). **Soft** failures (file unavailable but `stderr` intact) **MUST** be allowed to proceed.
 
 #### 3.2.10 Non-Goals
 
@@ -1525,10 +1538,13 @@ The reporter’s notion of a job’s current state is derived from the latest ob
 * For each job, the reporter locates the most recent execution by resolving that job’s `*-latest.log` pointer.
 * The resolved log identifies the latest observed run, but does not, by itself, imply freshness or correctness.
 
+The `*-latest.log` pointer is authoritative only for identifying the most recent observed run, not for determining freshness, correctness, or health.
+
 **Cadence Authority**
 
 * Each job is the authoritative source of its own expected run cadence.
 * The reporter **MUST** extract cadence declarations from the latest log and use them when evaluating freshness.
+* The reporter interprets cadence declarations but **MUST NOT** invent, assume, or default cadence values.
 * Freshness **MUST** be evaluated by comparing:
   * the timestamp of the latest run
   * against the job-declared cadence
@@ -1907,6 +1923,7 @@ Exit code meanings defined here are part of the public engine contract and MUST 
 
 - If the wrapper completes normally, it MUST exit with the leaf script’s exit code unchanged.
 - If the wrapper cannot fulfill its responsibilities, it MUST exit with the appropriate engine-reserved failure code.
+- Engine-reserved codes apply only when wrapper responsibilities fail; otherwise the wrapper exits exactly with the leaf code.
 - Engine-reserved exit codes MUST NOT be used by leaf scripts.
 
 ---
