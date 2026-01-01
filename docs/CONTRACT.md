@@ -350,6 +350,7 @@ This guarantees that:
 #### 2.1.4 Silence Is Valid Output
 
 A script producing **no stdout output** is valid and meaningful.
+Silence on stdout is valid only when paired with a meaningful exit code and logged stderr diagnostics.
 
 Examples include:
 
