@@ -427,6 +427,7 @@ Logging is not an optional feature, nor a per-script concern. It is a **system-l
 #### 2.2.1 Single Logging Authority
 
 `log.sh` is the **only component permitted to create, write, rotate, or manage log files**.
+(This excludes presentation-layer copies produced by the status reporter.)
 
 Leaf scripts **MUST NOT**:
 
