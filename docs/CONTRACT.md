@@ -79,9 +79,9 @@ Review checklist (Table of Contents):
     - [ ] 3.2.5 Logging Primitives Contract
     - [ ] 3.2.6 Determinism & Safety
     - [ ] 3.2.7 Internal Debug (Opt-in Only)
-    - [ ] 3.2.9 Exit Code & Return Semantics
-    - [ ] 3.2.10 Non-Goals
-    - [ ] 3.2.11 Stability Promise
+    - [ ] 3.2.8 Exit Code & Return Semantics
+    - [ ] 3.2.9 Non-Goals
+    - [ ] 3.2.10 Stability Promise
   - [ ] 3.3 Commit Helper Contract (commit.sh)
     - [ ] 3.3.1 Role & Responsibility
     - [ ] 3.3.2 Invocation Contract
@@ -619,7 +619,7 @@ Assignment and reservation of specific wrapper exit codes will be specified in a
 
 ---
 
-### 4.2 Meaning of `0`
+#### 2.3.2 Meaning of `0`
 
 Exit code `0` means:
 
@@ -796,13 +796,18 @@ A missing or stale log is treated as a failure condition.
 
 ---
 
-2.4.4 Stale vs Missing
+#### 2.4.4 Stale vs Missing
+
 The reporter MAY distinguish between:
-• Missing: no log exists for a job
-• Stale: a log exists, but is older than allowed by cadence
+
+* Missing: no log exists for a job
+* Stale: a log exists, but is older than allowed by cadence
+
 Both conditions indicate an unhealthy job, but suggest different problem classes:
-• Missing → job never ran, job not registered, or logging broke
-• Stale → scheduler failure, crash, hang, or drift
+
+* Missing → job never ran, job not registered, or logging broke
+* Stale → scheduler failure, crash, hang, or drift
+
 ---
 
 #### 2.4.5 Latest Pointer Is Not Authoritative
@@ -1316,7 +1321,7 @@ If the logger supports internal debugging:
 
 Debug mode must never change the semantics of normal log messages.
 
-#### 3.2.9 Exit Code & Return Semantics
+#### 3.2.8 Exit Code & Return Semantics
 
 Logging functions **MUST** return 0 on success.
 
@@ -1327,7 +1332,7 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 Generated notes and data artifacts are the priority.
 The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure meets the **hard** criteria defined in §2.2.8 (corrupted or unsafe execution context). **Soft** failures (file unavailable but `stderr` intact) **MUST** be allowed to proceed.
 
-#### 3.2.10 Non-Goals
+#### 3.2.9 Non-Goals
 
 `log.sh` **MUST NOT**:
 
@@ -1338,7 +1343,7 @@ The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUS
 
 It exists to provide stable primitives that the wrapper composes.
 
-#### 3.2.11 Stability Promise
+#### 3.2.10 Stability Promise
 
 The logger’s public function names, message format, and stdout/stderr behavior are engine-stable.
 
