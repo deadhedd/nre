@@ -798,6 +798,8 @@ Both conditions indicate an unhealthy job, but suggest different problem classes
 
 The presence of `<job>-latest.log` does **not** imply freshness.
 
+The `*-latest.log` pointer is authoritative only for identifying the most recent observed run, not for determining freshness, correctness, or health.
+
 Consumers must:
 
 * Resolve the symlink
@@ -1524,6 +1526,8 @@ The reporter’s notion of a job’s current state is derived from the latest ob
 
 * For each job, the reporter locates the most recent execution by resolving that job’s `*-latest.log` pointer.
 * The resolved log identifies the latest observed run, but does not, by itself, imply freshness or correctness.
+
+The `*-latest.log` pointer is authoritative only for identifying the most recent observed run, not for determining freshness, correctness, or health.
 
 **Cadence Authority**
 
