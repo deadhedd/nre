@@ -549,9 +549,12 @@ Even when a job fails catastrophically:
 * Silent failure is not
 
 Generated notes and data artifacts are the priority.
+Logging failures follow a two-tier rule:
 
-Logging must be best-effort and must not fail jobs.
-Exception: logging failure may fail a job only if it implies the execution environment is unsafe or corrupted.
+* **Soft**: the log file is unavailable but `stderr` is intact → the job continues
+* **Hard**: the logging failure implies a corrupted or unsafe execution context → wrapper failure
+
+Logging must be best-effort and must not fail jobs unless the hard condition is met.
 
 ---
 
@@ -709,6 +712,11 @@ Examples:
 * Cannot create log directory / file
 * Cannot create needed temporary resources (e.g. FIFO) safely
 * Required environment is missing in a way that makes execution unsafe
+
+Logging failures are classified per §2.2.8:
+
+* **Soft** failures (log file missing, `stderr` intact) are **not** wrapper failures and MUST allow the job to continue.
+* **Hard** failures (logging implies a corrupted or unsafe execution context) are wrapper failures and override the leaf exit.
 
 Wrapper failures must be loud on stderr and present in logs when possible.
 
@@ -1316,7 +1324,7 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
 
 Generated notes and data artifacts are the priority.
-The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure implies the execution environment is unsafe or corrupted.
+The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure meets the **hard** criteria defined in §2.2.8 (corrupted or unsafe execution context). **Soft** failures (file unavailable but `stderr` intact) **MUST** be allowed to proceed.
 
 #### 3.2.10 Non-Goals
 
