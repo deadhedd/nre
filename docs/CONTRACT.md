@@ -1543,6 +1543,7 @@ The `*-latest.log` pointer is authoritative only for identifying the most recent
 
 * Each job is the authoritative source of its own expected run cadence.
 * The reporter **MUST** extract cadence declarations from the latest log and use them when evaluating freshness.
+* The reporter interprets cadence declarations but **MUST NOT** invent, assume, or default cadence values.
 * Freshness **MUST** be evaluated by comparing:
   * the timestamp of the latest run
   * against the job-declared cadence
