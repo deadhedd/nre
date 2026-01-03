@@ -1254,6 +1254,20 @@ It provides a small, stable set of logging primitives used by engine components,
 
 It is intentionally minimal and opinionated to preserve engine invariants.
 
+`log.sh` is the coordinator and façade for the logger subsystem. It sources and orchestrates the following child helpers (all wrapper-only):
+
+* `log-format.sh`
+  * Provides sanitization, timestamping, and level gating.
+  * Responsible for the canonical log line format and ASCII-only enforcement.
+* `log-sink.sh`
+  * Owns log file lifecycle (open on FD, latest symlink, pruning, optional truncate).
+  * Enforces wrapper ownership (`JOB_WRAP_ACTIVE=1`) before any sink mutation.
+* `log-capture.sh`
+  * Provides stream readers that timestamp and level-tag captured output.
+  * Never sets up the pipes itself; it only formats and forwards to the sink.
+
+Child helpers MUST NOT be sourced directly by leaf scripts; `log.sh` remains the single point of entry and coordination.
+
 Violations of this contract are considered bugs.
 
 #### 3.2.2 Library-Only (Sourcing) Contract
