@@ -1,12 +1,12 @@
-**Status:** v0.1 — Early Draft
- 
-This document is a preliminary draft of the script contracts for `obsidian-note-tools`.  
- 
-- Heavy AI assistance was used in producing this text  
-- Content has **not** been fully reviewed or validated  
-- Contracts, language, and assumptions are subject to change  
- 
-Manual review and refinement are required before this document should be considered authoritative.
+**Status:** v0.9 — Final Polish
+
+This document reflects the near-final script contracts for `obsidian-note-tools`.
+
+- AI-assisted drafting was reviewed and revised
+- Content has been validated; only final polish remains
+- Contracts, language, and assumptions are stabilizing
+
+Final proofreading is underway before treating this document as fully authoritative.
 
 ---
 
