@@ -602,6 +602,8 @@ Exit codes must remain simple, predictable, and composable. Any script that exit
 
 The **Transparency-with-Authority Rule**: `job-wrap.sh` behaves as a transparent execution harness while it can fulfill its contract; if the wrapper fails (pre-leaf or post-leaf) in a way that blocks reliable observability or publication, the wrapper’s reserved exit code overrides the leaf.
 
+This section states the foundational invariant governing wrapper behavior and all exit-code propagation rules.
+
 **Exit Status Propagation**
 
 * If the wrapper is healthy and executes the leaf script to completion, the wrapper MUST exit with the leaf script’s exit status.
