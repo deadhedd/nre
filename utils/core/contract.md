@@ -1608,7 +1608,7 @@ The report **MUST** be:
 
 At minimum, the report **SHOULD** include:
 
-* generation timestamp (local time; see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt))
+* generation timestamp (local time)
 * summary counts by state (OK/WARN/FAIL/UNKNOWN)
 * per-job rows including:
 
@@ -1622,6 +1622,8 @@ At minimum, the report **SHOULD** include:
 Ordering:
 
 * Per-job listing order **MUST** be deterministic (e.g., lexical by job name).
+
+Rationale (non-normative): Local timestamps are easier for humans to interpret and line up with cron-triggered expectations. See my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt) for background.
 
 ---
 
