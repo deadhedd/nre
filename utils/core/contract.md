@@ -872,7 +872,7 @@ This section defines what may be assumed and what must be explicitly established
 
 Scripts MUST NOT assume an interactive PATH.
 
-Each executable script MUST explicitly set a safe baseline `PATH` early, typically:
+Each executable script MUST explicitly set a safe baseline `PATH` early, using:
 
 * `/usr/local/bin:/usr/bin:/bin` (plus any existing PATH appended if desired)
 
@@ -1326,7 +1326,7 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
 
 Generated notes and data artifacts are the priority.
-The caller (typically `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure implies the execution environment is unsafe or corrupted.
+The caller (for example, `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure implies the execution environment is unsafe or corrupted.
 
 #### 3.2.10 Non-Goals
 

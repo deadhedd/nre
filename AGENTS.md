@@ -1,90 +1,135 @@
-# AGENTS.md — obsidian-note-tools
+# AGENTS.md
 
-Guidance for AI coding assistants working in this repo. Keep changes **small, POSIX-safe, wrapper-first**, and **easy to revert**.
+## Purpose
 
-## Core principles
+Guidance for automated agents working in this repository.
 
-- **Wrapper-first execution:** all jobs run via `utils/core/job-wrap.sh`. Leaf scripts should assume the wrapper owns logging + lifecycle + commit.
-- **POSIX `sh` (OpenBSD-friendly):** no Bash-isms unless explicitly requested.
-- **No stdout leaks:** anything “log-like” goes to **stderr**. (Ideally: leaf scripts don’t log at all; wrapper does.)
-- **ASCII-only output** in cron-captured logs.
-- **No hacks/fallbacks** unless explicitly requested. Prefer correct, explicit behavior.
+This file is **advisory only**.
+All authoritative behavior is defined in `docs/CONTRACT.md`.
 
-## Standard leaf script pattern
+---
 
-Every job/utility script should start like this (or match existing repo conventions):
+## Authority
 
-```sh
-#!/bin/sh
-# <script> — <purpose>
-# Author: deadhedd
-set -eu
-PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+Order of authority (highest → lowest):
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
-job_wrap="$repo_root/utils/core/job-wrap.sh"
-script_path="$script_dir/$(basename -- "$0")"
+1. `docs/CONTRACT.md`
+2. Existing code behavior (only where the contract is silent)
+3. This file
 
-if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
-  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
-fi
-```
+If this file conflicts with the contract, **this file is wrong**.
 
-**Important:**
+---
 
-* Leaf scripts **MUST NOT** source `log.sh`.
-* Leaf scripts **MUST NOT** define `log_info/log_warn/log_err` fallbacks.
-* Leaf scripts should not depend on wrapper-only env like `LOG_FILE`/`LOG_LATEST_LINK`.
+## Mandatory Contract References
 
-## Traps and lifecycle
+Agents MUST consult the contract before modifying code.
 
-* **Avoid `trap ... EXIT` in leaf scripts.** It can interfere with wrapper lifecycle if anything runs in-process.
-* If cleanup is needed, prefer explicit cleanup at the end, or move cleanup responsibility into wrapper/core helpers.
+Key sections:
 
-## Paths & environment
+- **Execution & wrapper model**
+  - §3.1 — Execution Contract (job-wrap)
 
-* Default vault: `/home/obsidian/vaults/Main` (override with `VAULT_PATH`)
-* Logs root: `/home/obsidian/logs`
-* Prefer env overrides over hard-coded paths beyond these defaults.
-* Use `printf`, not `echo`.
+- **Stdout / stderr discipline**
+  - §2.1 — Stdout / Stderr Contract
+  - §2.1.4 — Silence Is Valid Output
 
-## What to read before editing
+- **Logging ownership**
+  - §2.2 — Logging Contract
 
-* `utils/core/job-wrap.sh`
-* `utils/core/log.sh`
-* `utils/core/commit.sh`
-* The specific script you’re changing + any scripts it calls
+- **Exit codes**
+  - §2.3 — Exit Code Semantics
+  - §3.3.7 — Commit Helper Exit Code Semantics
+  - §3.4.11 — Status Reporter Exit Code Semantics
 
-## How to propose changes
+- **Freshness & health**
+  - §2.4 — Run Cadence & Freshness
+  - §3.4.5 — Freshness Model
+  - §3.4.6 — Classification Semantics
 
-In every response that modifies code:
+- **Determinism**
+  - §2.6.6 — Time-Based Scripts and Determinism
+  - §3.4.8 — Output Contract (Markdown Report)
 
-1. **Plan:** 3–6 bullets: what changes, where, why.
-2. **Diffs:** unified diffs (`git apply` compatible).
-3. **Verify commands:** minimal, copy/paste-able.
-4. **Rollback:** describe how to revert (or rely on `.bak` if used).
+If uncertain which section applies, do not change behavior.
 
-## Verification (minimum)
+---
 
-* `shellcheck` (with POSIX in mind)
-* Run the job via wrapper:
+## Preservation Rules
 
-  * `/bin/sh utils/core/job-wrap.sh <job> [args...]`
-* Confirm:
+Agents MUST preserve existing behavior unless the contract explicitly permits change.
 
-  * no stdout noise
-  * expected file outputs
-  * wrapper log contains start + finish + exit code
+Agents MUST NOT:
 
-## Security & privacy
+- Change exit code meanings (§2.3, §3.3.7, §3.4.11)
+- Add, remove, or reformat stdout output (§2.1)
+- Treat WARN or staleness as failure (§3.4.6)
+- Tighten intentionally permissive semantics
+- Loosen intentionally strict semantics
 
-* Never print secrets/tokens.
-* Avoid logging sensitive absolute paths unless necessary.
-* Prefer env vars for anything user-specific.
+Preserve behavior over refactoring quality.
 
-## Style notes
+---
 
-* Keep diffs minimal and reversible.
-* Prefer clear, boring code over cleverness.
-* Match existing naming/layout conventions in the repo.
+## Determinism
+
+Determinism requirements are non-negotiable.
+
+Agents MUST NOT introduce:
+
+- Nondeterministic ordering (§3.4.8)
+- Time-dependent output unless explicitly required (§2.6.6)
+- Filesystem-order-dependent behavior
+
+“Safe to diff” output (§3.4.8) must remain safe to diff.
+
+---
+
+## Logging
+
+Log artifacts and pointers are authoritative.
+
+Agents MUST NOT:
+
+- Scan historical logs (§3.4.5)
+- Infer meaning beyond documented rules (§2.2)
+- Reorganize log paths (§2.2)
+- Bypass `*-latest.log` pointers (§3.4.5)
+
+Vault log copies are presentation artifacts only (§3.4.10).
+
+---
+
+## Environment Constraints
+
+Agents MUST preserve:
+
+- POSIX `sh` compatibility (§2.5.7)
+- No bashisms
+- No GNU-only flags unless unavoidable
+- ASCII-only output where required (§2.2.7)
+
+Portability is a contract constraint, not a style preference.
+
+---
+
+## Non-Goals
+
+Agents MUST NOT:
+
+- Perform style-only refactors
+- Introduce abstractions without request
+- Normalize behavior across scripts
+- Infer roadmap or future intent
+
+---
+
+## When Unsure
+
+If a change may violate the contract:
+
+- Stop
+- Ask
+- Or make no change
+
+Silence is safer than speculation.
