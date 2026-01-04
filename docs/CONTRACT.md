@@ -440,6 +440,14 @@ Leaf scripts **MUST NOT**:
 
 Any script that writes directly to a log file is in violation of this contract.
 
+Internally, `log.sh` coordinates a small set of wrapper-only helpers located under `utils/core/`:
+
+* `log-format.sh` — sanitizes messages, applies ASCII-only rules, gates levels, and stamps each line with a timestamp.
+* `log-sink.sh` — opens the log file on a dedicated FD, maintains the `*-latest.log` symlink, and prunes old runs according to `LOG_KEEP_COUNT`/`LOG_TRUNCATE`.
+* `log-capture.sh` — reads wrapper-provided streams (e.g., stderr from the leaf) and rewrites them as timestamped, level-tagged log lines.
+
+These helpers are **never** sourced directly; `log.sh` is the façade that wires formatting, capture, and sink management into a single logging authority.
+
 ---
 
 #### 2.2.2 Log Capture Model
@@ -1265,6 +1273,8 @@ It is intentionally minimal and opinionated to preserve engine invariants.
 * `log-capture.sh`
   * Provides stream readers that timestamp and level-tag captured output.
   * Never sets up the pipes itself; it only formats and forwards to the sink.
+
+`log.sh` wires these helpers together: `log_init` invokes the sink lifecycle, emitters reuse the formatter + sink, and capture helpers expect job-wrap-provided streams. The decomposition keeps formatting, capture, and file management separate while preserving a single logging API and authority.
 
 Child helpers MUST NOT be sourced directly by leaf scripts; `log.sh` remains the single point of entry and coordination.
 
