@@ -1,6 +1,6 @@
 <!--
 Review checklist (Table of Contents):
-- Status: draft content added; pending review/acceptance
+- Status: v0.9 — final polish; AI-assisted text reviewed and revised
 - [ ] 1. Engine Overview
   - [ ] 1.1 What the “Engine” Is
   - [ ] 1.2 Engine Components
@@ -108,15 +108,15 @@ Review checklist (Table of Contents):
     - [ ] 3.4.13 Stability Promise
 -->
 
-**Status:** v0.1 — Early Draft
- 
-This document is a preliminary draft of the script contracts for `obsidian-note-tools`.  
- 
-- Heavy AI assistance was used in producing this text  
-- Content has **not** been fully reviewed or validated  
-- Contracts, language, and assumptions are subject to change  
- 
-Manual review and refinement are required before this document should be considered authoritative.
+**Status:** v0.9 — Final Polish
+
+This document reflects the near-final script contracts for `obsidian-note-tools`.
+
+- AI-assisted drafting was reviewed and revised
+- Content has been validated; only final polish remains
+- Contracts, language, and assumptions are stabilizing
+
+Final proofreading is underway before treating this document as fully authoritative.
 
 ---
 
@@ -140,8 +140,8 @@ Manual review and refinement are required before this document should be conside
 
 ## 1. Engine Overview
 
-**Status:** v0.1 — Early Draft
-Heavy AI assistance. Requires manual review and validation.
+**Status:** v0.9 — Final Polish
+AI assistance reviewed and revised. Final polish underway.
 
 ### 1.1 What the “Engine” Is
 
@@ -1238,9 +1238,9 @@ If `job-wrap.sh` is missing or non-executable, execution **MUST fail fast and lo
 
 ### 3.2 Logger Contract (log.sh)
 
-**Status:** v0.1 — Early Draft
+**Status:** v0.9 — Final Polish
 
-Heavy AI assistance. Requires manual review and validation.
+AI assistance reviewed and revised. Final polish underway.
 
 #### 3.2.1 Role & Responsibility
 
@@ -1294,8 +1294,10 @@ At minimum:
 Rules:
 
 * Message formatting **MUST** be stable (timestamp + level + message).
-* Timestamps **MUST** be in local time and explicitly labeled as such (see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt)).
+* Timestamps **MUST** be in local time and explicitly labeled as such.
 * The logger **MUST** not require non-POSIX features.
+
+Rationale (non-normative): Local timestamps keep logs aligned with operator context and avoid silent UTC conversions. See my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt) for background.
 
 #### 3.2.6 Determinism & Safety
 
@@ -1354,9 +1356,9 @@ Any breaking change to:
 
 ### 3.3 Commit Helper Contract (commit.sh)
 
-**Status:** v0.1 — Early Draft
+**Status:** v0.9 — Final Polish
 
-Heavy AI assistance. Requires manual review and validation.
+AI assistance reviewed and revised. Final polish underway.
 
 #### 3.3.1 Role & Responsibility
 
@@ -1474,8 +1476,8 @@ MUST be accompanied by a contract revision.
 
 ### 3.4 Status Report Contract (`script-status-report.sh`)
 
-**Status:** v0.1 — Early Draft
-Heavy AI assistance. Requires manual review and validation.
+**Status:** v0.9 — Final Polish
+AI assistance reviewed and revised. Final polish underway.
 
 #### 3.4.1 Role & Responsibility
 
@@ -1606,7 +1608,7 @@ The report **MUST** be:
 
 At minimum, the report **SHOULD** include:
 
-* generation timestamp (local time; see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt))
+* generation timestamp (local time)
 * summary counts by state (OK/WARN/FAIL/UNKNOWN)
 * per-job rows including:
 
@@ -1620,6 +1622,8 @@ At minimum, the report **SHOULD** include:
 Ordering:
 
 * Per-job listing order **MUST** be deterministic (e.g., lexical by job name).
+
+Rationale (non-normative): Local timestamps are easier for humans to interpret and line up with cron-triggered expectations. See my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt) for background.
 
 ---
 

@@ -1,122 +1,12 @@
-<!--
-Review checklist (Table of Contents):
-- Status: draft content added; pending review/acceptance
-- [ ] 1. Engine Overview
-  - [ ] 1.1 What the “Engine” Is
-  - [ ] 1.2 Engine Components
-  - [ ] 1.3 Design Philosophy
-  - [ ] 1.4 Non-Goals
-  - [ ] 1.5 Engine Boundaries
-- [ ] 1.6 Stability & Contract Authority
-- [ ] 1.7 End-to-End Execution Flow
-- [ ] 2. Cross-Cutting Contracts
-  - [ ] 2.1 Stdout / Stderr Contract
-    - [ ] 2.1.1 Stdout Is Sacred
-    - [ ] 2.1.2 Stderr Is for Humans and Diagnostics
-    - [ ] 2.1.3 Wrapper-Enforced Separation
-    - [ ] 2.1.4 Silence Is Valid Output
-    - [ ] 2.1.5 Error Conditions and Output
-    - [ ] 2.1.6 Logging Helpers Must Respect the Contract
-    - [ ] 2.1.7 Design Intent Summary
-  - [ ] 2.2 Logging Contract
-    - [ ] 2.2.1 Single Logging Authority
-    - [ ] 2.2.2 Log Capture Model
-    - [ ] 2.2.3 Log File Structure
-    - [ ] 2.2.4 Log Buckets and Placement
-    - [ ] 2.2.5 Structured Log Content
-    - [ ] 2.2.6 Logging Libraries Are Wrapper-Only
-    - [ ] 2.2.7 Character Encoding
-    - [ ] 2.2.8 Failure Visibility Is Mandatory
-    - [ ] 2.2.9 Design Intent Summary
-  - [ ] 2.3 Exit Code Semantics
-    - [ ] 2.3.1 Wrapper Propagation Is Authoritative
-    - [ ] 2.3.2 Meaning of 0
-    - [ ] 2.3.3 Meaning of Non-Zero
-    - [ ] 2.3.4 Reserved Exit Codes
-    - [ ] 2.3.5 Soft Failure vs Hard Failure
-    - [ ] 2.3.6 Caller Responsibilities
-    - [ ] 2.3.7 Wrapper Failures
-    - [ ] 2.3.8 Design Intent Summary
-  - [ ] 2.4 Run Cadence & Freshness — includes planned update to fold in
-    - [ ] 2.4.1 Cadence Is a Property of the Job
-    - [ ] 2.4.2 Declaring Expected Run Frequency
-    - [ ] 2.4.3 Freshness Is Evaluated from Logs, Not Schedules
-    - [ ] 2.4.4 Stale vs Missing
-    - [ ] 2.4.5 Latest Pointer Is Not Authoritative
-    - [ ] 2.4.6 Partial or Failed Runs
-    - [ ] 2.4.7 Design Intent Summary
-  - [ ] 2.5 Environment & Paths
-    - [ ] 2.5.1 Minimal, Explicit PATH
-    - [ ] 2.5.2 Stable Repo-Relative Resolution
-    - [ ] 2.5.3 job-wrap Discovery
-    - [ ] 2.5.4 Environment Variable Usage
-    - [ ] 2.5.5 Working Directory
-    - [ ] 2.5.6 Temporary Files and Directories
-    - [ ] 2.5.7 Portability and Shell Assumptions
-    - [ ] 2.5.8 Design Intent Summary
-  - [ ] 2.6 Idempotency & Side Effects
-    - [ ] 2.6.1 Idempotency Is the Default Expectation
-    - [ ] 2.6.2 Side Effects Must Be Intentional and Bounded
-    - [ ] 2.6.3 Safe Overwrite Beats Clever Deltas
-    - [ ] 2.6.4 Atomicity and Partial Failure
-    - [ ] 2.6.5 Git Side Effects Are Centralized
-    - [ ] 2.6.6 Time-Based Scripts and Determinism
-    - [ ] 2.6.7 Reruns Are a First-Class Use Case
-    - [ ] 2.6.8 Design Intent Summary
-- [ ] 3. Component Contracts
-  - [ ] 3.1 Execution Contract (job-wrap)
-    - [ ] 3.1.1 Mandatory Re-exec via job-wrap
-    - [ ] 3.1.2 job-wrap as the Sole Lifecycle Authority
-    - [ ] 3.1.3 Single-Process Execution Model
-    - [ ] 3.1.4 Wrapper Transparency
-    - [ ] 3.1.5 Wrapper Availability Guarantee
-    - [ ] 3.1.6 Design Intent Summary
-  - [ ] 3.2 Logger Contract (log.sh)
-    - [ ] 3.2.1 Role & Responsibility
-    - [ ] 3.2.2 Library-Only (Sourcing) Contract
-    - [ ] 3.2.3 Ownership & Call-Site Contract
-    - [ ] 3.2.4 Output Contract (Stdout/Stderr)
-    - [ ] 3.2.5 Logging Primitives Contract
-    - [ ] 3.2.6 Determinism & Safety
-    - [ ] 3.2.7 Internal Debug (Opt-in Only)
-    - [ ] 3.2.8 Exit Code & Return Semantics
-    - [ ] 3.2.9 Non-Goals
-    - [ ] 3.2.10 Stability Promise
-  - [ ] 3.3 Commit Helper Contract (commit.sh)
-    - [ ] 3.3.1 Role & Responsibility
-    - [ ] 3.3.2 Invocation Contract
-    - [ ] 3.3.3 Logging & Output Contract
-    - [ ] 3.3.4 Stdout / Stderr Semantics
-    - [ ] 3.3.5 Input Contract
-    - [ ] 3.3.6 Idempotency & Safety
-    - [ ] 3.3.7 Exit Code Semantics
-    - [ ] 3.3.8 Non-Goals
-    - [ ] 3.3.9 Stability Promise
-  - [ ] 3.4 Status Report Contract (report.sh + helpers)
-    - [ ] 3.4.1 Role & Responsibility
-    - [ ] 3.4.2 Invocation Contract
-    - [ ] 3.4.3 Logging & Output Contract
-    - [ ] 3.4.4 Inputs & Data Sources
-    - [ ] 3.4.5 Freshness Model
-    - [ ] 3.4.6 Classification Semantics
-    - [ ] 3.4.7 Required Signals
-    - [ ] 3.4.8 Output Contract (Markdown Report)
-    - [ ] 3.4.9 Side Effects & Idempotency
-    - [ ] 3.4.10 Vault Log Copies (Presentation Artifacts)
-    - [ ] 3.4.11 Exit Code Semantics
-    - [ ] 3.4.12 Non-Goals
-    - [ ] 3.4.13 Stability Promise
--->
+**Status:** v0.9 — Final Polish
 
-**Status:** v0.1 — Early Draft
- 
-This document is a preliminary draft of the script contracts for `obsidian-note-tools`.  
- 
-- Heavy AI assistance was used in producing this text  
-- Content has **not** been fully reviewed or validated  
-- Contracts, language, and assumptions are subject to change  
- 
-Manual review and refinement are required before this document should be considered authoritative.
+This document reflects the near-final script contracts for `obsidian-note-tools`.
+
+- AI-assisted drafting was reviewed and revised
+- Content has been validated; only final polish remains
+- Contracts, language, and assumptions are stabilizing
+
+Final proofreading is underway before treating this document as fully authoritative.
 
 ---
 
@@ -139,9 +29,6 @@ Manual review and refinement are required before this document should be conside
 ---
 
 ## 1. Engine Overview
-
-**Status:** v0.1 — Early Draft
-Heavy AI assistance. Requires manual review and validation.
 
 ### 1.1 What the “Engine” Is
 
@@ -1277,10 +1164,6 @@ Any script that attempts to bypass or reimplement this contract is considered **
 
 ### 3.2 Logger Contract (log.sh)
 
-**Status:** v0.1 — Early Draft
-
-Heavy AI assistance. Requires manual review and validation.
-
 #### 3.2.1 Role & Responsibility
 
 `log.sh` is the shared logging helper for the engine.
@@ -1349,8 +1232,10 @@ At minimum:
 Rules:
 
 * Message formatting **MUST** be stable (timestamp + level + message).
-* Timestamps **MUST** be in local time and explicitly labeled as such (see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt)).
+* Timestamps **MUST** be in local time and explicitly labeled as such.
 * The logger **MUST** not require non-POSIX features.
+
+Rationale (non-normative): Local timestamps keep logs aligned with operator context and avoid silent UTC conversions. See my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt) for background.
 
 #### 3.2.6 Determinism & Safety
 
@@ -1408,10 +1293,6 @@ Any breaking change to:
 **MUST** be accompanied by a contract revision.
 
 ### 3.3 Commit Helper Contract (commit.sh)
-
-**Status:** v0.1 — Early Draft
-
-Heavy AI assistance. Requires manual review and validation.
 
 #### 3.3.1 Role & Responsibility
 
@@ -1525,9 +1406,6 @@ Any breaking change to:
 MUST be accompanied by a contract revision.
 
 ### 3.4 Status Report Contract (`report.sh` + helpers)
-
-**Status:** v0.1 — Early Draft
-Heavy AI assistance. Requires manual review and validation.
 
 #### 3.4.1 Role & Responsibility
 
@@ -1671,7 +1549,7 @@ The report **MUST** be:
 
 At minimum, the report **MUST** include:
 
-* generation timestamp (local time; see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt))
+* generation timestamp (local time)
 * summary counts by state (OK/WARN/FAIL/UNKNOWN)
 * per-job rows including:
 
@@ -1685,6 +1563,8 @@ At minimum, the report **MUST** include:
 Ordering:
 
 * Per-job listing order **MUST** be deterministic (e.g., lexical by job name).
+
+Rationale (non-normative): Local timestamps are easier for humans to interpret and line up with cron-triggered expectations. See my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt) for background.
 
 ---
 
@@ -1789,8 +1669,6 @@ Any breaking change to:
 ---
 
 ## Appendix A — Core Engine Environment Variable Inventory (Informative)
-
-> **Status:** Informative / Non-Normative
 > **Scope:** Core engine components only (`job-wrap.sh`, logging sink, commit helper).
 >
 > This appendix documents environment variables **observed in use by the core engine** at the time of writing.
@@ -1938,8 +1816,6 @@ Additional states MAY be introduced only via a contract revision.
 ---
 
 ## Appendix C — Engine Exit Codes
-
-> **Status:** Normative
 > **Applies to:** Sections 3.3.7 and 3.4.11
 
 This appendix defines the exit codes used by core engine components.
