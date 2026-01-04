@@ -30,9 +30,6 @@ Manual review and refinement are required before this document should be conside
 
 ## 1. Engine Overview
 
-**Status:** v0.1 — Early Draft
-Heavy AI assistance. Requires manual review and validation.
-
 ### 1.1 What the “Engine” Is
 
 The engine is the core execution and observability layer of obsidian-note-tools.
@@ -1167,10 +1164,6 @@ Any script that attempts to bypass or reimplement this contract is considered **
 
 ### 3.2 Logger Contract (log.sh)
 
-**Status:** v0.1 — Early Draft
-
-Heavy AI assistance. Requires manual review and validation.
-
 #### 3.2.1 Role & Responsibility
 
 `log.sh` is the shared logging helper for the engine.
@@ -1301,10 +1294,6 @@ Any breaking change to:
 
 ### 3.3 Commit Helper Contract (commit.sh)
 
-**Status:** v0.1 — Early Draft
-
-Heavy AI assistance. Requires manual review and validation.
-
 #### 3.3.1 Role & Responsibility
 
 The commit helper is a single-purpose engine component responsible for:
@@ -1417,9 +1406,6 @@ Any breaking change to:
 MUST be accompanied by a contract revision.
 
 ### 3.4 Status Report Contract (`report.sh` + helpers)
-
-**Status:** v0.1 — Early Draft
-Heavy AI assistance. Requires manual review and validation.
 
 #### 3.4.1 Role & Responsibility
 
@@ -1683,8 +1669,6 @@ Any breaking change to:
 ---
 
 ## Appendix A — Core Engine Environment Variable Inventory (Informative)
-
-> **Status:** Informative / Non-Normative
 > **Scope:** Core engine components only (`job-wrap.sh`, logging sink, commit helper).
 >
 > This appendix documents environment variables **observed in use by the core engine** at the time of writing.
@@ -1832,8 +1816,6 @@ Additional states MAY be introduced only via a contract revision.
 ---
 
 ## Appendix C — Engine Exit Codes
-
-> **Status:** Normative
 > **Applies to:** Sections 3.3.7 and 3.4.11
 
 This appendix defines the exit codes used by core engine components.
