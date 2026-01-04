@@ -1669,7 +1669,7 @@ The report **MUST** be:
 * stable in structure (headings/sections/table columns)
 * safe to diff (minimal nondeterministic ordering)
 
-At minimum, the report **SHOULD** include:
+At minimum, the report **MUST** include:
 
 * generation timestamp (local time; see my [Manifesto on Time](https://github.com/deadhedd/manifesto-on-time/blob/main/manifesto.txt))
 * summary counts by state (OK/WARN/FAIL/UNKNOWN)
