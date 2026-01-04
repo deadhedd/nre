@@ -92,7 +92,7 @@ Review checklist (Table of Contents):
     - [ ] 3.3.7 Exit Code Semantics
     - [ ] 3.3.8 Non-Goals
     - [ ] 3.3.9 Stability Promise
-  - [ ] 3.4 Status Report Contract (script-status-report.sh)
+  - [ ] 3.4 Status Report Contract (report.sh + helpers)
     - [ ] 3.4.1 Role & Responsibility
     - [ ] 3.4.2 Invocation Contract
     - [ ] 3.4.3 Logging & Output Contract
@@ -134,7 +134,7 @@ Manual review and refinement are required before this document should be conside
    1. Execution Contract (job-wrap)
    2. Logger Contract (log.sh)
    3. Commit Helper Contract (commit.sh)
-   4. Status Report Contract (script-status-report.sh)
+   4. Status Report Contract (report.sh + helpers)
 
 ---
 
@@ -177,9 +177,9 @@ The engine consists of the following canonical components:
 * `commit.sh`
   The commit helper.
   A single-purpose component that stages and commits an explicit file list when instructed.
-* `script-status-report.sh`
-  The status reporter.
-  An observational component that summarizes engine and job health by inspecting engine artifacts.
+* `report.sh`
+  The reporting façade.
+  Coordinates report generation and vault log copy helpers to summarize engine and job health for the vault.
 
 No other scripts are considered part of the engine unless explicitly declared by contract.
 
@@ -260,7 +260,7 @@ Engine execution follows a single linear path from invocation to reporting:
 4. **Leaf execution and artifacts** — The leaf script runs with wrapper-provided context, emits data to stdout (if any), and produces primary artifacts (files, markdown, JSON) directly in the repository or vault locations as defined by the script’s contract.
 5. **Optional commit orchestration** — If the job configuration requests it, `job-wrap.sh` invokes `utils/core/commit.sh` with an explicit file list to stage and commit generated artifacts; commits never occur implicitly from the leaf script.
    Leaf scripts MUST remain correct when commit orchestration is disabled or unavailable.
-6. **Out-of-band status reporting** — After runs, `utils/core/script-status-report.sh` reads wrapper-generated logs and pointers (not stdout) to classify job health and produce human-readable reports independent of the jobs’ data outputs.
+6. **Out-of-band status reporting** — After runs, `utils/core/report.sh` invokes the reporting helpers to read wrapper-generated logs and pointers (not stdout) to classify job health, produce human-readable Markdown reports, and refresh vault log copies independent of the jobs’ data outputs.
 
 Each run yields clean stdout for consumers, structured stderr-backed logs for humans, and optional commits and reports that remain fully deterministic.
 
@@ -750,7 +750,7 @@ Each job is the **authoritative source** of truth for how often it is expected t
 
 Cadence knowledge **MUST NOT** live in:
 
-* `script-status-report.sh`
+* `report.sh` or its helpers
 * Cron configuration alone
 * Internal registries or status indexes
 * External documentation
@@ -1490,14 +1490,23 @@ Any breaking change to:
 
 MUST be accompanied by a contract revision.
 
-### 3.4 Status Report Contract (`script-status-report.sh`)
+### 3.4 Status Report Contract (`report.sh` + helpers)
 
 **Status:** v0.1 — Early Draft
 Heavy AI assistance. Requires manual review and validation.
 
 #### 3.4.1 Role & Responsibility
 
-The status reporter is an **observational engine component** responsible for:
+`report.sh` is the **coordinator and façade** for the reporting subsystem.
+
+It orchestrates two child helpers:
+
+* `script-status-report.sh`
+  * Generates the Markdown status report and places it at the contracted path in the vault.
+* `sync-latest-logs-to-vault.sh`
+  * Refreshes presentation-only vault copies of job logs from the latest log pointers.
+
+Together, the reporting helpers are an **observational engine component** responsible for:
 
 * Scanning job output artifacts (primarily `*-latest.log` pointers and their target logs)
 * Classifying engine and job health using documented heuristics
@@ -1511,9 +1520,9 @@ Violations of this contract are considered bugs.
 
 #### 3.4.2 Invocation Contract
 
-* The status reporter **MUST** be invoked by `job-wrap.sh`, either directly or via re-exec.
-* It **MUST NOT** be called directly from cron.
-* It **MUST** assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTIVE=1`).
+* `job-wrap.sh` **MUST** invoke the reporting subsystem via `report.sh`, either directly or via re-exec.
+* Child helpers (`script-status-report.sh`, `sync-latest-logs-to-vault.sh`) **MUST** be reached through `report.sh`, not called directly from cron or leaf jobs.
+* `report.sh` **MUST** assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTIVE=1`).
 
 If invoked outside job-wrap, behavior is undefined unless explicitly guarded.
 
@@ -1648,7 +1657,7 @@ Ordering:
 
 The status reporter is observational.
 
-* It **MUST** only write its own output report file (and temporary files, if any).
+* It **MUST** only write its own output report file, presentation-layer vault log copies (via the log copy helper), and temporary files (if any).
 * It **MUST NOT** modify logs, pointers, repositories, or other notes.
 * It **MUST** be safe to run repeatedly without accumulating junk artifacts.
 
@@ -1664,7 +1673,8 @@ These copies exist solely to support navigation, review, and debugging from with
 
 **Role & Ownership**
 
-* `script-status-report.sh` is the **sole** engine component permitted to create or update vault log copies.
+* `report.sh` is the **sole** entry point for creating or updating vault log copies.
+* It orchestrates the dedicated log copy helper (`sync-latest-logs-to-vault.sh`).
 * No other engine component (including `job-wrap.sh`, `log.sh`, or leaf scripts) may write logs into the vault.
 
 Vault log copies are considered **presentation artifacts**, not execution artifacts.
