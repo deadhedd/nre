@@ -1183,13 +1183,13 @@ This guarantees:
 * Exit code propagation
 * An optional auto-commit mode that may be disabled without affecting engine correctness
 
+Logging lifecycle and helper sourcing are governed by §2.2 (Logging Contract) and §3.2 (Logger Contract).
+`job-wrap.sh` enforces that centralized model; leaf scripts must rely on it rather than sourcing `log.sh` or child helpers directly.
+
 Leaf scripts **MUST NOT**:
 
-* Create or manage log files
-* Rotate logs
 * Commit files to Git
 * Implement their own lifecycle wrappers
-* Source shared logging libraries directly
 
 Any such behavior is a contract violation.
 
@@ -1414,15 +1414,12 @@ If invoked outside job-wrap, no guarantees are made about correctness or side ef
 
 #### 3.3.3 Logging & Output Contract
 
-The commit helper MUST NOT source log.sh.
+Logging authority is centralized per §2.2 (Logging Contract) and §3.2 (Logger Contract).
+The commit helper relies on wrapper-managed capture and **MUST NOT** source `log.sh` or implement its own logging system.
 
-The commit helper MUST NOT implement its own logging system.
+The commit helper **MUST NOT** write anything to stdout.
 
-The commit helper MUST NOT write anything to stdout.
-
-Any human-readable or diagnostic output MAY be written to stderr.
-
-All logging, capture, and persistence is owned exclusively by job-wrap.sh.
+Any human-readable or diagnostic output **MAY** be written to stderr.
 
 #### 3.3.4 Stdout / Stderr Semantics
 
@@ -1542,12 +1539,11 @@ If invoked outside job-wrap, behavior is undefined unless explicitly guarded.
 
 #### 3.4.3 Logging & Output Contract
 
-* The status reporter **MUST NOT** source `log.sh`.
-* The status reporter **MUST NOT** implement its own logging system.
-* The status reporter **MUST NOT** write report content to stdout.
-* Any human-readable operational output **MAY** be written to stderr.
+Logging authority is centralized per §2.2 (Logging Contract) and §3.2 (Logger Contract).
+The status reporter relies on wrapper-managed capture and **MUST NOT** source `log.sh` or implement its own logging system.
 
-All logging capture/persistence is owned exclusively by `job-wrap.sh`.
+The status reporter **MUST NOT** write report content to stdout.
+Any human-readable operational output **MAY** be written to stderr.
 
 ---
 
