@@ -159,7 +159,18 @@ The engine exists to make scripts boring, predictable, and auditable.
 
 ---
 
-### 1.2 Engine Components
+### 1.2 Terminology: Leaf Scripts vs Jobs
+
+To avoid ambiguity, the engine distinguishes between:
+
+* **Leaf script** — the executable script containing domain logic.
+* **Job** — a wrapper-mediated execution/run of a leaf script (the unit that produces a log run).
+
+This document uses **leaf script** when describing code artifacts and **job** when describing executions, logs, cadence, or freshness.
+
+---
+
+### 1.3 Engine Components
 
 The engine consists of the following canonical components:
 
@@ -185,7 +196,7 @@ No other scripts are considered part of the engine unless explicitly declared by
 
 ---
 
-### 1.3 Design Philosophy
+### 1.4 Design Philosophy
 
 The engine is intentionally:
 
@@ -202,7 +213,7 @@ The engine is intentionally:
 
 ---
 
-### 1.4 Non-Goals
+### 1.5 Non-Goals
 
 The engine explicitly does not aim to:
 
@@ -216,7 +227,7 @@ Those responsibilities belong to higher-level orchestration or human operators.
 
 ---
 
-### 1.5 Engine Boundaries
+### 1.6 Engine Boundaries
 
 The engine defines execution and observability contracts, not business logic.
 
@@ -234,7 +245,7 @@ The engine:
 
 ---
 
-### 1.6 Stability & Contract Authority
+### 1.7 Stability & Contract Authority
 
 This document is the authoritative specification for engine behavior.
 
@@ -250,7 +261,7 @@ MUST be reflected here before being considered valid.
 
 ---
 
-### 1.7 End-to-End Execution Flow
+### 1.8 End-to-End Execution Flow
 
 Engine execution follows a single linear path from invocation to reporting:
 
@@ -754,7 +765,7 @@ This section defines how **run expectations** are communicated and how **freshne
 
 #### 2.4.1 Cadence Is a Property of the Job
 
-Each job is the **authoritative source** of truth for how often it is expected to run.
+Each leaf script is the **authoritative source** of truth for how often its jobs are expected to run.
 
 Cadence knowledge **MUST NOT** live in:
 
@@ -764,16 +775,16 @@ Cadence knowledge **MUST NOT** live in:
 * External documentation
 * Hardcoded tables in summary tools
 
-If a job’s cadence changes, the job itself must change.
+If the expected cadence changes, the leaf script itself must change.
 
 ---
 
 #### 2.4.2 Declaring Expected Run Frequency
 
-Each job **MUST declare** its expected run cadence in a machine-readable form that is emitted into its log on every run.
+Each leaf script **MUST declare** the expected run cadence for its jobs in a machine-readable form that is emitted into each job log on every run.
 
 Failure of a leaf script to declare cadence is an **error condition**, not an implicit “unknown” cadence.
-Jobs with ad-hoc or inherently unknowable cadence **MUST still declare that fact explicitly** (e.g. `cadence=ad-hoc`).
+Leaf scripts with ad-hoc or inherently unknowable cadence **MUST still declare that fact explicitly** (e.g. `cadence=ad-hoc`).
 
 This declaration must be:
 
@@ -1092,7 +1103,7 @@ Scripts MUST NOT perform Git operations directly.
 This separation ensures that:
 
 * Idempotency can be reasoned about independently of version control
-* Jobs remain testable without Git side effects
+* Leaf scripts remain testable without Git side effects
 
 ---
 
