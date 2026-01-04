@@ -1522,6 +1522,8 @@ Together, the reporting helpers are an **observational engine component** respon
 * Classifying engine and job health using documented heuristics
 * Writing a **single, stable Markdown report** into the vault
 
+The reporter **MUST NOT** introduce policy, defaults, or inferred expectations; it **MUST** derive state exclusively from engine artifacts and job-declared metadata.
+
 It **MUST NOT** perform orchestration, scheduling, or remediation.
 
 Violations of this contract are considered bugs.
