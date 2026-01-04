@@ -487,7 +487,7 @@ Each job execution produces:
 
 The `*-latest.log` file is a **symlink**, not a copy.
 
-Consumers must treat it as a *pointer*, not an authoritative record.
+It is authoritative only for identifying the most recent observed run, never for determining freshness, correctness, or health.
 
 ---
 
@@ -818,11 +818,11 @@ Both conditions indicate an unhealthy job, but suggest different problem classes
 
 ---
 
-#### 2.4.5 Latest Pointer Is Not Authoritative
+#### 2.4.5 Latest Pointer Is Authoritative Only for Identity
 
 The presence of `<job>-latest.log` does **not** imply freshness.
 
-The `*-latest.log` pointer is authoritative only for identifying the most recent observed run, not for determining freshness, correctness, or health.
+The `*-latest.log` pointer is authoritative for identity, not for health: it identifies the most recent observed run, but it is never evidence of freshness, correctness, or health.
 
 Consumers must:
 
@@ -1574,9 +1574,9 @@ The reporter’s notion of a job’s current state is derived from the latest ob
 **Source of Execution State**
 
 * For each job, the reporter locates the most recent execution by resolving that job’s `*-latest.log` pointer.
-* The resolved log identifies the latest observed run, but does not, by itself, imply freshness or correctness.
+* The resolved log identifies the latest observed run, but pointer presence alone does not imply freshness or correctness.
 
-The `*-latest.log` pointer is authoritative only for identifying the most recent observed run, not for determining freshness, correctness, or health.
+The `*-latest.log` pointer is authoritative for identity, not for health: it identifies the most recent observed run, but it is never evidence of freshness, correctness, or health.
 
 **Cadence Authority**
 
