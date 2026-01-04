@@ -950,6 +950,20 @@ Scripts MUST:
 
 Introduction of any new environment variable that affects correctness, output location, or control flow MUST be accompanied by an update to this contract and the appendix.
 
+##### Core engine environment variables
+
+Core engine components enforce the following environment variable requirements:
+
+* `JOB_WRAP_ACTIVE` **MUST** be set to `1` inside job-wrap-managed execution, and the wrapper **MUST** exit if the value is missing or invalid before invoking leaf scripts.
+* `JOB_NAME` **MUST** be present and non-empty when the logging sink initializes, and the sink **MUST** hard exit if it is missing.
+* `LOG_FILE` **MUST** be provided when the logging sink initializes, and the sink **MUST** hard exit if it is missing or empty.
+
+Optional overrides such as `VAULT_PATH`, `LOG_ROOT`, `TMPDIR`, `COMMIT_BARE_REPO`, and `GIT_BIN` **MUST** fall back to deterministic defaults, and components **MUST** remain correct when they are unset.
+
+Internal guards and debug toggles (for example, `LOG_SINK_LOADED`, `JOB_WRAP_DEBUG`, or `LOG_ASCII_ONLY`) are implementation details and **MUST NOT** be treated as part of the public environment contract.
+
+Validation and defaulting behavior for all other core engine variables is described in Appendix A.
+
 ---
 
 #### 2.5.5 Working Directory
@@ -1783,50 +1797,50 @@ Any breaking change to:
 
 ### A.1 Summary
 
-| Variable         | Component          | Role / Default                                      | Validation                        |
-| ---------------- | ------------------ | --------------------------------------------------- | --------------------------------- |
-| JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; must be `1` inside wrapper | Required; hard exit if invalid    |
-| JOB_NAME         | Log sink           | Job identifier used for log naming                  | Required; hard exit if missing    |
-| LOG_FILE         | Log sink           | Timestamped log file path                           | Required; hard exit if missing    |
-| LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                    | Checked early                     |
-| VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                       | Defaulted; not strictly validated |
-| LOG_ROOT         | Wrapper / Log sink | Base log directory                                  | Defaulted; not strictly validated |
-| TMPDIR           | Wrapper / Log sink | Temporary file parent                               | Default `/tmp`; not validated     |
-| COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                         | Used directly; git validates      |
-| GIT_BIN          | Commit helper      | Optional git binary override                        | Executable verified               |
-| PATH             | All                | Command search path                                 | Reset with safe defaults          |
+| Variable         | Component          | Role / Default                                       | Observed validation behavior       |
+| ---------------- | ------------------ | ---------------------------------------------------- | ---------------------------------- |
+| JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; expected `1` inside wrapper | Observed: wrapper exits if invalid |
+| JOB_NAME         | Log sink           | Job identifier used for log naming                   | Observed: sink exits if missing    |
+| LOG_FILE         | Log sink           | Timestamped log file path                            | Observed: sink exits if missing    |
+| LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                     | Observed: checked early            |
+| VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                        | Observed: defaulted; not strictly validated |
+| LOG_ROOT         | Wrapper / Log sink | Base log directory                                   | Observed: defaulted; not strictly validated |
+| TMPDIR           | Wrapper / Log sink | Temporary file parent                                | Observed: default `/tmp`; not validated |
+| COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                          | Observed: used directly; git validates |
+| GIT_BIN          | Commit helper      | Optional git binary override                         | Observed: executable verified      |
+| PATH             | All                | Command search path                                  | Observed: reset with safe defaults |
 
 ---
 
 ### A.2 Required Variables
 
-The following variables are **required by the core engine** and MUST be present and valid when their owning component initializes:
+The following variables are treated as required by the core engine and are validated when their owning component initializes:
 
 #### JOB_WRAP_ACTIVE
 
 * **Owner:** Wrapper / Log sink
 * **Purpose:** Recursion guard to ensure exactly one wrapper instance per job
 * **Expected value:** `1` when executing under `job-wrap.sh`
-* **Failure behavior:** Hard exit if required and missing/invalid
+* **Observed failure behavior:** Hard exit if value is missing or invalid
 
 #### JOB_NAME
 
 * **Owner:** Logging sink
 * **Purpose:** Stable job identifier for log naming and latest pointers
-* **Failure behavior:** Hard exit if missing or empty
+* **Observed failure behavior:** Hard exit if missing or empty
 
 #### LOG_FILE
 
 * **Owner:** Logging sink
 * **Purpose:** Path to the current run’s timestamped log file
-* **Failure behavior:** Hard exit if missing or empty
+* **Observed failure behavior:** Hard exit if missing or empty
 
 ---
 
 ### A.3 Recognized Optional Overrides
 
-These variables MAY be set to override default behavior.
-The core engine MUST remain correct when they are unset.
+These variables are observed overrides for default behavior.
+The core engine has been implemented to remain correct when they are unset.
 
 #### VAULT_PATH
 
@@ -1873,7 +1887,7 @@ They are documented here for auditability only and are **not part of the public 
 * Wrapper debug and tracing flags (`JOB_WRAP_DEBUG`, `JOB_WRAP_XTRACE`, etc.)
 * Logging verbosity / formatting controls (`LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY`, etc.)
 
-These variables MUST NOT be relied upon by external callers or leaf scripts.
+External callers and leaf scripts are not intended to rely on these variables.
 
 ---
 
