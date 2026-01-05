@@ -1370,6 +1370,13 @@ Rules:
 * The commit helper MUST NOT infer files from directory state
 * The commit helper MUST NOT modify files it was not explicitly given
 
+Bare Repository Selection
+
+* The commit helper MUST support an explicit bare repository override via `COMMIT_BARE_REPO`.
+* If `COMMIT_BARE_REPO` is set, it MUST be used as the authoritative bare repository path.
+* If `COMMIT_BARE_REPO` is unset, the commit helper MUST use the engine default bare repository path (`/home/git/vaults/Main.git`).
+* The engine default bare repository path MUST be documented and stable unless this contract is revised.
+
 #### 3.3.6 Idempotency & Safety
 
 Re-running the commit helper with the same inputs MUST NOT corrupt repository state.
@@ -1760,7 +1767,7 @@ The core engine has been implemented to remain correct when they are unset.
 
 * **Owner:** Commit helper
 * **Purpose:** Override bare git repository path
-* **Default:** Computed internally
+* **Default:** `/home/git/vaults/Main.git`
 * **Validation:** Deferred to git
 
 #### GIT_BIN
