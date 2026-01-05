@@ -1322,6 +1322,14 @@ job-wrap.sh owns the decision of whether to invoke the helper at all; leaf scrip
 
 If invoked outside job-wrap, no guarantees are made about correctness or side effects unless the helper explicitly detects and rejects such invocation.
 
+##### Privilege Boundary (doas)
+
+In hardened deployments, the commit helper **MUST** execute Git commands under a dedicated system account (default `git`), configured via `GIT_USER`.
+
+* If `GIT_USER` is set (or defaults) to a user that is not the current effective user, the commit helper **MUST** use `doas -u ${GIT_USER}` to invoke Git.
+* If `doas` is not available when user switching is required, the commit helper **MUST** fail with the commit helper operational failure exit code.
+* If the commit helper is already executing as the desired user, it **MAY** invoke Git directly without `doas`.
+
 #### 3.3.3 Logging & Output Contract
 
 Logging authority is centralized per §2.2 (Logging Contract) and §3.2 (Logger Contract).
