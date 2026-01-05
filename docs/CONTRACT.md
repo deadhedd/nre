@@ -1324,11 +1324,17 @@ If invoked outside job-wrap, no guarantees are made about correctness or side ef
 
 ##### Privilege Boundary (doas)
 
-In hardened deployments, the commit helper **MUST** execute Git commands under a dedicated system account (default `git`), configured via `GIT_USER`.
+Execution identity
 
-* If `GIT_USER` is set (or defaults) to a user that is not the current effective user, the commit helper **MUST** use `doas -u ${GIT_USER}` to invoke Git.
-* If `doas` is not available when user switching is required, the commit helper **MUST** fail with the commit helper operational failure exit code.
-* If the commit helper is already executing as the desired user, it **MAY** invoke Git directly without `doas`.
+* The commit helper **MUST NOT** perform Git operations as the invoking user.
+* The commit helper **MUST** execute all Git commands as the dedicated Git account (`GIT_USER`, default `git`) via `doas -u ${GIT_USER}`.
+* If the commit helper is invoked while already executing as `GIT_USER`, it **MUST** treat that as misuse and exit 10.
+
+doas requirements
+
+* `doas` **MUST** be available.
+* The invoking user (expected `obsidian`) **MUST** be permitted by `doas.conf` to run the required Git commands as `GIT_USER`.
+* If `doas` is missing or permission is denied, the helper **MUST** exit 10.
 
 #### 3.3.3 Logging & Output Contract
 
