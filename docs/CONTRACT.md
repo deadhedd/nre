@@ -1316,6 +1316,8 @@ It MUST NOT be called directly from cron.
 
 It MUST assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTIVE=1`).
 
+In hardened deployments, the commit helper executes git commands as a dedicated system account (default `git`), configurable via `GIT_USER`.
+
 job-wrap.sh owns the decision of whether to invoke the helper at all; leaf scripts must be correct regardless of whether commit orchestration runs.
 
 If invoked outside job-wrap, no guarantees are made about correctness or side effects unless the helper explicitly detects and rejects such invocation.
@@ -1351,6 +1353,8 @@ Typical inputs include:
 * Work tree root
 * Commit message (or message template)
 * Explicit file list to stage and commit
+
+In hardened deployments, the commit helper executes git commands as a dedicated system account (default `git`), configurable via `GIT_USER`.
 
 Rules:
 
@@ -1688,6 +1692,7 @@ Any breaking change to:
 | TMPDIR           | Wrapper / Log sink | Temporary file parent                                | Observed: default `/tmp`; not validated |
 | COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                          | Observed: used directly; git validates |
 | GIT_BIN          | Commit helper      | Optional git binary override                         | Observed: executable verified      |
+| GIT_USER         | Commit helper      | Optional git user override                           | Observed: non-empty; used for `doas -u` |
 | PATH             | All                | Command search path                                  | Observed: reset with safe defaults |
 
 ---
@@ -1755,6 +1760,13 @@ The core engine has been implemented to remain correct when they are unset.
 * **Owner:** Commit helper
 * **Purpose:** Override git executable
 * **Validation:** Must resolve to an executable file
+
+#### GIT_USER
+
+* **Owner:** Commit helper
+* **Purpose:** Override system account used to invoke git commands
+* **Default:** `git`
+* **Validation:** Must be non-empty; used as `doas -u ${GIT_USER}`
 
 ---
 
