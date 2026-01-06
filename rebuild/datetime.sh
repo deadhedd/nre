@@ -3,6 +3,11 @@
 # Author: deadhedd
 # License: MIT
 # shellcheck shell=sh
+#
+# Purpose:
+# - Provide deterministic local-first date/time helpers
+# - Select a supported date(1) backend once (BSD vs GNU)
+# - Library-only: MUST be sourced (never executed)
 
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -25,7 +30,7 @@ dt_need() { [ -n "${2-}" ] || dt_die "$1 is required"; }
 
 DT_DATE_BACKEND=0
 DT_DATE_BIN=$(command -v date 2>/dev/null || true)
-[ -n "$DT_DATE_BIN" ] || dt_die "date not found in PATH"
+[ -n "$DT_DATE_BIN" ] || { dt_die "date not found in PATH"; return 10; }
 
 dt__detect_date_backend() {
   if "$DT_DATE_BIN" -j -f '%Y-%m-%d' '2000-01-01' '+%s' >/dev/null 2>&1 \
@@ -44,7 +49,7 @@ dt__detect_date_backend() {
   return 1
 }
 
-dt__detect_date_backend || dt_die "no supported date backend (need BSD date or GNU date)"
+dt__detect_date_backend || { dt_die "no supported date backend (need BSD date or GNU date)"; return 10; }
 
 # ------------------
 # Clock (local-first)
