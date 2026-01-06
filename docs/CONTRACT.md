@@ -635,6 +635,8 @@ If a job must communicate nuance (e.g. “ran fine, but didn’t update anything
 * Emit an informational line to stderr (which will be logged)
 * Optionally write structured data to stdout *only if that is its purpose*
 
+Some internal engine helpers may return documented non-failure outcomes (e.g., “suppressed by policy”) that MUST NOT be interpreted as job failure; see Appendix C.6.
+
 If nuance must be machine-readable, it belongs in:
 
 * A generated artifact (file output), or
@@ -1246,6 +1248,8 @@ If executed directly, `log.sh` **MUST**:
 
 Rationale: the logger is a library, not a runnable job.
 
+The logger’s child helpers (`log-format.sh`, `log-sink.sh`, `log-capture.sh`) are also library-only. If any logger helper is executed directly, it **MUST** print a clear error to stderr and exit 2 to signal misuse.
+
 #### 3.2.3 Ownership & Call-Site Contract
 
 `job-wrap.sh` is the primary owner of logging lifecycle (init, file selection, routing).
@@ -1334,6 +1338,7 @@ Any breaking change to:
 * log line format (timestamp/level prefixing)
 * destination semantics (stderr vs file)
 * library-only behavior
+* logger helper return-code meanings (Appendix C.6)
 
 **MUST** be accompanied by a contract revision.
 
@@ -1968,4 +1973,21 @@ Exit code meanings defined here are part of the public engine contract and MUST 
 - Exit code meanings defined in this appendix are stable and normative.
 - Numeric values MUST NOT be reassigned to different meanings without a contract version change.
 - Additional exit codes MAY be introduced only via a contract revision.
+
+---
+
+### C.6 Logger Subsystem Helper Return Codes
+
+Applies to logger child helpers orchestrated by `log.sh` (e.g., `log-format.sh`, `log-capture.sh`, `log-sink.sh`) when they are sourced. These are return codes consumed internally by `log.sh` / `job-wrap.sh`, not standalone job or engine exit codes.
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Success; output produced (line/stream formatted, sink op succeeded) |
+| 4 | Suppressed / gated by policy (non-failure; caller should treat as “no output by design”) |
+| 10 | Operational failure (invalid args, invalid level, unusable backend, invariant violation) |
+
+Rules:
+
+- `log.sh` MUST treat 4 as a non-failure outcome (similar to how the wrapper treats the commit helper’s 3 as non-failure).
+- Logger helpers MUST NOT return 1 for any internal meaning to avoid collision with engine and reporter conventions.
 
