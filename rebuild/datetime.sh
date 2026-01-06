@@ -7,15 +7,14 @@
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-# Refuse execution; must be sourced.
-case "${0##*/}" in
-  datetime.sh)
-    printf '%s\n' "Error: datetime.sh is a library and must be sourced, not executed." >&2
-    exit 10
-    ;;
-esac
+# Must be sourced, not executed.
+# POSIX pattern: `return` only works when sourced.
+(dt__sourced_guard() { return 0; } ) 2>/dev/null || {
+  printf '%s\n' "Error: datetime.sh is a library and must be sourced, not executed." >&2
+  exit 2
+}
 
-dt_die() { printf '%s\n' "Error: $*" >&2; exit 10; }
+dt_die() { printf '%s\n' "Error: $*" >&2; return 10; }
 dt_need() { [ -n "${2-}" ] || dt_die "$1 is required"; }
 
 # --------------------------------------------------------------------
@@ -51,32 +50,18 @@ dt__detect_date_backend || dt_die "no supported date backend (need BSD date or G
 # Clock (local-first)
 # ------------------
 
-dt_now_epoch() {
-  "$DT_DATE_BIN" '+%s'
-}
-
-dt_now_local_iso() {
-  "$DT_DATE_BIN" '+%Y-%m-%dT%H:%M:%S%z'
-}
-
-dt_now_local_iso_no_tz() {
-  "$DT_DATE_BIN" '+%Y-%m-%dT%H:%M:%S'
-}
-
-dt_now_local_compact() {
-  "$DT_DATE_BIN" '+%Y%m%dT%H%M%S'
-}
-
-dt_today_local() {
-  "$DT_DATE_BIN" '+%Y-%m-%d'
-}
+dt_now_epoch() { "$DT_DATE_BIN" '+%s'; }
+dt_now_local_iso() { "$DT_DATE_BIN" '+%Y-%m-%dT%H:%M:%S%z'; }
+dt_now_local_iso_no_tz() { "$DT_DATE_BIN" '+%Y-%m-%dT%H:%M:%S'; }
+dt_now_local_compact() { "$DT_DATE_BIN" '+%Y%m%dT%H%M%S'; }
+dt_today_local() { "$DT_DATE_BIN" '+%Y-%m-%d'; }
 
 # ------------------
 # Epoch formatting (local)
 # ------------------
 
 dt_epoch_to_local_iso() {
-  dt_need "epoch" "${1-}"
+  dt_need "epoch" "${1-}" || return $?
   case "$DT_DATE_BACKEND" in
     1) "$DT_DATE_BIN" -r "$1" '+%Y-%m-%dT%H:%M:%S%z' ;;
     2) "$DT_DATE_BIN" -d "@$1" '+%Y-%m-%dT%H:%M:%S%z' ;;
@@ -85,7 +70,7 @@ dt_epoch_to_local_iso() {
 }
 
 dt_epoch_to_local_date() {
-  dt_need "epoch" "${1-}"
+  dt_need "epoch" "${1-}" || return $?
   case "$DT_DATE_BACKEND" in
     1) "$DT_DATE_BIN" -r "$1" '+%Y-%m-%d' ;;
     2) "$DT_DATE_BIN" -d "@$1" '+%Y-%m-%d' ;;
@@ -98,8 +83,7 @@ dt_epoch_to_local_date() {
 # ------------------
 
 dt_utc_iso_z_to_epoch() {
-  # Accepts: YYYY-MM-DDTHH:MM:SSZ  (also tolerates a space instead of T)
-  dt_need "utc timestamp" "${1-}"
+  dt_need "utc timestamp" "${1-}" || return $?
 
   s=$1
   s=$(printf '%s' "$s" | tr ' ' 'T')
@@ -111,12 +95,10 @@ dt_utc_iso_z_to_epoch() {
 
   case "$DT_DATE_BACKEND" in
     1)
-      # BSD: -u forces UTC interpretation/output for parse
       "$DT_DATE_BIN" -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$s" '+%s' 2>/dev/null \
         || dt_die "failed to parse UTC timestamp: $s"
       ;;
     2)
-      # GNU: Z is understood; be explicit about UTC
       "$DT_DATE_BIN" -u -d "$s" '+%s' 2>/dev/null \
         || dt_die "failed to parse UTC timestamp: $s"
       ;;
