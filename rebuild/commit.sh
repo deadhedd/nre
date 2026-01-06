@@ -21,6 +21,10 @@
 # - COMMIT_BARE_REPO  Override bare repo path (default: /home/git/vaults/Main.git)
 # - GIT_BIN           Override git executable
 # - GIT_USER          System user for git operations (default: git)
+#
+# Internal debugging (opt-in, diagnostic-only):
+# - ENGINE_DEBUG=1 or LOG_INTERNAL_DEBUG=1 enables extra stderr diagnostics
+#   (MUST NOT change semantics, stdout, or exit codes)
 
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -33,6 +37,20 @@ commit__usage() {
   printf '%s\n' "  COMMIT_BARE_REPO  Override bare repo path (default: /home/git/vaults/Main.git)" >&2
   printf '%s\n' "  GIT_BIN           Override git executable" >&2
   printf '%s\n' "  GIT_USER          Git system user (default: git)" >&2
+}
+
+# Internal debug: strictly opt-in; stderr only; must not affect behavior.
+commit__debug_enabled() {
+  case "${ENGINE_DEBUG:-${LOG_INTERNAL_DEBUG:-0}}" in
+    1|yes|true|on|ON|TRUE|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+commit__dbg() {
+  commit__debug_enabled || return 0
+  # Keep it simple and ASCII-safe.
+  printf 'DBG  %s\n' "$1" >&2
 }
 
 commit__abs_path() {
@@ -51,13 +69,8 @@ commit__fail() {
   exit 10
 }
 
-commit__warn() {
-  printf 'WARN %s\n' "$1" >&2
-}
-
-commit__info() {
-  printf 'INFO %s\n' "$1" >&2
-}
+commit__warn() { printf 'WARN %s\n' "$1" >&2; }
+commit__info() { printf 'INFO %s\n' "$1" >&2; }
 
 # ---------- wrapper requirement ----------
 
@@ -149,8 +162,17 @@ commit__info "Work tree root: $work_root"
 commit__info "Bare repository: $BARE_REPO"
 commit__info "Git bin: $GIT_BIN_RESOLVED"
 commit__info "Git user: $GIT_USER_RESOLVED"
+commit__dbg  "Debug enabled (ENGINE_DEBUG/LOG_INTERNAL_DEBUG)"
 
 commit__git() {
+  # NOTE: stdout must remain empty for this script. All git output is sent to stderr or suppressed.
+  # This helper is used in contexts where callers redirect stdout/stderr as needed.
+  if commit__debug_enabled; then
+    # Show the effective git invocation at a high level (stderr only).
+    # Keep it simple—avoid fancy quoting logic.
+    commit__dbg "git: doas -u $GIT_USER_RESOLVED $GIT_BIN_RESOLVED --git-dir=$BARE_REPO --work-tree=$work_root $*"
+  fi
+
   doas -u "$GIT_USER_RESOLVED" "$GIT_BIN_RESOLVED" \
     --git-dir="$BARE_REPO" \
     --work-tree="$work_root" \
@@ -172,16 +194,13 @@ for file in "$@"; do
     '') commit__fail "empty file path argument" ;;
   esac
 
-  # Resolve the user-supplied argument to an absolute path for boundary checks.
-  # Note: for deletion support, the file may not exist, so we cannot rely on cd(dirname) always working.
+  # Resolve user-supplied arg to an absolute candidate for boundary checks.
+  # Deletion support: file may not exist; do not require parent dir to exist.
   case $file in
     /*) abs_candidate=$file ;;
     *)  abs_candidate=$work_root_prefix$file ;;
   esac
 
-  # Normalize without requiring the file to exist:
-  # - If the parent directory exists, canonicalize it via pwd -P
-  # - Otherwise, keep the raw joined path (boundary check uses work_root_prefix on the raw join)
   cand_dir=$(dirname -- "$abs_candidate") || commit__fail "cannot parse path: $file"
   cand_base=$(basename -- "$abs_candidate") || commit__fail "cannot parse path: $file"
 
@@ -191,7 +210,7 @@ for file in "$@"; do
     abs_path=$abs_candidate
   fi
 
-  # Enforce boundary: must be within the work tree (or equal to it).
+  # Enforce boundary: must be within work tree (or equal to it).
   case $abs_path in
     "$work_root_prefix"*) : ;;
     "$work_root")          : ;;
@@ -199,7 +218,6 @@ for file in "$@"; do
   esac
 
   # Reject directories to prevent staging implicit sets of files.
-  # If the directory exists, this is definitely misuse. If it doesn't exist, treat as deletion/missing file candidate.
   if [ -d "$abs_path" ]; then
     commit__fail "refusing to stage a directory (must be an explicit file): $file"
   fi
@@ -208,19 +226,16 @@ for file in "$@"; do
   [ "$rel_path" != "$abs_path" ] \
     || commit__fail "internal error deriving relative path for $file"
 
-  # Stage explicit file path, supporting deletions:
-  # - If the file exists now -> add it
-  # - If it does not exist -> remove it from the index if tracked (and stage that removal)
   if [ -e "$abs_path" ]; then
     commit__info "Staging file: $rel_path"
     commit__git add -- "$rel_path" >/dev/null 2>&1 \
       || commit__fail "git add failed for $file"
   else
-    # Only stage a deletion if the path is currently tracked.
     if commit__git ls-files --error-unmatch -- "$rel_path" >/dev/null 2>&1; then
       commit__info "Staging deletion: $rel_path"
-      commit__git rm --cached --ignore-unmatch -- "$rel_path" >/dev/null 2>&1 \
-        || commit__fail "git rm --cached failed for $file"
+      # Stage the removal from the index (records deletion in commit).
+      commit__git rm --ignore-unmatch -- "$rel_path" >/dev/null 2>&1 \
+        || commit__fail "git rm failed for $file"
     else
       commit__warn "Skipping missing untracked path (nothing to stage): $rel_path"
     fi
