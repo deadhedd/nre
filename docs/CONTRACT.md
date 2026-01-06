@@ -477,6 +477,51 @@ This logging contract exists to enforce these invariants:
 Leaf scripts should never need to think about logging.
 If they are thinking about logging, the architecture has already failed.
 
+#### 2.2.10 Internal Engine Debugging (Opt-In)
+
+The engine MAY support internal debugging output intended to aid development, diagnosis, and validation of engine behavior itself (e.g., wrapper lifecycle, logging sink behavior, report classification decisions).
+
+Internal debugging output is not job output and is strictly observational.
+
+**Rules and Invariants:**
+
+* Internal debugging MUST be explicitly opt-in.
+* Internal debugging MUST be disabled by default.
+* Internal debugging MUST NOT write to stdout under any circumstance.
+* Internal debugging MUST NOT alter:
+  * job execution order
+  * job stdout or stderr semantics
+  * exit codes
+  * classification outcomes
+  * commit behavior
+* Internal debugging output MUST be treated as diagnostic-only and MUST NOT be relied upon programmatically.
+
+**Scope:**
+
+Internal debugging MAY emit information about:
+
+* wrapper decision paths
+* logging initialization and routing
+* sink creation and pruning
+* reporter classification logic
+* internal invariant checks
+
+Internal debugging MUST NOT:
+
+* expose leaf script data beyond what is already present in logs
+* change the meaning or structure of standard logs
+* become required for correct operation
+
+**Destination:**
+
+Internal debugging output:
+
+* MAY be written to stderr
+* MAY be written to a dedicated debug log or stream
+* MUST remain logically and visually distinct from normal job logs
+
+Failure or absence of internal debugging output MUST NOT be treated as an error.
+
 ### 2.3 Exit Code Semantics
 
 Exit codes are the **primary machine-readable signal** of success or failure across the entire `obsidian-note-tools` ecosystem.
