@@ -1317,6 +1317,23 @@ When a logging operation fails (e.g., file open failure), functions **MAY** retu
 Generated notes and data artifacts are the priority.
 The caller (for example, `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure meets the **hard** criteria defined in §2.2.8 (corrupted or unsafe execution context). **Soft** failures (file unavailable but `stderr` intact) **MUST** be allowed to proceed.
 
+#### 3.2.X Dependency Resolution and Diagnostic Noise
+
+Logger subsystem helpers may depend on functions provided by other sourced libraries (for example, `datetime.sh`). These dependencies are considered part of the engine’s internal wiring and are assumed to be present in correct-by-construction execution.
+
+The engine does not require logger helpers to perform preflight dependency discovery (for example, via `command -v` or equivalent mechanisms) before invoking required functions.
+
+Rules:
+
+* Logger helpers **MUST** treat missing or unusable dependencies as operational failures and return exit code 10 as defined in Appendix C.6.
+* Logger helpers **MAY** rely on direct invocation of required functions rather than attempting to probe for their existence.
+* In dependency-missing scenarios, the shell may emit its own diagnostics to stderr (e.g., “not found”) prior to the helper emitting its own controlled error message.
+* The presence of such shell-emitted diagnostics on stderr **MUST NOT** be considered a contract violation.
+* Logger helpers **MUST NOT** emit dependency diagnostics to stdout.
+
+Rationale (non-normative):
+Experience has shown that portable, reliable preflight dependency checks are not consistently available or robust across supported environments, and can introduce complexity or false confidence without improving correctness. The engine therefore prefers explicit wiring and fail-fast behavior over defensive probing at internal seams.
+
 #### 3.2.9 Non-Goals
 
 `log.sh` **MUST NOT**:
@@ -1990,4 +2007,3 @@ Rules:
 
 - `log.sh` MUST treat 4 as a non-failure outcome (similar to how the wrapper treats the commit helper’s 3 as non-failure).
 - Logger helpers MUST NOT return 1 for any internal meaning to avoid collision with engine and reporter conventions.
-
