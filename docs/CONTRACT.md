@@ -20,6 +20,7 @@ Final proofreading is underway before treating this document as fully authoritat
    4. Run Cadence & Freshness
    5. Environment & Paths
    6. Idempotency & Side Effects
+   7. Internal Identifiers and Leading-Underscore Convention
 3. Component Contracts
    1. Execution Contract (job-wrap)
    2. Logger Contract (log.sh)
@@ -1097,6 +1098,27 @@ This contract exists to ensure that:
 
 A script that only works “the first time” is not automated—it is fragile.
 
+---
+
+### 2.7 Internal Identifiers and Leading-Underscore Convention
+
+The engine distinguishes between public, contract-governed interfaces and internal implementation details using naming conventions.
+
+#### 2.7.1 Leading Underscore Convention
+
+Any variable or function name beginning with a leading underscore (for example, `_lf_ts`, `_tmp`, `_internal_helper`) is considered **internal**.
+
+Internal identifiers:
+
+* are implementation details
+* are **not** part of the public contract surface
+* have no stability guarantees
+* may change, be renamed, or be removed without a contract revision
+
+Identifiers **without** a leading underscore are considered part of the component’s public interface unless explicitly documented otherwise.
+
+Callers MUST NOT rely on internal identifiers.
+
 ## 3. Component Contracts
 
 ### 3.1 Execution Contract (job-wrap)
@@ -1334,7 +1356,21 @@ Rules:
 Rationale (non-normative):
 Experience has shown that portable, reliable preflight dependency checks are not consistently available or robust across supported environments, and can introduce complexity or false confidence without improving correctness. The engine therefore prefers explicit wiring and fail-fast behavior over defensive probing at internal seams.
 
-#### 3.2.9 Non-Goals
+#### 3.2.9 Global Scratch Variables (POSIX `sh` constraint)
+
+Because POSIX `sh` does not provide function-local variables (`local`), logger components and helper libraries MAY use temporary scratch variables at global scope.
+
+Rules:
+
+* Scratch variables MUST be namespaced with a component-unique prefix (for example, `_lf_` for `log-format.sh`, `_ls_` for `log-sink.sh`, `_lc_` for `log-capture.sh`).
+* Scratch variables are internal implementation details and are not part of the public API surface.
+* Scratch variables MUST be treated as ephemeral and MUST NOT carry semantic meaning across calls.
+* Helpers MUST NOT require callers to unset or reset scratch variables.
+* Helpers MUST NOT clobber caller-provided output variables or contract-defined environment variables.
+
+Rationale (non-normative): Namespacing is the primary defense against collisions in POSIX `sh` and keeps helpers small while preserving the “do not mutate caller state unexpectedly” requirement.
+
+#### 3.2.10 Non-Goals
 
 `log.sh` **MUST NOT**:
 
@@ -1345,7 +1381,7 @@ Experience has shown that portable, reliable preflight dependency checks are not
 
 It exists to provide stable primitives that the wrapper composes.
 
-#### 3.2.10 Stability Promise
+#### 3.2.11 Stability Promise
 
 The logger’s public function names, message format, and stdout/stderr behavior are engine-stable.
 
