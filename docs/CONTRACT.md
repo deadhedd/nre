@@ -1097,6 +1097,25 @@ This contract exists to ensure that:
 
 A script that only works “the first time” is not automated—it is fragile.
 
+### 2.7 Internal Identifiers and Naming Conventions
+
+The engine distinguishes between **public, contract-governed interfaces** and **internal implementation details** using naming conventions.
+
+**Leading underscore convention**
+
+Any variable or function name beginning with a leading underscore (for example, `_lf_ts`, `_tmp`, `_internal_helper`) is considered **internal**.
+
+Internal identifiers:
+
+* Are implementation details
+* Are **not** part of the public contract surface
+* Have no stability guarantees
+* May change, be renamed, or be removed without a contract revision
+
+Identifiers **without** a leading underscore are considered part of the public interface of the component in which they are defined and **are** governed by this contract unless explicitly stated otherwise.
+
+Callers MUST NOT rely on the presence, meaning, or behavior of internal identifiers.
+
 ## 3. Component Contracts
 
 ### 3.1 Execution Contract (job-wrap)
@@ -1218,6 +1237,8 @@ Any script that attempts to bypass or reimplement this contract is considered **
 It provides a small, stable set of logging primitives used by engine components, primarily `job-wrap.sh`.
 
 It is intentionally minimal and opinionated to preserve engine invariants.
+
+Logger helpers use leading underscores to denote internal variables and helper functions; these identifiers are not part of the logger’s public API and must not be referenced by callers.
 
 `log.sh` is the coordinator and façade for the logger subsystem. It sources and orchestrates the following child helpers (all wrapper-only):
 
@@ -1862,6 +1883,8 @@ The core engine has been implemented to remain correct when they are unset.
 
 The following variables are **internal implementation details**.
 They are documented here for auditability only and are **not part of the public contract surface**:
+
+As a convention, internal-only variables and helper functions use a leading underscore to signal non-contract, implementation-only status.
 
 * `LOG_SINK_LOADED` — prevents double initialization of logging sink
 * Wrapper debug and tracing flags (`JOB_WRAP_DEBUG`, `JOB_WRAP_XTRACE`, etc.)
