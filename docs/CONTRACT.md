@@ -1119,6 +1119,79 @@ Identifiers **without** a leading underscore are considered part of the componen
 
 Callers MUST NOT rely on internal identifiers.
 
+### 2.8 Trusted Internal Components & Fail-Fast Assumption
+
+This system operates as a closed, trusted environment.
+
+All engine components, helpers, and documented leaf scripts are assumed to:
+
+* exist at their contracted paths
+* be executable where required
+* conform to their documented interfaces and behaviors
+
+As a result, defensive checks for the presence, discoverability, or validity of internal components are intentionally omitted.
+
+#### 2.8.1 Scope of the Assumption
+
+This assumption applies to:
+
+* Core engine components (`job-wrap.sh`, `log.sh`, `commit.sh`, `report.sh`)
+* Wrapper-only helpers under `utils/core/`
+* Documented leaf scripts invoked as part of the system
+* Internal libraries and helper functions sourced by engine components
+
+These components are treated as correct-by-construction and version-controlled as a unit.
+
+#### 2.8.2 Failure Semantics
+
+If an internal component is:
+
+* missing
+* non-executable
+* malformed
+* incompatible with its documented contract
+
+the resulting failure is considered a bug or configuration error, not a runtime condition to be handled gracefully.
+
+In such cases, the system MUST fail fast and visibly, allowing:
+
+* shell diagnostics to surface naturally on stderr
+* wrapper or engine failures to propagate via exit codes
+* logs to capture the failure context where possible
+
+Silent recovery, fallback behavior, or partial execution is explicitly disallowed.
+
+#### 2.8.3 Rationale (Non-Normative)
+
+Defensive coding at internal boundaries is intentionally avoided because it would:
+
+* obscure real errors and misconfigurations
+* mask contract violations
+* increase cognitive and maintenance overhead
+* introduce misleading “successful” states
+* degrade determinism and observability
+
+The system prefers early, loud failure over graceful degradation when internal assumptions are violated.
+
+#### 2.8.4 External Boundaries
+
+This contract does not prohibit validation or defensive handling at true external boundaries, such as:
+
+* user input
+* environment variables that affect correctness
+* filesystem state outside contracted roots
+* external tools or network resources
+
+Defensive checks are appropriate at those boundaries and are governed by their respective contracts.
+
+#### 2.8.5 Design Intent Summary
+
+This contract exists to enforce the following principle:
+
+Internal correctness is enforced by contract, documentation, and version control — not by runtime guards.
+
+If an internal dependency breaks, the system should stop, not guess.
+
 ## 3. Component Contracts
 
 ### 3.1 Execution Contract (job-wrap)
