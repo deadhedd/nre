@@ -203,6 +203,25 @@ If a consumer script redirects or captures stdout, it must be able to do so **wi
 
 ---
 
+#### 2.1.X Internal Plumbing Exception (Logging Subsystem Only)
+
+**Normative rule (still absolute at the boundary):**
+`stdout` remains reserved exclusively for primary data output. No job or engine component may emit uncaptured bytes to `stdout` that reach the job boundary. Violations are bugs.
+
+**Single exception (narrow and explicit):**
+The logger subsystem’s internal helper libraries MAY write to `stdout` **only** as a private, internal data channel when the caller captures it completely (e.g., command substitution or a pipeline whose stdout is redirected/consumed). This exception exists solely to support POSIX `sh` “return a string” mechanics inside the logging stack.
+
+**Prohibitions / guardrails:**
+
+* This exception applies **only** to logger subsystem helpers (e.g., format/sanitize helpers) and **only** for internal plumbing. It does not apply to leaf scripts, jobs, or higher-level engine components.
+* Logger helpers MUST NOT be invoked in a way that allows their stdout to reach the job boundary. Any code path that can leak helper stdout is a contract violation.
+* `log.sh` itself MUST NOT write to stdout under any circumstance.
+
+**Rationale (non-normative):**
+POSIX `sh` provides no portable, ergonomic way to return computed strings from functions except via captured `stdout`. Capturing `stderr` for return values either (a) mixes diagnostics and data, or (b) requires brittle redirection gymnastics that are easy to get wrong and risk leaking noise into logs or data streams. Therefore, the logging subsystem is granted a single, explicit exception: helper functions may use stdout as an *internal* data channel only when the caller captures it fully. The boundary rule remains intact: job stdout stays pristine.
+
+---
+
 #### 2.1.2 Stderr Is for Humans and Diagnostics
 
 **All non-data output MUST go to `stderr`.**
@@ -1357,7 +1376,10 @@ If an exception exists (e.g., a diagnostic-only tool), it **MUST** be explicitly
 
 #### 3.2.4 Output Contract (Stdout/Stderr)
 
-`log.sh` **MUST NOT** write to stdout, under any circumstance.
+**Normative:**
+
+* `log.sh` MUST NOT write to `stdout` under any circumstance.
+* Logger child helpers MAY use `stdout` only under the Internal Plumbing Exception (§2.1.X) and must not produce observable stdout at the job boundary.
 
 All logger output **MUST** go to stderr or to an explicitly configured log file descriptor/path.
 
