@@ -1430,6 +1430,7 @@ Logging functions **MUST** return 0 on success.
 When a logging operation fails (e.g., file open failure), functions **MAY** return non-zero.
 
 `log.sh` **MUST NOT** call `exit` except for the “executed directly” guard path.
+When sourced, logger subsystem helpers **MUST NOT** call `exit`. The only permitted `exit` is the “executed directly” misuse guard (exit 2).
 
 Generated notes and data artifacts are the priority.
 The caller (for example, `job-wrap.sh`) must treat logging as best-effort and **MUST NOT** fail a job purely because logging failed, unless the failure meets the **hard** criteria defined in §2.2.8 (corrupted or unsafe execution context). **Soft** failures (file unavailable but `stderr` intact) **MUST** be allowed to proceed.
@@ -1892,27 +1893,28 @@ Any breaking change to:
 ---
 
 ## Appendix A — Core Engine Environment Variable Inventory (Informative)
+This appendix defines the core engine environment variables and their required validation behavior.
 > **Scope:** Core engine components only (`job-wrap.sh`, logging sink, commit helper).
 >
-> This appendix documents environment variables **observed in use by the core engine** at the time of writing.
+> This appendix documents environment variables in use by the core engine at the time of writing.
 > It does **not** grant permission to introduce new variables, nor does it define required behavior by itself.
 > Normative rules governing environment variable usage are defined in Section 2.5.4.
 
 ### A.1 Summary
 
-| Variable         | Component          | Role / Default                                       | Observed validation behavior       |
+| Variable         | Component          | Role / Default                                       | Validation behavior                |
 | ---------------- | ------------------ | ---------------------------------------------------- | ---------------------------------- |
-| JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; expected `1` inside wrapper | Observed: wrapper exits if invalid |
-| JOB_NAME         | Log sink           | Job identifier used for log naming                   | Observed: sink exits if missing    |
-| LOG_FILE         | Log sink           | Timestamped log file path                            | Observed: sink exits if missing    |
-| LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                     | Observed: checked early            |
-| VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                        | Observed: defaulted; not strictly validated |
-| LOG_ROOT         | Wrapper / Log sink | Base log directory                                   | Observed: defaulted; not strictly validated |
-| TMPDIR           | Wrapper / Log sink | Temporary file parent                                | Observed: default `/tmp`; not validated |
-| COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                          | Observed: used directly; git validates |
-| GIT_BIN          | Commit helper      | Optional git binary override                         | Observed: executable verified      |
-| GIT_USER         | Commit helper      | Optional git user override                           | Observed: non-empty; used for `doas -u` |
-| PATH             | All                | Command search path                                  | Observed: reset with safe defaults |
+| JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; expected `1` inside wrapper | Wrapper initialization fails if invalid; wrapper treats this as fatal |
+| JOB_NAME         | Log sink           | Job identifier used for log naming                   | Sink initialization fails if missing; wrapper treats this as fatal |
+| LOG_FILE         | Log sink           | Timestamped log file path                            | Sink initialization fails if missing; wrapper treats this as fatal |
+| LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                     | Checked early                      |
+| VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                        | Defaulted; not strictly validated |
+| LOG_ROOT         | Wrapper / Log sink | Base log directory                                   | Defaulted; not strictly validated |
+| TMPDIR           | Wrapper / Log sink | Temporary file parent                                | Default `/tmp`; not validated |
+| COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                          | Used directly; git validates |
+| GIT_BIN          | Commit helper      | Optional git binary override                         | Executable verified |
+| GIT_USER         | Commit helper      | Optional git user override                           | Non-empty; used for `doas -u` |
+| PATH             | All                | Command search path                                  | Reset with safe defaults |
 
 ---
 
@@ -1925,25 +1927,25 @@ The following variables are treated as required by the core engine and are valid
 * **Owner:** Wrapper / Log sink
 * **Purpose:** Recursion guard to ensure exactly one wrapper instance per job
 * **Expected value:** `1` when executing under `job-wrap.sh`
-* **Observed failure behavior:** Hard exit if value is missing or invalid
+* **Failure behavior:** Wrapper initialization fails if value is missing or invalid; wrapper treats this as fatal
 
 #### JOB_NAME
 
 * **Owner:** Logging sink
 * **Purpose:** Stable job identifier for log naming and latest pointers
-* **Observed failure behavior:** Hard exit if missing or empty
+* **Failure behavior:** Sink initialization fails if missing or empty; wrapper treats this as fatal
 
 #### LOG_FILE
 
 * **Owner:** Logging sink
 * **Purpose:** Path to the current run’s timestamped log file
-* **Observed failure behavior:** Hard exit if missing or empty
+* **Failure behavior:** Sink initialization fails if missing or empty; wrapper treats this as fatal
 
 ---
 
 ### A.3 Recognized Optional Overrides
 
-These variables are observed overrides for default behavior.
+These variables are overrides for default behavior.
 The core engine has been implemented to remain correct when they are unset.
 
 #### VAULT_PATH
