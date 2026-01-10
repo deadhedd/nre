@@ -911,6 +911,7 @@ Introduction of any new environment variable that affects correctness, output lo
 Core engine components enforce the following environment variable requirements:
 
 * `JOB_WRAP_ACTIVE` **MUST** be set to `1` inside job-wrap-managed execution, and the wrapper **MUST** exit if the value is missing or invalid before invoking leaf scripts.
+  * `log.sh` additionally asserts wrapper-context before initializing the logging subsystem.
 * `JOB_NAME` **MUST** be present and non-empty when the logging sink initializes, and the sink **MUST** hard exit if it is missing.
 * `LOG_FILE` **MUST** be provided when the logging sink initializes, and the sink **MUST** hard exit if it is missing or empty.
 
@@ -1335,12 +1336,17 @@ It is intentionally minimal and opinionated to preserve engine invariants.
 
 `log.sh` is the coordinator and façade for the logger subsystem. It sources and orchestrates the following child helpers (all wrapper-only):
 
+**Authority & Ownership Gates**
+
+`log.sh` is the façade and MUST enforce wrapper-context prerequisites (including `JOB_WRAP_ACTIVE=1`) before initializing or invoking any logger child helpers. Logger child helpers MUST assume they are invoked only by the façade and MUST NOT be called directly by other components.
+
 * `log-format.sh`
   * Provides sanitization, timestamping, and level gating.
   * Responsible for the canonical log line format and ASCII-only enforcement.
 * `log-sink.sh`
   * Owns log file lifecycle (open on FD, latest symlink, pruning, optional truncate).
-  * Enforces wrapper ownership (`JOB_WRAP_ACTIVE=1`) before any sink mutation.
+  * Enforces façade ownership before any sink mutation (for example, via an internal guard set by `log.sh` during initialization). Wrapper-context validation (`JOB_WRAP_ACTIVE=1`) is enforced by `log.sh` prior to sink initialization.
+  * `log.sh` is expected to supply `JOB_NAME` and `LOG_FILE` during initialization; however, the sink remains authoritative and MUST hard-exit if they are missing at sink init time.
 * `log-capture.sh`
   * Provides stream readers that timestamp and level-tag captured output.
   * Never sets up the pipes itself; it only formats and forwards to the sink.
@@ -1463,6 +1469,7 @@ Rules:
 * Scratch variables MUST be treated as ephemeral and MUST NOT carry semantic meaning across calls.
 * Helpers MUST NOT require callers to unset or reset scratch variables.
 * Helpers MUST NOT clobber caller-provided output variables or contract-defined environment variables.
+* Any façade-ownership guard variable (for example, `LOG_FACADE_ACTIVE`) is an internal implementation detail and is not part of the public environment contract surface.
 
 Rationale (non-normative): Namespacing is the primary defense against collisions in POSIX `sh` and keeps helpers small while preserving the “do not mutate caller state unexpectedly” requirement.
 
@@ -2135,8 +2142,15 @@ Applies to logger child helpers orchestrated by `log.sh` (e.g., `log-format.sh`,
 | 0 | Success; output produced (line/stream formatted, sink op succeeded) |
 | 4 | Suppressed / gated by policy (non-failure; caller should treat as “no output by design”) |
 | 10 | Operational failure (invalid args, invalid level, unusable backend, invariant violation) |
+| 11 | Logger helper misuse (missing façade context) |
 
 Rules:
 
 - `log.sh` MUST treat 4 as a non-failure outcome (similar to how the wrapper treats the commit helper’s 3 as non-failure).
 - Logger helpers MUST NOT return 1 for any internal meaning to avoid collision with engine and reporter conventions.
+- Logger helper misuse (missing façade context) MUST:
+  - NOT perform sink mutation or other side effects
+  - emit a single-line error to stderr
+  - return 11 (not exit) when sourced
+  - allow the caller (`log.sh` and/or `job-wrap.sh`) to decide whether to treat this as hard engine failure or soft degradation
+- Direct execution of any logger helper remains misuse and MUST exit 2 (per §3.2.2).
