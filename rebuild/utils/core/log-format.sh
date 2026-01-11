@@ -7,13 +7,15 @@
 # Purpose (contract):
 # - Sanitize messages (CR stripped; non-ASCII replaced)
 # - Gate levels (policy provided by higher authority: log.sh / wrapper)
-# - Stamp each line with a local timestamp (explicitly labeled in-format)
+# - Stamp each log *line* with a local timestamp (explicitly labeled in-format)
+# - Provide canonical, lexicographically sortable local timestamps for log *filenames*
 #
 # Library-only: MUST be sourced (never executed).
 # Dependency: datetime.sh MUST be sourced before this file (by log.sh).
 #
-# Timestamp requirement:
-# - Requires dt_now_local_log_ts (returns "YYYY-MM-DD HH:MM:SS", local)
+# Timestamp requirements:
+# - Requires dt_now_local_log_ts      -> "YYYY-MM-DD HH:MM:SS" (local) for log lines
+# - Requires dt_now_local_file_ts     -> "YYYY-MM-DD-HHMMSS"   (local) for log filenames
 # - No fallback paths (missing datetime is an operational failure)
 #
 # Worker model:
@@ -76,16 +78,58 @@ _lf_allow_level() {
   return 4
 }
 
-_lf_timestamp() {
+_lf_timestamp_line() {
   # Dependency must be provided by datetime.sh (sourced by log.sh).
+  # Expected: "YYYY-MM-DD HH:MM:SS" (local)
   _lf_ts=$(dt_now_local_log_ts) || {
-    _lf_die "failed to obtain local timestamp"
+    _lf_die "failed to obtain local line timestamp"
     return 10
   }
   [ -n "$_lf_ts" ] || {
-    _lf_die "failed to obtain local timestamp"
+    _lf_die "failed to obtain local line timestamp"
     return 10
   }
+
+  # Basic shape guard (non-exhaustive; dependency is trusted).
+  case $_lf_ts in
+    ????-??-??" "??:??:??) : ;;
+    *)
+      _lf_die "invalid local line timestamp format: $_lf_ts"
+      return 10
+      ;;
+  esac
+
+  printf '%s' "$_lf_ts"
+}
+
+_lf_timestamp_file() {
+  # Dependency must be provided by datetime.sh (sourced by log.sh).
+  # Canonical filename ts: "YYYY-MM-DD-HHMMSS" (local), lexicographically sortable.
+  _lf_ts=$(dt_now_local_file_ts) || {
+    _lf_die "failed to obtain local filename timestamp"
+    return 10
+  }
+  [ -n "$_lf_ts" ] || {
+    _lf_die "failed to obtain local filename timestamp"
+    return 10
+  }
+
+  # Basic shape guard (non-exhaustive; dependency is trusted).
+  case $_lf_ts in
+    ????-??-??-??????) : ;;
+    *)
+      _lf_die "invalid local filename timestamp format: $_lf_ts"
+      return 10
+      ;;
+  esac
+
+  # Enforce contract invariant: no whitespace/newlines in filename ts.
+  case $_lf_ts in
+    *[!0-9-]*)
+      _lf_die "invalid characters in filename timestamp: $_lf_ts"
+      return 10
+      ;;
+  esac
 
   printf '%s' "$_lf_ts"
 }
@@ -179,7 +223,7 @@ log_format_build_line() {
     *) _lf_die "log_format_build_line: level gating failed unexpectedly"; return 10 ;;
   esac
 
-  _lf_ts=$(_lf_timestamp) || return 10
+  _lf_ts=$(_lf_timestamp_line) || return 10
 
   _lf_sanitized=$(printf '%s' "$_lf_msg" | _lf_sanitize_ascii) || {
     _lf_die "log_format_build_line: sanitize failed"
@@ -195,5 +239,29 @@ log_format_build_line() {
   }
 
   _lf_set_var "$_lf_out_var" "$_lf_line" || return 10
+  return 0
+}
+
+log_format_now_file_ts() {
+  # Build the canonical, lexicographically sortable local filename timestamp.
+  #
+  # Usage:
+  #   log_format_now_file_ts <OUT_VAR>
+  #
+  # Return codes:
+  #   0  success; OUT_VAR set
+  #   10 operational failure
+  #
+  # Notes:
+  # - This function MUST NOT emit the timestamp to stdout as user-visible output.
+  # - Caller provides OUT_VAR.
+  if [ $# -ne 1 ]; then
+    _lf_die "log_format_now_file_ts: OUT_VAR is required"
+    return 10
+  fi
+
+  _lf_out_var=$1
+  _lf_ts=$(_lf_timestamp_file) || return 10
+  _lf_set_var "$_lf_out_var" "$_lf_ts" || return 10
   return 0
 }
