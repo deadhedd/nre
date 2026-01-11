@@ -1368,28 +1368,77 @@ It provides a small, stable set of logging primitives used by engine components,
 
 It is intentionally minimal and opinionated to preserve engine invariants.
 
-`log.sh` is the coordinator and façade for the logger subsystem. It sources and orchestrates the following child helpers (all wrapper-only):
-
-**Authority & Ownership Gates**
-
-`log.sh` is the façade and MUST enforce wrapper-context prerequisites (including `JOB_WRAP_ACTIVE=1`) before initializing or invoking any logger child helpers. Logger child helpers MUST assume they are invoked only by the façade and MUST NOT be called directly by other components.
+`log.sh` is the **façade and coordinator** for the logger subsystem. It sources and orchestrates the following child helpers (all wrapper-only):
 
 * `log-format.sh`
-  * Provides sanitization, timestamping, and level gating.
-  * Responsible for the canonical log line format and ASCII-only enforcement.
 * `log-sink.sh`
-  * Owns log file lifecycle (open on FD, latest symlink, pruning, optional truncate).
-  * Enforces façade ownership before any sink mutation (for example, via an internal guard set by `log.sh` during initialization). Wrapper-context validation (`JOB_WRAP_ACTIVE=1`) is enforced by `log.sh` prior to sink initialization.
-  * `log.sh` is expected to supply `JOB_NAME` and `LOG_FILE` during initialization; however, the sink remains authoritative and MUST hard-exit if they are missing at sink init time.
 * `log-capture.sh`
-  * Provides stream readers that timestamp and level-tag captured output.
-  * Never sets up the pipes itself; it only formats and forwards to the sink.
 
-`log.sh` wires these helpers together: `log_init` invokes the sink lifecycle, emitters reuse the formatter + sink, and capture helpers expect job-wrap-provided streams. The decomposition keeps formatting, capture, and file management separate while preserving a single logging API and authority.
+---
 
-Child helpers MUST NOT be sourced directly by leaf scripts; `log.sh` remains the single point of entry and coordination.
+#### Logger façade ownership and failure semantics (Normative)
 
-Violations of this contract are considered bugs.
+`log.sh` is the **sole authority** responsible for:
+
+* validating wrapper context (`JOB_WRAP_ACTIVE=1`)
+* establishing façade ownership (`LOG_FACADE_ACTIVE=1`)
+* supplying required sink context (`JOB_NAME`, `LOG_FILE`)
+* deciding whether logger helper failures escalate to wrapper failure
+
+Logger child helpers (including `log-sink.sh`) operate under the following strict rules:
+
+##### Required context handling
+
+* Logger helpers **MUST NOT call `exit` when sourced**, except for the “executed directly” misuse guard.
+* When required façade-provided context is missing or invalid (for example, missing `JOB_NAME` or `LOG_FILE`):
+
+  * Logger helpers **MUST treat this as misuse**
+  * Logger helpers **MUST emit a single diagnostic line to stderr**
+  * Logger helpers **MUST return exit code `11`**
+* Logger helpers **MUST NOT attempt to recover, infer defaults, or silently degrade behavior** in this situation.
+
+##### Operational failures
+
+* When a logger helper encounters an operational failure (for example, cannot create a directory, cannot open a log file, cannot update the latest symlink):
+
+  * The helper **MUST emit a diagnostic line to stderr**
+  * The helper **MUST return exit code `10`**
+
+##### Escalation authority
+
+* Logger helpers **MUST NOT decide whether a failure is fatal to the job**
+* `log.sh` (and ultimately `job-wrap.sh`) is the **sole authority** that decides whether:
+
+  * a helper failure degrades to stderr-only logging (soft failure), or
+  * a helper failure constitutes a corrupted or unsafe execution context (hard failure)
+
+This preserves centralized policy, deterministic behavior, and wrapper authority.
+
+---
+
+#### Library-only contract
+
+`log.sh` and all logger child helpers **MUST be sourced, not executed**.
+
+If executed directly:
+
+* The component **MUST** emit a clear error to stderr
+* The component **MUST** exit with code `2`
+
+This rule applies uniformly to:
+
+* `log.sh`
+* `log-format.sh`
+* `log-sink.sh`
+* `log-capture.sh`
+
+---
+
+#### Output contract
+
+* `log.sh` **MUST NOT** write to stdout under any circumstance.
+* Logger child helpers **MAY** use stdout **only** under the Internal Plumbing Exception (§2.1.X), and only when fully captured.
+* No logger output may reach the job stdout boundary.
 
 #### 3.2.2 Library-Only (Sourcing) Contract
 
