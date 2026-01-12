@@ -459,6 +459,15 @@ This decoupling allows log layout to evolve without touching jobs.
 
 ---
 
+#### 2.2.4.X Retention Scope (Normative)
+
+* Retention pruning performed by the logger subsystem (`log-sink.sh`) **MUST** be **directory-local**.
+* “Directory-local” means: pruning considers only per-run log files that are **direct children** of the directory that contains the current run’s `LOG_FILE`.
+* The logger **MUST NOT** recurse into subdirectories when pruning logs.
+* The logger **MUST** prune only files matching the per-run log filename shape (`<job>-<ts>.log`) and **MUST NOT** treat `*-latest.log` as a retention candidate.
+
+---
+
 #### 2.2.5 Structured Log Content
 
 Logs may contain:
@@ -1506,6 +1515,8 @@ The logger **MUST NOT** mutate caller state unexpectedly (no silent `cd`, no `PA
 The logger **MUST** operate under `set -eu` callers without causing spurious exits.
 
 If the logger needs to handle failure internally (e.g., cannot open a log file), it **MUST** degrade gracefully to stderr and/or return a non-zero status for the caller to handle.
+
+* Logger helpers should avoid mechanisms that mutate caller shell state (e.g., positional parameters) and should implement retention enumeration without side effects (see §2.2.4.X).
 
 #### 3.2.7 Internal Debug (Opt-in Only)
 
