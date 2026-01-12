@@ -946,8 +946,13 @@ Core engine components enforce the following environment variable requirements:
 
 * `JOB_WRAP_ACTIVE` **MUST** be set to `1` inside job-wrap-managed execution, and the wrapper **MUST** exit if the value is missing or invalid before invoking leaf scripts.
   * `log.sh` additionally asserts wrapper-context before initializing the logging subsystem.
-* `JOB_NAME` **MUST** be present and non-empty when the logging sink initializes, and the sink **MUST** hard exit if it is missing.
-* `LOG_FILE` **MUST** be provided when the logging sink initializes, and the sink **MUST** hard exit if it is missing or empty.
+* `JOB_NAME` **MUST** be present, non-empty, and **valid** when the logging sink initializes.
+  * When sourced, logger helpers (including the sink) **MUST NOT** call `exit` for missing/invalid required façade-provided context.
+  * Missing/invalid `JOB_NAME` is **logger helper misuse**: the helper **MUST** emit one diagnostic line to stderr and **MUST return `11`**.
+  * Escalation (soft degrade vs wrapper failure) remains owned by `log.sh` / `job-wrap.sh`.
+* `LOG_FILE` **MUST** be provided and non-empty when the logging sink initializes.
+  * Missing/invalid `LOG_FILE` is **logger helper misuse**: the helper **MUST** emit one diagnostic line to stderr and **MUST return `11`**.
+  * Escalation remains owned by `log.sh` / `job-wrap.sh`.
 
 Optional overrides such as `VAULT_PATH`, `LOG_ROOT`, `TMPDIR`, `COMMIT_BARE_REPO`, and `GIT_BIN` **MUST** fall back to deterministic defaults, and components **MUST** remain correct when they are unset.
 
@@ -1995,8 +2000,8 @@ This appendix defines the core engine environment variables and their required v
 | Variable         | Component          | Role / Default                                       | Validation behavior                |
 | ---------------- | ------------------ | ---------------------------------------------------- | ---------------------------------- |
 | JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; expected `1` inside wrapper | Wrapper initialization fails if invalid; wrapper treats this as fatal |
-| JOB_NAME         | Log sink           | Job identifier used for log naming                   | Sink initialization fails if missing; wrapper treats this as fatal |
-| LOG_FILE         | Log sink           | Timestamped log file path                            | Sink initialization fails if missing; wrapper treats this as fatal |
+| JOB_NAME         | Log sink           | Job identifier used for log naming                   | Sink initialization fails if missing/invalid (misuse → return `11`); escalation owned by wrapper |
+| LOG_FILE         | Log sink           | Timestamped log file path                            | Sink initialization fails if missing/invalid (misuse → return `11`); escalation owned by wrapper |
 | LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                     | Checked early                      |
 | VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                        | Defaulted; not strictly validated |
 | LOG_ROOT         | Wrapper / Log sink | Base log directory                                   | Defaulted; not strictly validated |
@@ -2023,13 +2028,29 @@ The following variables are treated as required by the core engine and are valid
 
 * **Owner:** Logging sink
 * **Purpose:** Stable job identifier for log naming and latest pointers
-* **Failure behavior:** Sink initialization fails if missing or empty; wrapper treats this as fatal
+* **Validity requirements (Normative):**
+  * **MUST** be ASCII and **MUST NOT** contain whitespace or control characters.
+  * **MUST NOT** contain `/` (path separator) or `.` / `..` path segments.
+  * **MUST NOT** contain shell glob metacharacters or pattern syntax:
+    `* ? [ ] { }`
+  * **MUST** be safe for direct inclusion in filenames and glob patterns used by retention logic.
+  * **Recommended allowed set:** `[A-Za-z0-9._-]`
+    * (If the implementation chooses to be stricter, that is allowed. If it chooses to be looser, it must still satisfy the prohibitions above.)
+  * **Length SHOULD** be kept reasonable (recommended ≤ 64 chars) to avoid path-length issues.
+* **Failure behavior (when sourced):**
+  * Missing/invalid `JOB_NAME` is **logger helper misuse**.
+  * The sink **MUST** emit a single diagnostic line to stderr and **MUST return `11`**.
+  * The sink **MUST NOT** call `exit` (except for the executed-directly guard).
+  * `log.sh` / `job-wrap.sh` remain the sole escalation authority.
 
 #### LOG_FILE
 
 * **Owner:** Logging sink
 * **Purpose:** Path to the current run’s timestamped log file
-* **Failure behavior:** Sink initialization fails if missing or empty; wrapper treats this as fatal
+* **Failure behavior (when sourced):**
+  * Missing/invalid `LOG_FILE` is **logger helper misuse**.
+  * The sink **MUST** emit a single diagnostic line to stderr and **MUST return `11`**.
+  * Escalation remains owned by `log.sh` / `job-wrap.sh`.
 
 ---
 
