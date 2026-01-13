@@ -376,7 +376,8 @@ The logging model is intentionally simple and robust:
 * The wrapper annotates and appends this output to a per-run log file
 * Each job run produces **exactly one log file**
 
-No filtering, parsing, or suppression is applied at capture time.
+No ad-hoc filtering, parsing, or suppression is applied at capture time. The only permitted omission is explicit logger policy gating (e.g., level gating performed by `log-format.sh`), which is treated as a non-failure “no output by design” outcome. (See Appendix C.6 for logger helper return codes, including the non-failure “suppressed by policy” outcome.)
+Policy gating MUST NOT rewrite or reinterpret message content; it only determines whether a line is emitted.
 
 This guarantees:
 
