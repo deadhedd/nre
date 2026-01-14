@@ -935,6 +935,8 @@ Only environment variables explicitly defined as part of the ecosystem contract 
 
 The authoritative list of environment variables currently observed in use — including their classification (required, optional override, or internal guard) — is maintained in Appendix A: Environment Variable Inventory (Informative).
 
+Logger helper context variables (for example, `LOG_SINK_FD` and `LOG_MIN_LEVEL`) are internal to the logger subsystem and documented under §3.2 and Appendix D; they are not part of the public environment contract for leaf scripts.
+
 **Requirements**
 
 If a script depends on an environment variable to behave correctly, it MUST:
@@ -1411,6 +1413,28 @@ Logger child helpers (including `log-sink.sh`) operate under the following stric
   * Logger helpers **MUST emit a single diagnostic line to stderr**
   * Logger helpers **MUST return exit code `11`**
 * Logger helpers **MUST NOT attempt to recover, infer defaults, or silently degrade behavior** in this situation.
+
+##### Logger helper context variables (façade-provided, internal)
+
+* These variables are an **internal contract** between `log.sh` and logger helpers.
+* They are **not** part of the external/public environment contract (they are not guaranteed for leaf scripts).
+* Logger helpers **MUST** treat missing or invalid values as **misuse** and **MUST** return `11` with a single diagnostic line to stderr.
+* `log.sh` remains the **sole authority** to set these variables and decide escalation.
+
+The façade-provided internal variables include:
+
+* `LOG_SINK_FD`
+  * **Meaning:** open file descriptor for the active log sink (where capture writes).
+  * **Validity:** non-empty, numeric, and refers to an open FD suitable for `printf ... >&FD`.
+  * **Owner:** `log.sh` (or the sink init path it orchestrates).
+  * **Consumers:** `log-capture.sh`.
+  * **Missing/invalid:** misuse → return `11`.
+* `LOG_MIN_LEVEL`
+  * **Meaning:** policy gate threshold passed into the formatter.
+  * **Validity:** non-empty; must be one of the supported levels defined by the formatter.
+  * **Owner:** `log.sh`.
+  * **Consumers:** `log-capture.sh` / formatter calls.
+  * **Missing/invalid:** misuse → return `11`.
 
 ##### Operational failures
 
@@ -2270,3 +2294,15 @@ Rules:
   - return 11 (not exit) when sourced
   - allow the caller (`log.sh` and/or `job-wrap.sh`) to decide whether to treat this as hard engine failure or soft degradation
 - Direct execution of any logger helper remains misuse and MUST exit 2 (per §3.2.2).
+
+---
+
+## Appendix D — Logger Internal Context Variables (Informative)
+
+These are internal engine wiring variables; they are not a stable public environment interface and must not be used by leaf scripts.
+
+| Variable         | Owner              | Consumers                         | Purpose                                       | Validation / failure |
+| ---------------- | ------------------ | --------------------------------- | --------------------------------------------- | -------------------- |
+| LOG_FACADE_ACTIVE | log.sh             | log-format / log-sink / log-capture | Proves façade ownership active                | Missing → helper misuse → return `11` |
+| LOG_SINK_FD      | log.sh / sink init | log-capture                        | FD to write formatted lines to                | Missing/invalid → misuse → return `11` |
+| LOG_MIN_LEVEL    | log.sh             | log-format / log-capture           | Minimum log level gate                        | Missing/invalid → misuse → return `11` |
