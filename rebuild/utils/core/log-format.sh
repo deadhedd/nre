@@ -27,6 +27,8 @@
 # - This module MUST NOT emit formatted log lines to stdout as user-visible output.
 # - Formatted output is returned to the caller via an output variable.
 # - Internal pipelines may write to stdout when captured by the caller.
+#
+# Contract reference: :contentReference[oaicite:0]{index=0}
 
 # Refuse execution; must be sourced.
 (return 0 2>/dev/null) || {
@@ -49,6 +51,12 @@ _lf_die() {
   return 10
 }
 
+_lf_misuse() {
+  # Misuse of façade-provided internal context (return 11).
+  printf '%s\n' "Error: $*" >&2
+  return 11
+}
+
 _lf_level_val() {
   case "${1:-}" in
     DEBUG) printf '%s' 10 ;;
@@ -59,9 +67,19 @@ _lf_level_val() {
   esac
 }
 
-_lf_validate_level_name() {
+_lf_validate_min_level_name() {
+  # MIN_LEVEL is façade-provided policy context; invalid => misuse (11).
   _lf_level_val "${1:-}" >/dev/null 2>&1 || {
-    _lf_die "invalid level: ${1:-} (expected DEBUG|INFO|WARN|ERROR)"
+    _lf_misuse "invalid MIN_LEVEL: ${1:-} (expected DEBUG|INFO|WARN|ERROR)"
+    return 11
+  }
+  return 0
+}
+
+_lf_validate_msg_level_name() {
+  # Per-message LEVEL is an argument; invalid => operational failure (10).
+  _lf_level_val "${1:-}" >/dev/null 2>&1 || {
+    _lf_die "invalid LEVEL: ${1:-} (expected DEBUG|INFO|WARN|ERROR)"
     return 10
   }
   return 0
@@ -189,7 +207,8 @@ log_format_build_line() {
   # Return codes:
   #   0  success; OUT_VAR set
   #   4  gated/suppressed by policy (non-failure; OUT_VAR untouched)
-  #   10 operational failure
+  #   10 operational failure (including invalid LEVEL)
+  #   11 misuse (invalid MIN_LEVEL / policy context)
   #
   # Notes:
   # - MESSAGE must be a single argument and single-line.
@@ -204,8 +223,8 @@ log_format_build_line() {
   _lf_level=$3
   _lf_msg=$4
 
-  _lf_validate_level_name "$_lf_min_level" || return 10
-  _lf_validate_level_name "$_lf_level" || return 10
+  _lf_validate_min_level_name "$_lf_min_level" || return $?
+  _lf_validate_msg_level_name "$_lf_level" || return $?
 
   case "$_lf_msg" in
     *'
