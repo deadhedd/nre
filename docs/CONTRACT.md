@@ -968,7 +968,7 @@ Core engine components enforce the following environment variable requirements:
 
 Optional overrides such as `VAULT_PATH`, `LOG_ROOT`, `TMPDIR`, `COMMIT_BARE_REPO`, and `GIT_BIN` **MUST** fall back to deterministic defaults, and components **MUST** remain correct when they are unset.
 
-Internal guards and debug toggles (for example, `LOG_SINK_LOADED`, `JOB_WRAP_DEBUG`, or `LOG_ASCII_ONLY`) are implementation details and **MUST NOT** be treated as part of the public environment contract.
+Internal guards and debug toggles (for example, `LOG_SINK_LOADED`, `LOG_FACADE_LOADED`, `JOB_WRAP_DEBUG`, or `LOG_ASCII_ONLY`) are implementation details and **MUST NOT** be treated as part of the public environment contract.
 
 Validation and defaulting behavior for all other core engine variables is described in Appendix A.
 
@@ -1391,6 +1391,8 @@ It is intentionally minimal and opinionated to preserve engine invariants.
 * `log-sink.sh`
 * `log-capture.sh`
 
+Because POSIX `sh` cannot portably discover the library’s own path when sourced, the wrapper **MUST** provide `LOG_LIB_DIR`.
+
 ---
 
 #### Logger façade ownership and failure semantics (Normative)
@@ -1398,9 +1400,11 @@ It is intentionally minimal and opinionated to preserve engine invariants.
 `log.sh` is the **sole authority** responsible for:
 
 * validating wrapper context (`JOB_WRAP_ACTIVE=1`)
-* establishing façade ownership (`LOG_FACADE_ACTIVE=1`)
+* establishing façade ownership by setting `LOG_FACADE_LOADED=1`
 * supplying required sink context (`JOB_NAME`, `LOG_FILE`)
 * deciding whether logger helper failures escalate to wrapper failure
+
+`LOG_FACADE_LOADED=1` means the log façade has been sourced/initialized and owns the façade context for the current wrapper execution. It is an internal guard variable, not part of the public environment contract for leaf scripts.
 
 Logger child helpers (including `log-sink.sh`) operate under the following strict rules:
 
@@ -1423,6 +1427,12 @@ Logger child helpers (including `log-sink.sh`) operate under the following stric
 
 The façade-provided internal variables include:
 
+* `LOG_LIB_DIR`
+  * **Meaning:** absolute (or resolvable) directory containing logger child helpers (`log-format.sh`, `log-sink.sh`, `log-capture.sh`).
+  * **Owner:** `job-wrap.sh` (or the engine wiring path that sources `log.sh`).
+  * **Consumers:** `log.sh` (to source logger children).
+  * **Validity:** non-empty; MUST refer to an existing directory; SHOULD be an absolute, physical path (or must be normalizable to one).
+  * **Missing/invalid:** misuse → return `11`.
 * `LOG_SINK_FD`
   * **Meaning:** open file descriptor for the active log sink (where capture writes).
   * **Validity:** non-empty, numeric, and refers to an open FD suitable for `printf ... >&FD`.
@@ -1593,7 +1603,7 @@ Rules:
 * Scratch variables MUST be treated as ephemeral and MUST NOT carry semantic meaning across calls.
 * Helpers MUST NOT require callers to unset or reset scratch variables.
 * Helpers MUST NOT clobber caller-provided output variables or contract-defined environment variables.
-* Any façade-ownership guard variable (for example, `LOG_FACADE_ACTIVE`) is an internal implementation detail and is not part of the public environment contract surface.
+* Any façade-ownership guard variable (for example, `LOG_FACADE_LOADED`) is an internal implementation detail and is not part of the public environment contract surface.
 
 Rationale (non-normative): Namespacing is the primary defense against collisions in POSIX `sh` and keeps helpers small while preserving the “do not mutate caller state unexpectedly” requirement.
 
@@ -2038,6 +2048,7 @@ This appendix defines the core engine environment variables and their required v
 | JOB_WRAP_ACTIVE  | Wrapper / Log sink | Wrapper recursion guard; expected `1` inside wrapper | Wrapper initialization fails if invalid; wrapper treats this as fatal |
 | JOB_NAME         | Log sink           | Job identifier used for log naming                   | Sink initialization fails if missing/invalid (misuse → return `11`); escalation owned by wrapper |
 | LOG_FILE         | Log sink           | Timestamped log file path                            | Sink initialization fails if missing/invalid (misuse → return `11`); escalation owned by wrapper |
+| LOG_LIB_DIR      | Wrapper / Logger façade | Directory containing logger helper libs        | Required; missing/invalid is misuse (return `11`); escalation owned by wrapper/façade |
 | LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                     | Checked early                      |
 | VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                        | Defaulted; not strictly validated |
 | LOG_ROOT         | Wrapper / Log sink | Base log directory                                   | Defaulted; not strictly validated |
@@ -2086,6 +2097,19 @@ The following variables are treated as required by the core engine and are valid
 * **Failure behavior (when sourced):**
   * Missing/invalid `LOG_FILE` is **logger helper misuse**.
   * The sink **MUST** emit a single diagnostic line to stderr and **MUST return `11`**.
+  * Escalation remains owned by `log.sh` / `job-wrap.sh`.
+
+#### LOG_LIB_DIR
+
+* **Owner:** Wrapper / Logger façade
+* **Purpose:** Directory containing logger helper libs (`log-format.sh`, `log-sink.sh`, `log-capture.sh`)
+* **Validity requirements (Normative):**
+  * **MUST** be non-empty.
+  * **MUST** refer to an existing directory.
+  * **SHOULD** be an absolute, physical path (or must be normalizable to one).
+* **Failure behavior (when sourced):**
+  * Missing/invalid `LOG_LIB_DIR` is **logger helper misuse**.
+  * The helper **MUST** emit a single diagnostic line to stderr and **MUST return `11`**.
   * Escalation remains owned by `log.sh` / `job-wrap.sh`.
 
 ---
@@ -2303,6 +2327,7 @@ These are internal engine wiring variables; they are not a stable public environ
 
 | Variable         | Owner              | Consumers                         | Purpose                                       | Validation / failure |
 | ---------------- | ------------------ | --------------------------------- | --------------------------------------------- | -------------------- |
-| LOG_FACADE_ACTIVE | log.sh             | log-format / log-sink / log-capture | Proves façade ownership active                | Missing → helper misuse → return `11` |
+| LOG_FACADE_LOADED | log.sh             | log-format / log-sink / log-capture | Proves façade ownership active                | Missing → helper misuse → return `11` |
+| LOG_LIB_DIR      | job-wrap.sh        | log.sh                             | Directory containing logger helper libs       | Missing/invalid → misuse → return `11` |
 | LOG_SINK_FD      | log.sh / sink init | log-capture                        | FD to write formatted lines to                | Missing/invalid → misuse → return `11` |
 | LOG_MIN_LEVEL    | log.sh             | log-format / log-capture           | Minimum log level gate                        | Missing/invalid → misuse → return `11` |
