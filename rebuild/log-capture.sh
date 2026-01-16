@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/core/log-capture.sh
+# rebuild/log-capture.sh
 #
 # Library-only logging helper.
 # Captures stdin line-by-line and forwards each line through log-format,

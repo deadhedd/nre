@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/core/log.sh
+# rebuild/log.sh
 # Logging facade and coordinator (library-only; wrapper-only).
 # Author: deadhedd
 # License: MIT

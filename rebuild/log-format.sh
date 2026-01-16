@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/core/log-format.sh
+# rebuild/log-format.sh
 # Author: deadhedd
 # License: MIT
 # shellcheck shell=sh

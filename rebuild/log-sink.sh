@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/core/log-sink.sh
+# rebuild/log-sink.sh
 #
 # Logging sink lifecycle manager.
 # Library-only. MUST be sourced by job-wrap.sh (via log.sh).
