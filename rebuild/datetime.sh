@@ -8,9 +8,11 @@
 # - Provide deterministic local-first date/time helpers
 # - Select a supported date(1) backend once (BSD vs GNU)
 # - Library-only: MUST be sourced (never executed)
-
-set -eu
-PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+#
+# Integration rule:
+# - As a sourced library, this file MUST NOT mutate the caller's shell options
+#   (e.g., set -e / set -u) or global environment like PATH.
+# - Callers (wrappers/leaf scripts) own strict-mode policy.
 
 # Must be sourced, not executed.
 # POSIX pattern: `return` only works when sourced.
@@ -29,8 +31,22 @@ dt_need() { [ -n "${2-}" ] || dt_die "$1 is required"; }
 # --------------------------------------------------------------------
 
 DT_DATE_BACKEND=0
-DT_DATE_BIN=$(command -v date 2>/dev/null || true)
-[ -n "$DT_DATE_BIN" ] || { dt_die "date not found in PATH"; return 10; }
+
+# Prefer well-known system locations without mutating PATH.
+DT_DATE_BIN=""
+for _dt_p in /usr/local/bin/date /usr/bin/date /bin/date; do
+  if [ -x "$_dt_p" ]; then
+    DT_DATE_BIN="$_dt_p"
+    break
+  fi
+done
+
+# Fall back to whatever the caller's PATH resolves.
+if [ -z "$DT_DATE_BIN" ]; then
+  DT_DATE_BIN=$(command -v date 2>/dev/null || true)
+fi
+
+[ -n "$DT_DATE_BIN" ] || { dt_die "date not found"; return 10; }
 
 dt__detect_date_backend() {
   if "$DT_DATE_BIN" -j -f '%Y-%m-%d' '2000-01-01' '+%s' >/dev/null 2>&1 \
@@ -84,7 +100,7 @@ dt_epoch_to_local_date() {
 }
 
 # ------------------
-# UTC → epoch (API boundary only)
+# UTC -> epoch (API boundary only)
 # ------------------
 
 dt_utc_iso_z_to_epoch() {
