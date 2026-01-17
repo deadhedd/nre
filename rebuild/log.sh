@@ -97,6 +97,8 @@ _log_source_children() {
   # Redirect any accidental stdout during sourcing to stderr to preserve
   # "stdout is sacred" while retaining visibility.
   # shellcheck disable=SC1090
+  . "${_log_lib_dir}/datetime.sh"    1>&2 || return 10
+  # shellcheck disable=SC1090
   . "${_log_lib_dir}/log-format.sh"  1>&2 || return 10
   # shellcheck disable=SC1090
   . "${_log_lib_dir}/log-sink.sh"    1>&2 || return 10
