@@ -968,7 +968,7 @@ Core engine components enforce the following environment variable requirements:
 
 Optional overrides such as `VAULT_PATH`, `LOG_ROOT`, `TMPDIR`, `COMMIT_BARE_REPO`, and `GIT_BIN` **MUST** fall back to deterministic defaults, and components **MUST** remain correct when they are unset.
 
-Internal guards and debug toggles (for example, `LOG_SINK_LOADED`, `LOG_FACADE_LOADED`, `JOB_WRAP_DEBUG`, or `LOG_ASCII_ONLY`) are implementation details and **MUST NOT** be treated as part of the public environment contract.
+Internal guards and debug toggles (for example, `LOG_SINK_LOADED`, `LOG_FACADE_ACTIVE`, `JOB_WRAP_DEBUG`, or `LOG_ASCII_ONLY`) are implementation details and **MUST NOT** be treated as part of the public environment contract.
 
 Validation and defaulting behavior for all other core engine variables is described in Appendix A.
 
@@ -1400,11 +1400,11 @@ Because POSIX `sh` cannot portably discover the library’s own path when source
 `log.sh` is the **sole authority** responsible for:
 
 * validating wrapper context (`JOB_WRAP_ACTIVE=1`)
-* establishing façade ownership by setting `LOG_FACADE_LOADED=1`
+* establishing façade ownership by setting `LOG_FACADE_ACTIVE=1`
 * supplying required sink context (`JOB_NAME`, `LOG_FILE`)
 * deciding whether logger helper failures escalate to wrapper failure
 
-`LOG_FACADE_LOADED=1` means the log façade has been sourced/initialized and owns the façade context for the current wrapper execution. It is an internal guard variable, not part of the public environment contract for leaf scripts.
+`LOG_FACADE_ACTIVE=1` means the log façade has been sourced/initialized and owns the façade context for the current wrapper execution. It is an internal guard variable, not part of the public environment contract for leaf scripts.
 
 Logger child helpers (including `log-sink.sh`) operate under the following strict rules:
 
@@ -1603,7 +1603,7 @@ Rules:
 * Scratch variables MUST be treated as ephemeral and MUST NOT carry semantic meaning across calls.
 * Helpers MUST NOT require callers to unset or reset scratch variables.
 * Helpers MUST NOT clobber caller-provided output variables or contract-defined environment variables.
-* Any façade-ownership guard variable (for example, `LOG_FACADE_LOADED`) is an internal implementation detail and is not part of the public environment contract surface.
+* Any façade-ownership guard variable (for example, `LOG_FACADE_ACTIVE`) is an internal implementation detail and is not part of the public environment contract surface.
 
 Rationale (non-normative): Namespacing is the primary defense against collisions in POSIX `sh` and keeps helpers small while preserving the “do not mutate caller state unexpectedly” requirement.
 
@@ -2327,7 +2327,7 @@ These are internal engine wiring variables; they are not a stable public environ
 
 | Variable         | Owner              | Consumers                         | Purpose                                       | Validation / failure |
 | ---------------- | ------------------ | --------------------------------- | --------------------------------------------- | -------------------- |
-| LOG_FACADE_LOADED | log.sh             | log-format / log-sink / log-capture | Proves façade ownership active                | Missing → helper misuse → return `11` |
+| LOG_FACADE_ACTIVE | log.sh             | log-format / log-sink / log-capture | Proves façade ownership active                | Missing → helper misuse → return `11` |
 | LOG_LIB_DIR      | job-wrap.sh        | log.sh                             | Directory containing logger helper libs       | Missing/invalid → misuse → return `11` |
 | LOG_SINK_FD      | log.sh / sink init | log-capture                        | FD to write formatted lines to                | Missing/invalid → misuse → return `11` |
 | LOG_MIN_LEVEL    | log.sh             | log-format / log-capture           | Minimum log level gate                        | Missing/invalid → misuse → return `11` |
