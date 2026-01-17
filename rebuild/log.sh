@@ -15,10 +15,10 @@ else
   exit 2
 fi
 
-case "${LOG_FACADE_LOADED:-0}" in
+case "${LOG_FACADE_ACTIVE:-0}" in
   1) return 0 ;;
 esac
-LOG_FACADE_LOADED=1
+LOG_FACADE_ACTIVE=1
 
 ###############################################################################
 # internal state (must be safe under set -eu callers)
@@ -147,7 +147,7 @@ log_init() {
   #   log_init <JOB_NAME> <LOG_FILE> [MIN_LEVEL]
   #
   # - Requires wrapper context (JOB_WRAP_ACTIVE=1)
-  # - Establishes facade ownership (LOG_FACADE_LOADED=1)
+  # - Establishes facade ownership (LOG_FACADE_ACTIVE=1)
   # - Sources child helpers
   # - Initializes sink (FD 3) or degrades to stderr-only
   #
@@ -161,7 +161,7 @@ log_init() {
   _log_require_wrapper || return $?
 
   # Establish facade ownership BEFORE any helper is invoked.
-  LOG_FACADE_LOADED=1
+  LOG_FACADE_ACTIVE=1
 
   _log_source_children || {
     _log_rc=$?
@@ -229,8 +229,8 @@ log_init() {
 
 log_close() {
   # Best-effort shutdown. Never stdout.
-  if [ "${LOG_FACADE_LOADED:-}" != "1" ]; then
-    _log_err "misuse: log_close invoked without facade ownership (LOG_FACADE_LOADED!=1)"
+  if [ "${LOG_FACADE_ACTIVE:-}" != "1" ]; then
+    _log_err "misuse: log_close invoked without facade ownership (LOG_FACADE_ACTIVE!=1)"
     return 11
   fi
 
