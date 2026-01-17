@@ -14,8 +14,9 @@
 # Dependency: datetime.sh MUST be sourced before this file (by log.sh).
 #
 # Timestamp requirements:
-# - Requires dt_now_local_log_ts      -> "YYYY-MM-DD HH:MM:SS" (local) for log lines
-# - Requires dt_now_local_file_ts     -> "YYYY-MM-DD-HHMMSS"   (local) for log filenames
+# - Requires dt_now_local_iso_no_tz   -> "YYYY-MM-DDTHH:MM:SS" (local) for log lines
+# - Requires dt_now_local_compact     -> "YYYYmmddTHHMMSS"     (local) for log filenames
+# - This module adapts those into the contract formats below.
 # - No fallback paths (missing datetime is an operational failure)
 #
 # Worker model:
@@ -28,7 +29,6 @@
 # - Formatted output is returned to the caller via an output variable.
 # - Internal pipelines may write to stdout when captured by the caller.
 #
-# Contract reference: :contentReference[oaicite:0]{index=0}
 
 # Refuse execution; must be sourced.
 (return 0 2>/dev/null) || {
@@ -97,51 +97,49 @@ _lf_allow_level() {
 }
 
 _lf_timestamp_line() {
-  # Dependency must be provided by datetime.sh (sourced by log.sh).
-  # Expected: "YYYY-MM-DD HH:MM:SS" (local)
-  _lf_ts=$(dt_now_local_log_ts) || {
-    _lf_die "failed to obtain local line timestamp"
-    return 10
-  }
-  [ -n "$_lf_ts" ] || {
-    _lf_die "failed to obtain local line timestamp"
-    return 10
-  }
+  # datetime primitive: dt_now_local_iso_no_tz -> "YYYY-MM-DDTHH:MM:SS" (local)
+  # Contract format here: "YYYY-MM-DD HH:MM:SS" (local)
 
-  # Basic shape guard (non-exhaustive; dependency is trusted).
+  _lf_iso=$(dt_now_local_iso_no_tz) || { _lf_die "failed to obtain local line timestamp"; return 10; }
+  [ -n "$_lf_iso" ] || { _lf_die "failed to obtain local line timestamp"; return 10; }
+
+  case $_lf_iso in
+    ????-??-??T??:??:??) : ;;
+    *) _lf_die "invalid local iso(no tz) timestamp format: $_lf_iso"; return 10 ;;
+  esac
+
+  _lf_ts=$(printf '%s' "$_lf_iso" | tr 'T' ' ') || { _lf_die "failed to adapt line timestamp"; return 10; }
+
   case $_lf_ts in
     ????-??-??" "??:??:??) : ;;
-    *)
-      _lf_die "invalid local line timestamp format: $_lf_ts"
-      return 10
-      ;;
+    *) _lf_die "invalid local line timestamp format: $_lf_ts"; return 10 ;;
   esac
 
   printf '%s' "$_lf_ts"
 }
 
 _lf_timestamp_file() {
-  # Dependency must be provided by datetime.sh (sourced by log.sh).
-  # Canonical filename ts: "YYYY-MM-DD-HHMMSS" (local), lexicographically sortable.
-  _lf_ts=$(dt_now_local_file_ts) || {
-    _lf_die "failed to obtain local filename timestamp"
-    return 10
-  }
-  [ -n "$_lf_ts" ] || {
-    _lf_die "failed to obtain local filename timestamp"
-    return 10
-  }
+  # datetime primitive: dt_now_local_compact -> "YYYYmmddTHHMMSS" (local)
+  # Contract format here: "YYYY-MM-DD-HHMMSS" (local), lexicographically sortable.
 
-  # Basic shape guard (non-exhaustive; dependency is trusted).
-  case $_lf_ts in
-    ????-??-??-??????) : ;;
-    *)
-      _lf_die "invalid local filename timestamp format: $_lf_ts"
-      return 10
-      ;;
+  _lf_compact=$(dt_now_local_compact) || { _lf_die "failed to obtain local filename timestamp"; return 10; }
+  [ -n "$_lf_compact" ] || { _lf_die "failed to obtain local filename timestamp"; return 10; }
+
+  case $_lf_compact in
+    ????????T??????) : ;;
+    *) _lf_die "invalid local compact timestamp format: $_lf_compact"; return 10 ;;
   esac
 
-  # Enforce contract invariant: no whitespace/newlines in filename ts.
+  _lf_ts=$(printf '%s' "$_lf_compact" | sed -e 's/^\(....\)\(..\)\(..\)T\(..\)\(..\)\(..\)$/\1-\2-\3-\4\5\6/') || {
+    _lf_die "failed to adapt filename timestamp"
+    return 10
+  }
+
+  case $_lf_ts in
+    ????-??-??-??????) : ;;
+    *) _lf_die "invalid local filename timestamp format: $_lf_ts"; return 10 ;;
+  esac
+
   case $_lf_ts in
     *[!0-9-]*)
       _lf_die "invalid characters in filename timestamp: $_lf_ts"
