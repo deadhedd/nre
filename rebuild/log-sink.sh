@@ -27,7 +27,7 @@
 
 # ---- guard: library-only ---------------------------------------------------
 
-# Robust “sourced vs executed” detection (catches: ./log-sink.sh AND sh log-sink.sh)
+# Robust "sourced vs executed" detection (catches: ./log-sink.sh AND sh log-sink.sh)
 # In POSIX sh, `return` is valid only when sourced; if executed, it errors.
 if (return 0 2>/dev/null); then
     : # sourced, OK
@@ -174,50 +174,9 @@ _ls_mkdir_p() {
     mkdir -p "$1" || _ls_fail "cannot create directory: $1"
 }
 
-# ---- public API ------------------------------------------------------------
-
-log_sink_init() {
-    _ls_require_facade || return $?
-    _ls_require_env_hard || return $?
-
-    _ls_job=$JOB_NAME
-    _ls_log_dir=$(dirname "$LOG_FILE")
-    _ls_latest_link="${_ls_log_dir}/${_ls_job}-latest.log"
-
-    _ls_mkdir_p "$_ls_log_dir" || return $?
-
-    exec 3>>"$LOG_FILE" || {
-        _ls_fail "cannot open log file: $LOG_FILE"
-        return 10
-    }
-
-    ln -sf "$(basename "$LOG_FILE")" "$_ls_latest_link" || {
-        _ls_fail "cannot update latest log symlink: $_ls_latest_link"
-        return 10
-    }
-
-    _ls_prune_logs || return $?
-    return 0
-}
-
-log_sink_close() {
-    _ls_require_facade || return $?
-    exec 3>&- 2>/dev/null || :
-    return 0
-}
-
-# ---- internal API (logger subsystem only) ----------------------------------
-
-_ls_write_line() {
-    _ls_require_facade || return $?
-    printf '%s\n' "$1" >&3 2>/dev/null || {
-        _ls_fail "failed to write log line to fd 3 (sink not open?)"
-        return 10
-    }
-    return 0
-}
-
 # ---- retention -------------------------------------------------------------
+# NOTE: Defined before log_sink_init so shells that don't pre-parse function
+# bodies (e.g., some ksh configurations) still have it available.
 
 _ls_prune_logs() {
     _ls_keep_count=${LOG_KEEP_COUNT:-0}
@@ -287,4 +246,47 @@ $_ls_delete_list
 EOF
 
     return $_ls_rc
+}
+
+# ---- public API ------------------------------------------------------------
+
+log_sink_init() {
+    _ls_require_facade || return $?
+    _ls_require_env_hard || return $?
+
+    _ls_job=$JOB_NAME
+    _ls_log_dir=$(dirname "$LOG_FILE")
+    _ls_latest_link="${_ls_log_dir}/${_ls_job}-latest.log"
+
+    _ls_mkdir_p "$_ls_log_dir" || return $?
+
+    exec 3>>"$LOG_FILE" || {
+        _ls_fail "cannot open log file: $LOG_FILE"
+        return 10
+    }
+
+    ln -sf "$(basename "$LOG_FILE")" "$_ls_latest_link" || {
+        _ls_fail "cannot update latest log symlink: $_ls_latest_link"
+        return 10
+    }
+
+    _ls_prune_logs || return $?
+    return 0
+}
+
+log_sink_close() {
+    _ls_require_facade || return $?
+    exec 3>&- 2>/dev/null || :
+    return 0
+}
+
+# ---- internal API (logger subsystem only) ----------------------------------
+
+_ls_write_line() {
+    _ls_require_facade || return $?
+    printf '%s\n' "$1" >&3 2>/dev/null || {
+        _ls_fail "failed to write log line to fd 3 (sink not open?)"
+        return 10
+    }
+    return 0
 }
