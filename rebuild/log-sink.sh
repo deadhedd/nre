@@ -236,8 +236,12 @@ _ls_prune_logs() {
               # keep only direct children of $_ls_log_dir (no recursion)
               _ls_rel=${_ls_path#$_ls_log_dir/}
               case $_ls_rel in
-                  */*) : ;;  # in a subdir -> exclude
-                  *) printf '%s\n' "$_ls_path" ;;
+                  */*)
+                      :  # in a subdir -> exclude
+                      ;;
+                  *)
+                      printf '%s\n' "$_ls_path"
+                      ;;
               esac
           done \
         | sort
