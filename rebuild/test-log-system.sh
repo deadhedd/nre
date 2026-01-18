@@ -254,7 +254,9 @@ export LOG_LIB_DIR
 # TEST 1: happy path init + write + close + latest link
 # --------------------------------------------------------------------------
 JOB="unit"
-LOG_FILE="$_sandbox_logs/${JOB}-2026-01-17-000001.log"
+JOB_LOG_DIR="$_sandbox_logs/$JOB"
+mkdir -p "$JOB_LOG_DIR" || exit 2
+LOG_FILE="$JOB_LOG_DIR/${JOB}-2026-01-17-000001.log"
 
 log_init "$JOB" "$LOG_FILE" INFO 1>/dev/null 2>&1
 rc=$?
