@@ -165,6 +165,12 @@ log_init() {
   # Establish facade ownership BEFORE any helper is invoked.
   LOG_FACADE_ACTIVE=1
 
+  # FIX: define facade context vars BEFORE sourcing children.
+  # Child libs may reference these under set -u callers during sourcing.
+  JOB_NAME=${1:-}
+  LOG_FILE=${2:-}
+  LOG_MIN_LEVEL=${3:-INFO}
+
   _log_source_children || {
     _log_rc=$?
     _log_err "operational failure: cannot source logger children (rc=$_log_rc)"
@@ -172,10 +178,6 @@ log_init() {
     LOG_SINK_FD=2
     return 10
   }
-
-  JOB_NAME=${1:-}
-  LOG_FILE=${2:-}
-  LOG_MIN_LEVEL=${3:-INFO}
 
   # Enforce facade-required context here so misuse is clear and single-line,
   # rather than relying on sink/helper diagnostics.
