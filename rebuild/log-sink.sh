@@ -147,8 +147,7 @@ _ls_validate_log_file() {
     fi
 
     # Must match: ${JOB_NAME}-YYYY-MM-DD-HHMMSS.log
-    _ls_re="^${JOB_NAME}-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]\\.log$"
-    if ! printf '%s' "$_ls_base" | LC_ALL=C grep -Eq "$_ls_re"; then
+    if ! printf '%s' "$_ls_base" | LC_ALL=C grep -Eq "^${JOB_NAME}-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]\\.log$"; then
         _ls_fail_misuse "invalid LOG_FILE basename (expected ${JOB_NAME}-YYYY-MM-DD-HHMMSS.log): $_ls_base"
         return 11
     fi
