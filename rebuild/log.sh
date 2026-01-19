@@ -165,22 +165,14 @@ log_init() {
   # Establish facade ownership BEFORE any helper is invoked.
   LOG_FACADE_ACTIVE=1
 
-  # FIX: define facade context vars BEFORE sourcing children.
-  # Child libs may reference these under set -u callers during sourcing.
+  # Define facade context vars early (safe for set -u callers).
   JOB_NAME=${1:-}
   LOG_FILE=${2:-}
   LOG_MIN_LEVEL=${3:-INFO}
 
-  _log_source_children || {
-    _log_rc=$?
-    _log_err "operational failure: cannot source logger children (rc=$_log_rc)"
-    _log_sink_ready=0
-    LOG_SINK_FD=2
-    return 10
-  }
-
-  # Enforce facade-required context here so misuse is clear and single-line,
-  # rather than relying on sink/helper diagnostics.
+  # --------------------------------------------------------------------------
+  # Phase 1: facade-level misuse validation (NO helper sourcing yet)
+  # --------------------------------------------------------------------------
   _log_require_nonempty "JOB_NAME" "${JOB_NAME:-}" || {
     _log_sink_ready=0
     LOG_SINK_FD=2
@@ -192,7 +184,31 @@ log_init() {
     return 11
   }
 
-  # Validate MIN_LEVEL early via formatter (invalid MIN_LEVEL is helper misuse = 11).
+  # Validate LOG_FILE basename matches: <JOB>-YYYY-MM-DD-HHMMSS.log
+  # (This prevents sink/FS work from masking misuse as rc=10.)
+  _log_base=$(basename "${LOG_FILE}" 2>/dev/null || printf '%s' "${LOG_FILE}")
+  case "${_log_base}" in
+    "${JOB_NAME}"-????-??-??-??????.log) : ;;
+    *)
+      _log_err "misuse: invalid LOG_FILE basename (expected ${JOB_NAME}-YYYY-MM-DD-HHMMSS.log): ${_log_base}"
+      _log_sink_ready=0
+      LOG_SINK_FD=2
+      return 11
+      ;;
+  esac
+
+  # --------------------------------------------------------------------------
+  # Phase 2: operational setup (source helpers)
+  # --------------------------------------------------------------------------
+  _log_source_children || {
+    _log_rc=$?
+    _log_err "operational failure: cannot source logger children (rc=$_log_rc)"
+    _log_sink_ready=0
+    LOG_SINK_FD=2
+    return 10
+  }
+
+  # Validate MIN_LEVEL via formatter (invalid MIN_LEVEL is helper misuse = 11).
   # Use a harmless message that will be suppressed only if MIN_LEVEL > INFO.
   _log_tmp=""
   log_format_build_line _log_tmp "${LOG_MIN_LEVEL}" INFO "logger init" 1>/dev/null
