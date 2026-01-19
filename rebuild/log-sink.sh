@@ -27,8 +27,6 @@
 
 # ---- guard: library-only ---------------------------------------------------
 
-# Robust "sourced vs executed" detection (catches: ./log-sink.sh AND sh log-sink.sh)
-# In POSIX sh, `return` is valid only when sourced; if executed, it errors.
 if (return 0 2>/dev/null); then
     : # sourced, OK
 else
@@ -65,31 +63,22 @@ _ls_rel=
 # ---- helpers ---------------------------------------------------------------
 
 _ls_err() {
-    # diagnostics-only; never stdout
-    # Strong single-line guarantee:
-    #   - strip control chars (incl. \r, \n) to ensure exactly one line
     _ls_msg=$*
     _ls_msg=$(printf '%s' "$_ls_msg" | LC_ALL=C tr -d '[:cntrl:]')
     printf 'LOG_SINK: %s\n' "$_ls_msg" >&2
 }
 
 _ls_fail() {
-    # operational failure for logger helper contract
-    # return code 10 is the canonical "helper operational failure"
     _ls_err "ERROR: $*"
     return 10
 }
 
 _ls_fail_misuse() {
-    # misuse failure for logger helper contract
-    # return code 11 is the canonical "helper misuse (missing facade context)"
     _ls_err "ERROR: $*"
     return 11
 }
 
 _ls_require_facade() {
-    # Missing facade context is a logger helper misuse.
-    # When sourced: MUST NOT exit; return 11.
     if [ "${LOG_FACADE_ACTIVE:-}" != "1" ]; then
         _ls_fail_misuse "invoked without facade context (LOG_FACADE_ACTIVE!=1)"
         return 11
@@ -98,12 +87,6 @@ _ls_require_facade() {
 }
 
 _ls_validate_job_name() {
-    # Contract: JOB_NAME must be safe for filenames and globs.
-    # Enforced here (stricter-than-contract is allowed):
-    # - non-empty
-    # - [A-Za-z0-9._-] only
-    # - no path separators
-    # - no glob metacharacters
     _ls_j=$1
 
     [ -n "$_ls_j" ] || {
@@ -129,11 +112,6 @@ _ls_validate_job_name() {
 }
 
 _ls_validate_log_file() {
-    # Validate LOG_FILE enough to preserve downstream assumptions:
-    # - non-empty
-    # - basename matches canonical per-run shape:
-    #     <JOB_NAME>-YYYY-MM-DD-HHMMSS.log
-    # - basename is ASCII-safe for globbing and sorting
     _ls_path=$1
 
     [ -n "$_ls_path" ] || {
@@ -175,8 +153,6 @@ _ls_mkdir_p() {
 }
 
 # ---- retention -------------------------------------------------------------
-# NOTE: Defined before log_sink_init so shells that don't pre-parse function
-# bodies (e.g., some ksh configurations) still have it available.
 
 _ls_prune_logs() {
     _ls_keep_count=${LOG_KEEP_COUNT:-0}
@@ -191,16 +167,10 @@ _ls_prune_logs() {
     _ls_sorted_list=$(
         find "$_ls_log_dir" -type f -name "$_ls_pattern" 2>/dev/null \
         | while IFS= read -r _ls_path; do
-              # Directory-local retention:
-              # keep only direct children of $_ls_log_dir (no recursion)
               _ls_rel=${_ls_path#$_ls_log_dir/}
               case $_ls_rel in
-                  */*)
-                      :  # in a subdir -> exclude
-                      ;;
-                  *)
-                      printf '%s\n' "$_ls_path"
-                      ;;
+                  */*) : ;;
+                  *) printf '%s\n' "$_ls_path" ;;
               esac
           done \
         | sort
@@ -230,7 +200,6 @@ _ls_prune_logs() {
 
     [ -n "${_ls_delete_list:-}" ] || return 0
 
-    # Delete line-by-line (no word-splitting)
     _ls_rc=0
     while IFS= read -r _ls_path; do
         [ -n "$_ls_path" ] || continue
@@ -265,7 +234,8 @@ log_sink_init() {
         return 10
     }
 
-    ln -sf "$(basename "$LOG_FILE")" "$_ls_latest_link" || {
+    # FIX: use absolute path for symlink target (Option A)
+    ln -sf "$LOG_FILE" "$_ls_latest_link" || {
         _ls_fail "cannot update latest log symlink: $_ls_latest_link"
         return 10
     }
