@@ -21,8 +21,48 @@
 # - This script creates a sandbox and copies your logging libs into it.
 # - It writes a deterministic datetime.sh stub so tests are stable.
 # - Adds additional lifecycle + error-path tests (except concurrency/races).
+#
+# Debug:
+#   LOG_TEST_DEBUG=1 sh test-log-system.sh ...
 
 set -u
+
+# Set LOG_TEST_DEBUG=1 to print sandbox paths and diagnostics.
+LOG_TEST_DEBUG=${LOG_TEST_DEBUG:-0}
+
+dbg() {
+  [ "$LOG_TEST_DEBUG" = "1" ] || return 0
+  printf 'DBG: %s\n' "$*" >&2
+}
+
+show_file_tail() {
+  _p=$1
+  _n=${2:-80}
+  [ -f "$_p" ] || return 0
+  dbg "---- tail $_n of $_p ----"
+  tail -n "$_n" "$_p" >&2
+  dbg "---- end tail ----"
+}
+
+# Find lines with an odd number of double quotes (likely start of the issue).
+scan_unbalanced_dquotes() {
+  _p=$1
+  [ -f "$_p" ] || return 0
+  _hits=$(
+    awk '
+      {
+        n=gsub(/"/,"");
+        if (n % 2 == 1) print NR ":" $0
+      }
+    ' "$_p" 2>/dev/null
+  )
+  if [ -n "$_hits" ]; then
+    dbg "UNBALANCED DOUBLE-QUOTE LINES in $_p:"
+    printf '%s\n' "$_hits" >&2
+  else
+    dbg "No odd-count double-quote lines found in $_p"
+  fi
+}
 
 LIB_DIR="./rebuild"
 FACADE_PATH="./rebuild/log.sh"
@@ -102,8 +142,27 @@ cp "$LIB_DIR/log-format.sh"  "$_sandbox_lib/log-format.sh" || exit 2
 cp "$LIB_DIR/log-sink.sh"    "$_sandbox_lib/log-sink.sh" || exit 2
 cp "$LIB_DIR/log-capture.sh" "$_sandbox_lib/log-capture.sh" || exit 2
 
+dbg "sandbox=$_sandbox"
+dbg "sandbox_lib=$_sandbox_lib"
+dbg "sandbox_logs=$_sandbox_logs"
+
+# Sanity: show what got copied
+dbg "ls -l sandbox_lib:"
+ls -l "$_sandbox_lib" >&2 2>/dev/null || :
+
+# Validate shell syntax of sandboxed log-sink.sh before we ever source it.
+if ! sh -n "$_sandbox_lib/log-sink.sh" 2>"$_sandbox/syntax.log"; then
+  dbg "sh -n failed for sandbox log-sink.sh:"
+  cat "$_sandbox/syntax.log" >&2
+  scan_unbalanced_dquotes "$_sandbox_lib/log-sink.sh"
+  show_file_tail "$_sandbox_lib/log-sink.sh" 120
+  # hard fail early so we don't spam 37 tests with the same root cause
+  echo "ERROR: sandbox log-sink.sh has syntax errors (see debug above)" >&2
+  exit 2
+fi
+
 # Deterministic datetime stub for tests
-cat >"$_sandbox_lib/datetime.sh" <<'SH'
+cat >"$_sandbox_lib/datetime.sh" <<'SHIM'
 #!/bin/sh
 # datetime.sh (test stub)
 # Provides deterministic local timestamps for log tests.
@@ -137,7 +196,7 @@ dt_now_local_compact() {
   if [ "$_s" -lt 10 ]; then _s="0$_s"; fi
   printf '%s' "20260117T0000${_s}"
 }
-SH
+SHIM
 
 # --------------------------------------------------------------------------
 # Tiny TAP-like runner
@@ -275,7 +334,7 @@ JOB_LOG_DIR="$_sandbox_logs/$JOB"
 mkdir -p "$JOB_LOG_DIR" || exit 2
 LOG_FILE="$JOB_LOG_DIR/${JOB}-2026-01-17-000001.log"
 
-log_init "$JOB" "$LOG_FILE" INFO 1>/dev/null
+log_init "$JOB" "$LOG_FILE" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init returns 0 on happy path"
 
@@ -305,7 +364,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE2="$_sandbox_logs/${JOB}-2026-01-17-000002.log"
-log_init "$JOB" "$LOG_FILE2" WARN 1>/dev/null
+log_init "$JOB" "$LOG_FILE2" WARN 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init with MIN_LEVEL=WARN returns 0"
 
@@ -334,7 +393,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE3="$_sandbox_logs/${JOB}-2026-01-17-000003.log"
-log_init "$JOB" "$LOG_FILE3" DEBUG 1>/dev/null
+log_init "$JOB" "$LOG_FILE3" DEBUG 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init DEBUG returns 0"
 
@@ -362,7 +421,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE4="$_sandbox_logs/${JOB}-2026-01-17-000004.log"
-log_init "$JOB" "$LOG_FILE4" INFO 1>/dev/null
+log_init "$JOB" "$LOG_FILE4" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init for capture returns 0"
 
@@ -414,7 +473,7 @@ LOG_KEEP_COUNT=2
 export LOG_KEEP_COUNT
 
 _new="$LOG_DIR/${JOB2}-2026-01-17-000013.log"
-log_init "$JOB2" "$_new" INFO 1>/dev/null
+log_init "$JOB2" "$_new" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init with retention returns 0"
 
@@ -445,7 +504,7 @@ export LOG_LIB_DIR
 }
 
 LOG_FILE5="$_sandbox_logs/${JOB}-2026-01-17-000005.log"
-log_init "$JOB" "$LOG_FILE5" INFO 1>/dev/null
+log_init "$JOB" "$LOG_FILE5" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 when JOB_WRAP_ACTIVE is missing"
 
@@ -462,7 +521,7 @@ export LOG_LIB_DIR
 
 _bad_job="bad/job"
 _bad_log="$_sandbox_logs/bad/${_bad_job}-2026-01-17-000006.log"
-log_init "$_bad_job" "$_bad_log" INFO 1>/dev/null
+log_init "$_bad_job" "$_bad_log" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 for invalid JOB_NAME"
 
@@ -479,7 +538,7 @@ export LOG_LIB_DIR
 
 _bad_job2="unit"
 _bad_log2="$_sandbox_logs/${_bad_job2}-NOT_A_TIMESTAMP.log"
-log_init "$_bad_job2" "$_bad_log2" INFO 1>/dev/null
+log_init "$_bad_job2" "$_bad_log2" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 for invalid LOG_FILE basename"
 
@@ -499,7 +558,7 @@ mkdir -p "$_ro_dir" || exit 2
 chmod 500 "$_ro_dir" 2>/dev/null || :
 
 _ro_log="$_ro_dir/rojob-2026-01-17-000007.log"
-log_init "rojob" "$_ro_log" INFO 1>/dev/null
+log_init "rojob" "$_ro_log" INFO 1>/dev/null 2>&1
 rc=$?
 # log-sink uses rc=10 for cannot open log file / cannot update symlink
 assert_eq "$rc" "10" "log_init returns 10 when log file cannot be opened (unwritable dir)"
@@ -534,7 +593,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE6="$_sandbox_logs/${JOB}-2026-01-17-000008.log"
-log_init "$JOB" "$LOG_FILE6" INFO 1>/dev/null
+log_init "$JOB" "$LOG_FILE6" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init for double-close returns 0"
 
@@ -568,7 +627,7 @@ export LOG_LIB_DIR
 . "$_lib_nodt/log.sh" 1>&2 || { echo "ERROR: failed to source log.sh (nodt)" >&2; exit 2; }
 
 LOG_FILE7="$_sandbox_logs/${JOB}-2026-01-17-000009.log"
-log_init "$JOB" "$LOG_FILE7" INFO 1>/dev/null
+log_init "$JOB" "$LOG_FILE7" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "10" "log_init returns 10 when datetime.sh cannot be sourced"
 
