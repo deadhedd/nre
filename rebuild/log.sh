@@ -198,6 +198,19 @@ log_init() {
   esac
 
   # --------------------------------------------------------------------------
+  # FIX: facade-level MIN_LEVEL validation (NO formatter probing)
+  # --------------------------------------------------------------------------
+  case "$LOG_MIN_LEVEL" in
+    DEBUG|INFO|WARN|ERROR) : ;;
+    *)
+      _log_err "misuse: invalid LOG_MIN_LEVEL=${LOG_MIN_LEVEL} (expected DEBUG|INFO|WARN|ERROR)"
+      _log_sink_ready=0
+      LOG_SINK_FD=2
+      return 11
+      ;;
+  esac
+
+  # --------------------------------------------------------------------------
   # Phase 2: operational setup (source helpers)
   # --------------------------------------------------------------------------
   _log_source_children || {
@@ -207,28 +220,6 @@ log_init() {
     LOG_SINK_FD=2
     return 10
   }
-
-  # Validate MIN_LEVEL via formatter (invalid MIN_LEVEL is helper misuse = 11).
-  # Use a harmless message that will be suppressed only if MIN_LEVEL > INFO.
-  _log_tmp=""
-  log_format_build_line _log_tmp "${LOG_MIN_LEVEL}" INFO "logger init" 1>/dev/null
-  _log_vrc=$?
-  case "$_log_vrc" in
-    0|4) : ;;  # OK (4 means suppressed by policy; still valid)
-    11)
-      _log_err "misuse: invalid LOG_MIN_LEVEL=${LOG_MIN_LEVEL} (expected DEBUG|INFO|WARN|ERROR)"
-      _log_sink_ready=0
-      LOG_SINK_FD=2
-      return 11
-      ;;
-    *)
-      # 10 or anything else -> treat as operational failure
-      _log_err "operational failure: MIN_LEVEL validation failed (rc=$_log_vrc)"
-      _log_sink_ready=0
-      LOG_SINK_FD=2
-      return 10
-      ;;
-  esac
 
   # Initialize sink. On success, sink opens FD 3 and _ls_write_line writes to it.
   log_sink_init 1>/dev/null
