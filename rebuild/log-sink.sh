@@ -194,7 +194,7 @@ _ls_prune_logs() {
               _ls_rel=${_ls_path#$_ls_log_dir/}
               case "$_ls_rel" in
                   */*)
-                      # in a subdir -> exclude
+                      :  # in a subdir -> exclude
                       ;;
                   *)
                       printf '%s\n' "$_ls_path"
