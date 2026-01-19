@@ -6,7 +6,7 @@
 # Owns log sink lifecycle: opens the per-run log file, maintains latest pointer,
 # retention, and FD management.
 #
-# Contract authority: CONTRACT(21).md §2.2, §3.2, Appendix C.6
+# Contract authority: CONTRACT(21).md sed 2.2, sec 3.2, Appendix C.6
 #
 # IMPORTANT (v0.9+): Wrapper-context validation (JOB_WRAP_ACTIVE=1) is owned
 # by log.sh (facade). This component enforces *facade ownership* before any
