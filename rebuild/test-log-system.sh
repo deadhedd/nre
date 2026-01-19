@@ -64,6 +64,76 @@ scan_unbalanced_dquotes() {
   fi
 }
 
+scan_non_ascii() {
+  _p=$1
+  [ -f "$_p" ] || return 0
+
+  # Any byte outside: TAB (0x09) and printable ASCII (0x20-0x7E)
+  _hits=$(LC_ALL=C grep -n '[^ -~	]' "$_p" 2>/dev/null || true)
+  if [ -n "$_hits" ]; then
+    dbg "NON-ASCII / CONTROL BYTES in $_p:"
+    printf '%s\n' "$_hits" >&2
+
+    # show the lines with visible escapes
+    dbg "Showing offending lines with cat -v:"
+    printf '%s\n' "$_hits" \
+      | sed 's/:.*$//' \
+      | while IFS= read -r _ln; do
+          [ -n "$_ln" ] || continue
+          dbg "line $_ln:"
+          sed -n "${_ln}p" "$_p" | cat -v >&2
+        done
+  else
+    dbg "No non-ASCII/control bytes found in $_p"
+  fi
+}
+
+scan_unbalanced_squotes() {
+  _p=$1
+  [ -f "$_p" ] || return 0
+  _hits=$(
+    awk '
+      {
+        n=gsub(/\047/,""); # count single quotes
+        if (n % 2 == 1) print NR ":" $0
+      }
+    ' "$_p" 2>/dev/null
+  )
+  if [ -n "$_hits" ]; then
+    dbg "UNBALANCED SINGLE-QUOTE LINES in $_p:"
+    printf '%s\n' "$_hits" >&2
+  else
+    dbg "No odd-count single-quote lines found in $_p"
+  fi
+}
+
+scan_unbalanced_backticks() {
+  _p=$1
+  [ -f "$_p" ] || return 0
+  _hits=$(
+    awk '
+      {
+        n=gsub(/`/,"");
+        if (n % 2 == 1) print NR ":" $0
+      }
+    ' "$_p" 2>/dev/null
+  )
+  if [ -n "$_hits" ]; then
+    dbg "UNBALANCED BACKTICK LINES in $_p:"
+    printf '%s\n' "$_hits" >&2
+  else
+    dbg "No odd-count backtick lines found in $_p"
+  fi
+}
+
+show_file_bytes_tail() {
+  _p=$1
+  [ -f "$_p" ] || return 0
+  dbg "---- last 256 bytes (od -An -tx1) of $_p ----"
+  tail -c 256 "$_p" 2>/dev/null | od -An -tx1 >&2 || :
+  dbg "---- end bytes ----"
+}
+
 LIB_DIR="./rebuild"
 FACADE_PATH="./rebuild/log.sh"
 
@@ -154,8 +224,12 @@ ls -l "$_sandbox_lib" >&2 2>/dev/null || :
 if ! sh -n "$_sandbox_lib/log-sink.sh" 2>"$_sandbox/syntax.log"; then
   dbg "sh -n failed for sandbox log-sink.sh:"
   cat "$_sandbox/syntax.log" >&2
+  scan_non_ascii "$_sandbox_lib/log-sink.sh"
   scan_unbalanced_dquotes "$_sandbox_lib/log-sink.sh"
-  show_file_tail "$_sandbox_lib/log-sink.sh" 120
+  scan_unbalanced_squotes "$_sandbox_lib/log-sink.sh"
+  scan_unbalanced_backticks "$_sandbox_lib/log-sink.sh"
+  show_file_tail "$_sandbox_lib/log-sink.sh" 200
+  show_file_bytes_tail "$_sandbox_lib/log-sink.sh"
   # hard fail early so we don't spam 37 tests with the same root cause
   echo "ERROR: sandbox log-sink.sh has syntax errors (see debug above)" >&2
   exit 2
