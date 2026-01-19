@@ -169,7 +169,7 @@ _ls_mkdir_p() {
 }
 
 # ---- retention -------------------------------------------------------------
-# NOTE: Defined before log_sink_init so shells that don't pre-parse function
+# NOTE: Defined before log_sink_init so shells that dont pre-parse function
 # bodies (e.g., some ksh configurations) still have it available.
 
 _ls_prune_logs() {
@@ -190,7 +190,7 @@ _ls_prune_logs() {
               # keep only direct children of $_ls_log_dir (no recursion)
               _ls_rel=${_ls_path#$_ls_log_dir/}
 
-              # If it contains a slash, it's in a subdir -> exclude.
+              # If it contains a slash, its in a subdir -> exclude.
               if [ "${_ls_rel#*/}" != "$_ls_rel" ]; then
                   :
               else
