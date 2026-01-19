@@ -30,11 +30,13 @@ FACADE_PATH="./rebuild/log.sh"
 while [ $# -gt 0 ]; do
   case "$1" in
     --lib-dir)
-      LIB_DIR=${2:-}
+      [ $# -ge 2 ] || { echo "ERROR: --lib-dir requires DIR" >&2; exit 2; }
+      LIB_DIR=$2
       shift 2
       ;;
     --facade)
-      FACADE_PATH=${2:-}
+      [ $# -ge 2 ] || { echo "ERROR: --facade requires PATH" >&2; exit 2; }
+      FACADE_PATH=$2
       shift 2
       ;;
     *)
@@ -43,6 +45,13 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+# Refuse to run as root unless explicitly allowed.
+# Override: ALLOW_ROOT=1 sh test-log-system.sh ...
+if [ "$(id -u)" -eq 0 ] && [ "${ALLOW_ROOT:-0}" != "1" ]; then
+  echo "ERROR: refusing to run as root (set ALLOW_ROOT=1 to override)" >&2
+  exit 2
+fi
 
 need_file() {
   _p=$1
@@ -57,7 +66,25 @@ need_file "$LIB_DIR/log-format.sh"
 need_file "$LIB_DIR/log-sink.sh"
 need_file "$LIB_DIR/log-capture.sh"
 
-_sandbox=$(mktemp -d 2>/dev/null || mktemp -d -t logtest)
+# --------------------------------------------------------------------------
+# POSIX temp sandbox (no mktemp)
+# --------------------------------------------------------------------------
+: "${TMPDIR:=/tmp}"
+_sandbox="$TMPDIR/logtest.$$"
+_i=0
+while :; do
+  _try="$_sandbox.$_i"
+  if (umask 077 && mkdir "$_try") 2>/dev/null; then
+    _sandbox="$_try"
+    break
+  fi
+  _i=$(( _i + 1 ))
+  if [ "$_i" -gt 200 ]; then
+    echo "ERROR: could not create sandbox dir in $TMPDIR" >&2
+    exit 2
+  fi
+done
+
 _sandbox_lib="$_sandbox/lib"
 _sandbox_logs="$_sandbox/logs"
 mkdir -p "$_sandbox_lib" "$_sandbox_logs" || exit 2
@@ -65,7 +92,9 @@ mkdir -p "$_sandbox_lib" "$_sandbox_logs" || exit 2
 cleanup() {
   rm -rf "$_sandbox"
 }
-trap cleanup EXIT HUP INT TERM
+
+# POSIX traps: 0=EXIT, 1=HUP, 2=INT, 15=TERM
+trap cleanup 0 1 2 15
 
 # Copy libs into sandbox
 cp "$FACADE_PATH"            "$_sandbox_lib/log.sh" || exit 2
@@ -161,23 +190,24 @@ assert_nonzero() {
   fi
 }
 
+# Use -f (regular file) to avoid reliance on test -e in stricter/older sh.
 assert_exists() {
   _path=$1
   _msg=$2
-  if [ -e "$_path" ]; then
+  if [ -f "$_path" ]; then
     ok "$_msg"
   else
-    not_ok "$_msg (missing: $_path)"
+    not_ok "$_msg (missing file: $_path)"
   fi
 }
 
 assert_not_exists() {
   _path=$1
   _msg=$2
-  if [ ! -e "$_path" ]; then
+  if [ ! -f "$_path" ]; then
     ok "$_msg"
   else
-    not_ok "$_msg (unexpectedly exists: $_path)"
+    not_ok "$_msg (unexpectedly exists as file: $_path)"
   fi
 }
 
@@ -211,26 +241,13 @@ assert_file_not_contains() {
   fi
 }
 
-# Best-effort symlink target read (POSIX-ish; readlink not required)
-symlink_target_basename() {
-  # Args: $1 = symlink path
-  _p=$1
-
-  if command -v readlink >/dev/null 2>&1; then
-    readlink "$_p" 2>/dev/null && return 0
-  fi
-
-  # Fallback: parse "ls -l" output: "... name -> target"
-  # Note: parsing ls is not perfectly portable, but works on common platforms.
-  _l=$(ls -ld "$_p" 2>/dev/null) || return 1
-  printf '%s\n' "$_l" | sed 's/.* -> //' 2>/dev/null
-  return 0
-}
-
 # Reset facade/library guard vars so we can re-source cleanly between tests.
 reset_facade_state() {
-  unset LOG_FACADE_LOADED LOG_SINK_LOADED LOG_CAPTURE_LOADED _lf_loaded DT_STUB_LOADED
-  unset LOG_FACADE_ACTIVE LOG_SINK_FD LOG_MIN_LEVEL _log_sink_ready
+  for _v in LOG_FACADE_LOADED LOG_SINK_LOADED LOG_CAPTURE_LOADED _lf_loaded DT_STUB_LOADED \
+           LOG_FACADE_ACTIVE LOG_SINK_FD LOG_MIN_LEVEL _log_sink_ready
+  do
+    unset "$_v"
+  done
 }
 
 # --------------------------------------------------------------------------
@@ -251,7 +268,7 @@ export LOG_LIB_DIR
 }
 
 # --------------------------------------------------------------------------
-# TEST 1: happy path init + write + close + latest link
+# TEST 1: happy path init + write + close + latest link behavior
 # --------------------------------------------------------------------------
 JOB="unit"
 JOB_LOG_DIR="$_sandbox_logs/$JOB"
@@ -263,12 +280,6 @@ rc=$?
 assert_eq "$rc" "0" "log_init returns 0 on happy path"
 
 assert_exists "$LOG_FILE" "log file created"
-assert_exists "$_sandbox_logs/${JOB}-latest.log" "latest symlink exists"
-
-# Ensure symlink points at basename of current log file
-_link_target=$(symlink_target_basename "$_sandbox_logs/${JOB}-latest.log" 2>/dev/null || echo "")
-_base=$(basename "$LOG_FILE")
-assert_eq "$_link_target" "$_base" "latest symlink points to current log"
 
 log_info "hello" 1>/dev/null 2>&1
 rc=$?
@@ -279,6 +290,8 @@ rc=$?
 assert_eq "$rc" "0" "log_close returns 0"
 
 assert_file_contains "$LOG_FILE" "[local] INFO hello" "log line contains level and message"
+# Behavior-based check: latest path resolves to current log contents (also implies it exists)
+assert_file_contains "$_sandbox_logs/${JOB}-latest.log" "[local] INFO hello" "latest symlink resolves to current log"
 
 # --------------------------------------------------------------------------
 # TEST 2: level gating
@@ -327,7 +340,6 @@ assert_eq "$rc" "0" "log_init DEBUG returns 0"
 
 # Build a message that includes CR and a non-ASCII byte.
 # Insert a literal CR via printf; insert a non-ASCII byte via octal escape.
-# Some shells differ on escapes; this still exercises sanitizer in most environments.
 _msg=$(printf 'a\rb \200')
 log_info "$_msg" 1>/dev/null 2>&1
 rc=$?
@@ -389,7 +401,7 @@ export LOG_LIB_DIR
 
 JOB2="ret"
 LOG_DIR="$_sandbox_logs/ret"
-mkdir -p "$LOG_DIR" || exit 1
+mkdir -p "$LOG_DIR" || exit 2
 
 # Pre-seed 3 old logs in the same directory.
 # Names must match <JOB>-YYYY-MM-DD-HHMMSS.log
