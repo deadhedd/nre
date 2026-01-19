@@ -275,7 +275,7 @@ JOB_LOG_DIR="$_sandbox_logs/$JOB"
 mkdir -p "$JOB_LOG_DIR" || exit 2
 LOG_FILE="$JOB_LOG_DIR/${JOB}-2026-01-17-000001.log"
 
-log_init "$JOB" "$LOG_FILE" INFO 1>/dev/null 2>&1
+log_init "$JOB" "$LOG_FILE" INFO 1>/dev/null
 rc=$?
 assert_eq "$rc" "0" "log_init returns 0 on happy path"
 
@@ -305,7 +305,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE2="$_sandbox_logs/${JOB}-2026-01-17-000002.log"
-log_init "$JOB" "$LOG_FILE2" WARN 1>/dev/null 2>&1
+log_init "$JOB" "$LOG_FILE2" WARN 1>/dev/null
 rc=$?
 assert_eq "$rc" "0" "log_init with MIN_LEVEL=WARN returns 0"
 
@@ -334,7 +334,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE3="$_sandbox_logs/${JOB}-2026-01-17-000003.log"
-log_init "$JOB" "$LOG_FILE3" DEBUG 1>/dev/null 2>&1
+log_init "$JOB" "$LOG_FILE3" DEBUG 1>/dev/null
 rc=$?
 assert_eq "$rc" "0" "log_init DEBUG returns 0"
 
@@ -362,7 +362,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE4="$_sandbox_logs/${JOB}-2026-01-17-000004.log"
-log_init "$JOB" "$LOG_FILE4" INFO 1>/dev/null 2>&1
+log_init "$JOB" "$LOG_FILE4" INFO 1>/dev/null
 rc=$?
 assert_eq "$rc" "0" "log_init for capture returns 0"
 
@@ -414,7 +414,7 @@ LOG_KEEP_COUNT=2
 export LOG_KEEP_COUNT
 
 _new="$LOG_DIR/${JOB2}-2026-01-17-000013.log"
-log_init "$JOB2" "$_new" INFO 1>/dev/null 2>&1
+log_init "$JOB2" "$_new" INFO 1>/dev/null
 rc=$?
 assert_eq "$rc" "0" "log_init with retention returns 0"
 
@@ -445,7 +445,7 @@ export LOG_LIB_DIR
 }
 
 LOG_FILE5="$_sandbox_logs/${JOB}-2026-01-17-000005.log"
-log_init "$JOB" "$LOG_FILE5" INFO 1>/dev/null 2>&1
+log_init "$JOB" "$LOG_FILE5" INFO 1>/dev/null
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 when JOB_WRAP_ACTIVE is missing"
 
@@ -462,7 +462,7 @@ export LOG_LIB_DIR
 
 _bad_job="bad/job"
 _bad_log="$_sandbox_logs/bad/${_bad_job}-2026-01-17-000006.log"
-log_init "$_bad_job" "$_bad_log" INFO 1>/dev/null 2>&1
+log_init "$_bad_job" "$_bad_log" INFO 1>/dev/null
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 for invalid JOB_NAME"
 
@@ -479,7 +479,7 @@ export LOG_LIB_DIR
 
 _bad_job2="unit"
 _bad_log2="$_sandbox_logs/${_bad_job2}-NOT_A_TIMESTAMP.log"
-log_init "$_bad_job2" "$_bad_log2" INFO 1>/dev/null 2>&1
+log_init "$_bad_job2" "$_bad_log2" INFO 1>/dev/null
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 for invalid LOG_FILE basename"
 
@@ -499,7 +499,7 @@ mkdir -p "$_ro_dir" || exit 2
 chmod 500 "$_ro_dir" 2>/dev/null || :
 
 _ro_log="$_ro_dir/rojob-2026-01-17-000007.log"
-log_init "rojob" "$_ro_log" INFO 1>/dev/null 2>&1
+log_init "rojob" "$_ro_log" INFO 1>/dev/null
 rc=$?
 # log-sink uses rc=10 for cannot open log file / cannot update symlink
 assert_eq "$rc" "10" "log_init returns 10 when log file cannot be opened (unwritable dir)"
@@ -534,7 +534,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE6="$_sandbox_logs/${JOB}-2026-01-17-000008.log"
-log_init "$JOB" "$LOG_FILE6" INFO 1>/dev/null 2>&1
+log_init "$JOB" "$LOG_FILE6" INFO 1>/dev/null
 rc=$?
 assert_eq "$rc" "0" "log_init for double-close returns 0"
 
@@ -568,7 +568,7 @@ export LOG_LIB_DIR
 . "$_lib_nodt/log.sh" 1>&2 || { echo "ERROR: failed to source log.sh (nodt)" >&2; exit 2; }
 
 LOG_FILE7="$_sandbox_logs/${JOB}-2026-01-17-000009.log"
-log_init "$JOB" "$LOG_FILE7" INFO 1>/dev/null 2>&1
+log_init "$JOB" "$LOG_FILE7" INFO 1>/dev/null
 rc=$?
 assert_eq "$rc" "10" "log_init returns 10 when datetime.sh cannot be sourced"
 
