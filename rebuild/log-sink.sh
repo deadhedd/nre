@@ -250,7 +250,8 @@ log_sink_init() {
 
     _ls_job=$JOB_NAME
     _ls_log_dir=$(dirname "$LOG_FILE")
-    _ls_latest_link="${_ls_log_dir}/${_ls_job}-latest.log"
+    _ls_latest_dir=$(dirname "$_ls_log_dir")
+    _ls_latest_link="${_ls_latest_dir}/${_ls_job}-latest.log"
 
     _ls_mkdir_p "$_ls_log_dir" || return $?
 
