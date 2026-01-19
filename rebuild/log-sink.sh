@@ -229,12 +229,14 @@ log_sink_init() {
 
     _ls_mkdir_p "$_ls_log_dir" || return $?
 
+    # FIX: ensure fd 3 is free before opening (POSIX-safe)
+    exec 3>&- 2>/dev/null || :
+
     exec 3>>"$LOG_FILE" || {
         _ls_fail "cannot open log file: $LOG_FILE"
         return 10
     }
 
-    # FIX: use absolute path for symlink target (Option A)
     ln -sf "$LOG_FILE" "$_ls_latest_link" || {
         _ls_fail "cannot update latest log symlink: $_ls_latest_link"
         return 10
