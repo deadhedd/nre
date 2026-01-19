@@ -27,6 +27,8 @@
 
 # ---- guard: library-only ---------------------------------------------------
 
+# Robust "sourced vs executed" detection (catches: ./log-sink.sh AND sh log-sink.sh)
+# In POSIX sh, `return` is valid only when sourced; if executed, it errors.
 if (return 0 2>/dev/null); then
     : # sourced, OK
 else
@@ -104,24 +106,21 @@ _ls_validate_job_name() {
     # - no glob metacharacters
     _ls_j=$1
 
-    [ -n "$_ls_j" ] || {
+    if [ -z "$_ls_j" ]; then
         _ls_fail_misuse "missing required env var: JOB_NAME"
         return 11
-    }
+    fi
 
-    case $_ls_j in
-        *[!A-Za-z0-9._-]*)
-            _ls_fail_misuse "invalid JOB_NAME (allowed: [A-Za-z0-9._-]): $_ls_j"
-            return 11
-            ;;
-    esac
+    # Only allow [A-Za-z0-9._-]
+    if ! printf '%s' "$_ls_j" | LC_ALL=C grep -Eq '^[A-Za-z0-9._-]+$'; then
+        _ls_fail_misuse "invalid JOB_NAME (allowed: [A-Za-z0-9._-]): $_ls_j"
+        return 11
+    fi
 
-    case $_ls_j in
-        '.'|'..')
-            _ls_fail_misuse "invalid JOB_NAME ('.' and '..' are forbidden): $_ls_j"
-            return 11
-            ;;
-    esac
+    if [ "$_ls_j" = "." ] || [ "$_ls_j" = ".." ]; then
+        _ls_fail_misuse "invalid JOB_NAME ('.' and '..' are forbidden): $_ls_j"
+        return 11
+    fi
 
     return 0
 }
@@ -134,27 +133,25 @@ _ls_validate_log_file() {
     # - basename is ASCII-safe for globbing and sorting
     _ls_path=$1
 
-    [ -n "$_ls_path" ] || {
+    if [ -z "$_ls_path" ]; then
         _ls_fail_misuse "missing required env var: LOG_FILE"
         return 11
-    }
+    fi
 
     _ls_base=$(basename "$_ls_path")
 
-    case $_ls_base in
-        *[!A-Za-z0-9._-]*)
-            _ls_fail_misuse "invalid LOG_FILE basename (allowed: [A-Za-z0-9._-]): $_ls_base"
-            return 11
-            ;;
-    esac
+    # Basename must be ASCII-safe: [A-Za-z0-9._-] only
+    if ! printf '%s' "$_ls_base" | LC_ALL=C grep -Eq '^[A-Za-z0-9._-]+$'; then
+        _ls_fail_misuse "invalid LOG_FILE basename (allowed: [A-Za-z0-9._-]): $_ls_base"
+        return 11
+    fi
 
-    case $_ls_base in
-        "$JOB_NAME"-????-??-??-??????.log) : ;;
-        *)
-            _ls_fail_misuse "invalid LOG_FILE basename (expected ${JOB_NAME}-YYYY-MM-DD-HHMMSS.log): $_ls_base"
-            return 11
-            ;;
-    esac
+    # Must match: ${JOB_NAME}-YYYY-MM-DD-HHMMSS.log
+    _ls_re="^${JOB_NAME}-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]\\.log$"
+    if ! printf '%s' "$_ls_base" | LC_ALL=C grep -Eq "$_ls_re"; then
+        _ls_fail_misuse "invalid LOG_FILE basename (expected ${JOB_NAME}-YYYY-MM-DD-HHMMSS.log): $_ls_base"
+        return 11
+    fi
 
     return 0
 }
@@ -179,9 +176,10 @@ _ls_mkdir_p() {
 _ls_prune_logs() {
     _ls_keep_count=${LOG_KEEP_COUNT:-0}
 
-    case $_ls_keep_count in
-        ''|*[!0-9]*) _ls_keep_count=0 ;;
-    esac
+    # Must be a non-negative integer. Otherwise treat as 0.
+    if ! printf '%s' "$_ls_keep_count" | LC_ALL=C grep -Eq '^[0-9]+$'; then
+        _ls_keep_count=0
+    fi
     [ "$_ls_keep_count" -gt 0 ] || return 0
 
     _ls_pattern="${_ls_job}-????-??-??-??????.log"
@@ -192,14 +190,13 @@ _ls_prune_logs() {
               # Directory-local retention:
               # keep only direct children of $_ls_log_dir (no recursion)
               _ls_rel=${_ls_path#$_ls_log_dir/}
-              case "$_ls_rel" in
-                  */*)
-                      :  # in a subdir -> exclude
-                      ;;
-                  *)
-                      printf '%s\n' "$_ls_path"
-                      ;;
-              esac
+
+              # If it contains a slash, it's in a subdir -> exclude.
+              if [ "${_ls_rel#*/}" != "$_ls_rel" ]; then
+                  :
+              else
+                  printf '%s\n' "$_ls_path"
+              fi
           done \
         | sort
     ) || {
