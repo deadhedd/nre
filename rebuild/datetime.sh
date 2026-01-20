@@ -75,6 +75,7 @@ dt_now_epoch() { "$DT_DATE_BIN" '+%s'; }
 dt_now_local_iso() { "$DT_DATE_BIN" '+%Y-%m-%dT%H:%M:%S%z'; }
 dt_now_local_iso_no_tz() { "$DT_DATE_BIN" '+%Y-%m-%dT%H:%M:%S'; }
 dt_now_local_compact() { "$DT_DATE_BIN" '+%Y%m%dT%H%M%S'; }
+dt_now_local_log_ts() { "$DT_DATE_BIN" '+%Y-%m-%d-%H%M%S'; }
 dt_today_local() { "$DT_DATE_BIN" '+%Y-%m-%d'; }
 
 # ------------------
