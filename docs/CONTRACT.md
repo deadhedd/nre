@@ -155,7 +155,7 @@ Engine execution follows a single linear path from invocation to reporting:
 
 1. **Invocation and re-exec** — Every leaf script immediately re-execs itself through `utils/core/job-wrap.sh`, ensuring the wrapper owns lifecycle, environment normalization, and stdout/stderr discipline.
 2. **Wrapper initialization** — `job-wrap.sh` sets predictable `PATH`, detects the repository root, and establishes logging context before the leaf script logic runs.
-3. **Logging bootstrapping** — The wrapper creates a dedicated log file under the logs root, binds `stderr` to structured logging (including per-line annotation), and keeps `stdout` pristine for data output.
+3. **Logging bootstrapping** — The wrapper initializes the logging subsystem, which creates a dedicated per-run log file under the logs root, binds `stderr` to structured logging (including per-line annotation), and establishes the latest-run pointer.
 4. **Leaf execution and artifacts** — The leaf script runs with wrapper-provided context, emits data to stdout (if any), and produces primary artifacts (files, markdown, JSON) directly in the repository or vault locations as defined by the script’s contract.
 5. **Optional commit orchestration** — If the job configuration requests it, `job-wrap.sh` invokes `utils/core/commit.sh` with an explicit file list to stage and commit generated artifacts; commits never occur implicitly from the leaf script.
    Leaf scripts MUST remain correct when commit orchestration is disabled or unavailable.
