@@ -552,17 +552,33 @@ Formatted human-facing documents (e.g., Markdown `*.md`) **MAY** include Unicode
 
 Even when a job fails catastrophically:
 
-* A log file **MUST** exist
+* A log file **SHOULD** exist (best-effort); if it cannot be produced, `stderr` diagnostics MUST remain intact
 * Partial logs are acceptable
 * Silent failure is not
 
 Generated notes and data artifacts are the priority.
 Logging failures follow a two-tier rule:
 
-* **Soft**: the log file is unavailable but `stderr` is intact → the job continues
-* **Hard**: the logging failure implies a corrupted or unsafe execution context → wrapper failure
+* **Soft**: file-backed logging is unavailable or incomplete but execution remains safe (and `stderr` remains intact) → the job continues
+* **Hard**: the logging failure is evidence of a corrupted or unsafe execution context → wrapper failure
+
+**Unsafe execution context (normative)**
+
+Loss of file-backed logs **alone** MUST NOT be treated as unsafe.
+A logging failure qualifies as **Hard** only when it provides evidence that wrapper-managed execution safety is compromised.
+
+Examples of evidence that MAY qualify as unsafe include:
+
+* wrapper cannot create or manage required temporary resources (and therefore cannot execute deterministically)
+* wrapper invariants are violated (e.g., recursion/nesting guards broken)
+* engine wiring is inconsistent or partially deployed (e.g., required engine components cannot be sourced or executed)
+* the failure indicates broader filesystem or permission corruption likely to affect job artifacts, not just logs
+
+All other logging failures (including inability to create/update log files or latest pointers) MUST be treated as Soft.
 
 Logging must be best-effort and must not fail jobs unless the hard condition is met.
+
+**Policy summary (normative):** Job outputs are the priority; logging is best-effort. Missing logs are acceptable. Only safety-compromising evidence warrants wrapper failure.
 
 ---
 
@@ -648,10 +664,12 @@ This ensures that cron, calling scripts, and status-report tooling can treat the
 **Wrapper Failure Override**
 
 * If the wrapper fails before executing the leaf script, the wrapper MUST exit non-zero with a wrapper-defined failure code.
-* If the wrapper fails after executing the leaf script in a way that prevents reliable observability or publication of the run (e.g., required logs, markers, or vault commit cannot be produced), the wrapper MUST exit non-zero with a wrapper-defined failure code, even if the leaf script exited `0`.
+* If the wrapper fails after executing the leaf script in a way that indicates an unsafe execution context or prevents a **contract-required** publication step (e.g., required markers or required vault commit) from being produced, the wrapper MUST exit non-zero with a wrapper-defined failure code, even if the leaf script exited `0`.
 * Wrapper health → propagate leaf exit code; wrapper failure (pre- or post-leaf) that blocks required observability/publication → reserved wrapper code is authoritative.
 
 In such cases, the wrapper’s failure is considered authoritative, as the run is effectively lost or unverifiable.
+
+File-backed logging loss alone is not sufficient to trigger a post-leaf override unless it also meets the “unsafe execution context” definition in §2.2.8.
 
 **Failure Classification**
 
