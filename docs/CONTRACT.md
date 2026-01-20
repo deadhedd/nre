@@ -1322,20 +1322,22 @@ Any such behavior is a contract violation.
 
 ---
 
-#### 3.1.3 Single-Process Execution Model
+#### 3.1.3 Single-Process Wrapper Model
 
-The execution model is intentionally **single-process, single-shell**:
+The execution model is intentionally **single-wrapper, single-shell**:
 
-* `job-wrap.sh` executes the leaf script in the **same shell process**
-* No subshells or background execution are introduced by default
-* All environment variables are inherited and remain visible
+* `job-wrap.sh` remains the sole lifecycle owner for the duration of the job run.
+* The leaf script is executed as a **program in a child process** (not sourced).
+* No subshell constructs, pipelines, or background execution are introduced by the wrapper by default.
+* The leaf process inherits the wrapper’s exported environment variables and working directory.
+* `stdout` remains sacred (unchanged); `stderr` routing is controlled by the wrapper per the Stdout/Stderr and Logging Contracts.
 
 This enables:
 
-* Reliable exit code propagation
-* Deterministic cleanup
-* Correct handling of `set -e`
-* Centralized shutdown handling (signals, FIFOs, traps)
+* Reliable exit code propagation (leaf exit status is captured and returned by the wrapper)
+* Deterministic cleanup and shutdown handling (signals, traps, temp files) owned by the wrapper
+* Post-run orchestration steps (structured log finalization, optional commit orchestration) without leaf involvement
+* A clear process boundary: leaf scripts run as normal executables while the wrapper enforces invariants
 
 ---
 
