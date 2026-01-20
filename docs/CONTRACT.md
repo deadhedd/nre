@@ -254,7 +254,7 @@ The system assumes that stderr:
 `job-wrap.sh` enforces this contract by design:
 
 * Leaf script `stdout` passes through untouched
-* Leaf script `stderr` is intercepted, annotated, and written to log files
+* Leaf script `stderr` is intercepted and routed verbatim into the logging subsystem (no wrapper parsing, tagging, or rewriting). The logging subsystem formats and writes the resulting log lines to the per-run log file.
 * The wrapper itself **never writes to stdout**
 
 This guarantees that:
@@ -373,7 +373,7 @@ These helpers are **never** sourced directly; `log.sh` is the façade that wires
 The logging model is intentionally simple and robust:
 
 * Leaf script `stderr` is captured verbatim
-* The wrapper annotates and appends this output to a per-run log file
+* The wrapper routes this output verbatim to the logging subsystem, which formats and writes it to the per-run log file
 * Each job run produces **exactly one log file**
 * (Normative): Leaf level prefix protocol
 * “Leaf script stderr lines MUST begin with an explicit level prefix: DEBUG:, INFO:, WARN:, or ERROR: (optionally followed by a single space).”
@@ -381,6 +381,7 @@ The logging model is intentionally simple and robust:
 * “The logging subsystem MAY perform strict parsing of this prefix for level gating. This parsing is considered logger policy gating (owned by log-format.sh / log-capture.sh), not wrapper interpretation.”
 * (Normative): Missing prefix handling
 * “Lines missing a valid prefix MUST be tagged as UNDEF by the logging subsystem.”
+* The wrapper MUST NOT assign log levels to leaf output and MUST NOT inject any per-line markers into captured leaf stderr.
 
 No ad-hoc filtering or heuristic parsing is applied at capture time. The only permitted parsing is strict recognition of the leaf log level prefix defined by this contract, performed by the logger subsystem as part of policy gating. The only permitted omission is explicit logger policy gating (e.g., level gating performed by `log-format.sh`), which is treated as a non-failure “no output by design” outcome. (See Appendix C.6 for logger helper return codes, including the non-failure “suppressed by policy” outcome.)
 Policy gating MUST NOT rewrite or reinterpret message content; it only determines whether a line is emitted. Prefix recognition MUST NOT alter the message payload; the full original line content MUST remain visible in logs (with UNDEF used when the prefix is missing/invalid).
