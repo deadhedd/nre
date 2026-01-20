@@ -352,7 +352,7 @@ Leaf scripts **MUST NOT**:
 * Create log files
 * Decide log paths
 * Rotate or prune logs
-* Write timestamps or log prefixes
+* Write timestamps or logger-format prefixes (e.g., [ts] [LEVEL] …). Leaf scripts MAY emit the contract-defined level prefix (DEBUG:/INFO:/WARN:/ERROR:) on stderr lines solely to enable logger policy gating.
 * Manage “latest” pointers
 * Commit logs to Git
 
@@ -375,15 +375,51 @@ The logging model is intentionally simple and robust:
 * Leaf script `stderr` is captured verbatim
 * The wrapper annotates and appends this output to a per-run log file
 * Each job run produces **exactly one log file**
+* (Normative): Leaf level prefix protocol
+* “Leaf script stderr lines MUST begin with an explicit level prefix: DEBUG:, INFO:, WARN:, or ERROR: (optionally followed by a single space).”
+* (Normative): Logger-only parsing
+* “The logging subsystem MAY perform strict parsing of this prefix for level gating. This parsing is considered logger policy gating (owned by log-format.sh / log-capture.sh), not wrapper interpretation.”
+* (Normative): Missing prefix handling
+* “Lines missing a valid prefix MUST be tagged as UNDEF by the logging subsystem.”
 
-No ad-hoc filtering, parsing, or suppression is applied at capture time. The only permitted omission is explicit logger policy gating (e.g., level gating performed by `log-format.sh`), which is treated as a non-failure “no output by design” outcome. (See Appendix C.6 for logger helper return codes, including the non-failure “suppressed by policy” outcome.)
-Policy gating MUST NOT rewrite or reinterpret message content; it only determines whether a line is emitted.
+No ad-hoc filtering or heuristic parsing is applied at capture time. The only permitted parsing is strict recognition of the leaf log level prefix defined by this contract, performed by the logger subsystem as part of policy gating. The only permitted omission is explicit logger policy gating (e.g., level gating performed by `log-format.sh`), which is treated as a non-failure “no output by design” outcome. (See Appendix C.6 for logger helper return codes, including the non-failure “suppressed by policy” outcome.)
+Policy gating MUST NOT rewrite or reinterpret message content; it only determines whether a line is emitted. Prefix recognition MUST NOT alter the message payload; the full original line content MUST remain visible in logs (with UNDEF used when the prefix is missing/invalid).
 
 This guarantees:
 
 * Complete diagnostic fidelity
 * No loss of context
 * Postmortem debuggability
+
+---
+
+#### 2.2.2.X Leaf Level Prefix Protocol (Normative)
+
+Leaf-level stderr diagnostics MUST follow the level prefix protocol to enable deterministic logger policy gating.
+
+**Allowed levels**
+
+* DEBUG
+* INFO
+* WARN
+* ERROR
+
+**Required syntax**
+
+* `^(DEBUG|INFO|WARN|ERROR):[ ]?`
+
+**Line discipline**
+
+* One line equals one message (no embedded newlines).
+* Control characters are not allowed, per ASCII-only log rules.
+
+**Missing/invalid prefix**
+
+* Lines missing a valid prefix are tagged as `UNDEF` by the logging subsystem.
+
+**UNDEF handling**
+
+* `UNDEF` lines SHOULD always be emitted regardless of `LOG_MIN_LEVEL` to surface protocol violations.
 
 ---
 
@@ -496,7 +532,7 @@ Leaf scripts:
 * MUST NOT call logging functions
 * MUST NOT depend on logging internals
 
-If a leaf script emits diagnostics, it does so by writing to `stderr` only.
+If a leaf script emits diagnostics, it does so by writing to `stderr` only. When a leaf script emits diagnostics to stderr, each line MUST follow the Leaf Level Prefix Protocol defined in §2.2.2.
 
 ---
 
@@ -538,7 +574,7 @@ This logging contract exists to enforce these invariants:
 * Logs are **consistent**
 * Logs are **boring**
 
-Leaf scripts should never need to think about logging.
+Leaf scripts should never need to think about log files, log paths, timestamps, rotation, or sinks. If they emit diagnostics, they MUST follow the level prefix protocol.
 If they are thinking about logging, the architecture has already failed.
 
 #### 2.2.10 Internal Engine Debugging (Opt-In)
