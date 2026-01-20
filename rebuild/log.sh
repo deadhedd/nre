@@ -146,7 +146,7 @@ _log_format_and_write() {
 
 log_init() {
   # Usage:
-  #   log_init <JOB_NAME> <LOG_FILE> [MIN_LEVEL]
+  #   log_init <JOB_NAME> [MIN_LEVEL]
   #
   # - Requires wrapper context (JOB_WRAP_ACTIVE=1)
   # - Establishes facade ownership (LOG_FACADE_ACTIVE=1)
@@ -157,7 +157,7 @@ log_init() {
   #   0  success (sink ready) OR success w/ stderr-only already active
   #   4  suppressed by policy (non-failure; should not occur for init path)
   #   10 operational failure (e.g., cannot source/init helpers) [caller may treat soft]
-  #   11 misuse (e.g., not in wrapper context; missing/invalid JOB_NAME/LOG_FILE/LOG_LIB_DIR;
+  #   11 misuse (e.g., not in wrapper context; missing/invalid JOB_NAME/LOG_LIB_DIR;
   #              invalid LOG_MIN_LEVEL; other facade-context misuse)
 
   _log_require_wrapper || return $?
@@ -167,8 +167,7 @@ log_init() {
 
   # Define facade context vars early (safe for set -u callers).
   JOB_NAME=${1:-}
-  LOG_FILE=${2:-}
-  LOG_MIN_LEVEL=${3:-INFO}
+  LOG_MIN_LEVEL=${2:-INFO}
 
   # --------------------------------------------------------------------------
   # Phase 1: facade-level misuse validation (NO helper sourcing yet)
@@ -178,27 +177,9 @@ log_init() {
     LOG_SINK_FD=2
     return 11
   }
-  _log_require_nonempty "LOG_FILE" "${LOG_FILE:-}" || {
-    _log_sink_ready=0
-    LOG_SINK_FD=2
-    return 11
-  }
-
-  # Validate LOG_FILE basename matches: <JOB>-YYYY-MM-DD-HHMMSS.log
-  # (This prevents sink/FS work from masking misuse as rc=10.)
-  _log_base=$(basename "${LOG_FILE}" 2>/dev/null || printf '%s' "${LOG_FILE}")
-  case "${_log_base}" in
-    "${JOB_NAME}"-????-??-??-??????.log) : ;;
-    *)
-      _log_err "misuse: invalid LOG_FILE basename (expected ${JOB_NAME}-YYYY-MM-DD-HHMMSS.log): ${_log_base}"
-      _log_sink_ready=0
-      LOG_SINK_FD=2
-      return 11
-      ;;
-  esac
 
   # --------------------------------------------------------------------------
-  # FIX: facade-level MIN_LEVEL validation (NO formatter probing)
+  # MIN_LEVEL validation (NO formatter probing)
   # --------------------------------------------------------------------------
   case "$LOG_MIN_LEVEL" in
     DEBUG|INFO|WARN|ERROR) : ;;
@@ -221,7 +202,7 @@ log_init() {
     return 10
   }
 
-  # Initialize sink. On success, sink opens FD 3 and _ls_write_line writes to it.
+  # Initialize sink. On success, sink opens FD 3 and sets LOG_FILE.
   log_sink_init 1>/dev/null
   _log_src=$?
 
