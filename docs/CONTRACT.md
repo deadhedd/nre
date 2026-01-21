@@ -1396,6 +1396,43 @@ This enables:
 
 ---
 
+#### 3.1.3.X Leaf `stderr` Capture Transport (Normative)
+
+To preserve the Stdout/Stderr Contract and the Logging Contract while remaining portable to POSIX `sh`,
+`job-wrap.sh` MUST capture leaf-script `stderr` using a temporary file buffer and then forward that
+buffer into the logging subsystem.
+
+**Required behavior**
+
+* The wrapper MUST execute the leaf as a program in a child process.
+* The wrapper MUST redirect leaf `stderr` to a wrapper-owned temporary file (or equivalent stable buffer).
+* After the leaf exits, the wrapper MUST forward the captured bytes into the logging subsystem
+  (e.g., `log-capture.sh`) **without modification**.
+* The wrapper MUST NOT assign log levels, inject markers, or rewrite leaf `stderr` content.
+  Logger-only parsing (level prefix gating) remains owned by the logging subsystem.
+
+**Prohibited mechanisms (portability + semantics)**
+
+Because POSIX `sh` lacks portable process substitution and because pipelines alter exit-code and stream
+semantics, the wrapper MUST NOT implement leaf `stderr` capture by:
+
+* process substitution (non-POSIX)
+* piping leaf output directly into logger processes
+* merging `stdout`/`stderr` to achieve capture
+* introducing wrapper-owned pipelines as the default execution path
+
+These approaches risk violating the “stdout is sacred” boundary, wrapper transparency, and reliable
+exit-code propagation.
+
+**Fallback behavior**
+
+If the wrapper cannot create a temporary capture file/buffer, it MAY degrade to `stderr` passthrough
+for observability (leaf `stderr` reaches the job boundary intact). This is a *soft logging failure*:
+job correctness and exit-code propagation MUST remain unchanged, and the wrapper MUST NOT treat this
+condition alone as evidence of an unsafe execution context.
+
+---
+
 #### 3.1.4 Wrapper Transparency
 
 From the perspective of the leaf script:
