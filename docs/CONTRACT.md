@@ -599,6 +599,8 @@ Logging must be best-effort and must not fail jobs unless the hard condition is 
 
 **Policy summary (normative):** Job outputs are the priority; logging is best-effort. Missing logs are acceptable. Only safety-compromising evidence warrants wrapper failure.
 
+**Corollary (normative):** Soft logging failures MUST NOT cause wrapper exit-code override; wrapper exit-code override is permitted only for Hard failures (unsafe execution context) and MUST use the appropriate engine-reserved exit code.
+
 ---
 
 #### 2.2.9 Design Intent Summary
@@ -803,9 +805,11 @@ If `job-wrap.sh` fails before the leaf script runs, the wrapper MUST exit non-ze
 
 Examples:
 
-* Cannot create log directory / file
+* Cannot create wrapper-required temporary resources needed for deterministic execution (see §2.2.8 unsafe context examples)
 * Cannot create needed temporary resources (e.g. FIFO) safely
 * Required environment is missing in a way that makes execution unsafe
+
+* **Note:** Inability to create file-backed logs (directories/files/symlinks) is **not** automatically a wrapper failure; it is a **soft logging failure** unless it also constitutes evidence of an unsafe execution context per §2.2.8.
 
 Logging failures are classified per §2.2.8:
 
@@ -2408,7 +2412,7 @@ Exit code meanings defined here are part of the public engine contract and MUST 
 | 0–255 (non-reserved)  | Exit code propagated directly from the leaf script   |
 | 120                   | Wrapper invocation or usage error                    |
 | 121                   | Wrapper initialization failure                       |
-| 122                   | Logging sink initialization or operation failure     |
+| 122                   | Hard logging failure (unsafe execution context / blocked required publication) |
 | 123                   | Commit helper failure                                |
 | 124                   | Internal wrapper error or invariant violation        |
 
@@ -2418,6 +2422,10 @@ Exit code meanings defined here are part of the public engine contract and MUST 
 - If the wrapper cannot fulfill its responsibilities, it MUST exit with the appropriate engine-reserved failure code.
 - Engine-reserved codes apply only when wrapper responsibilities fail; otherwise the wrapper exits exactly with the leaf code.
 - Engine-reserved exit codes MUST NOT be used by leaf scripts.
+- Soft logging failures MUST NOT change wrapper exit status. Soft logging failures include (non-exhaustive): inability to create/update log files, inability to update `*-latest.log`, retention pruning failure, and any other file-backed logging loss where `stderr` remains intact and execution safety is not compromised.
+- Exit code 122 MUST be used only when a logging failure qualifies as Hard under §2.2.8 (unsafe execution context evidence), or when it blocks a **contract-required publication step** that the wrapper is responsible for.
+- The wrapper MAY record “logging degraded” state in bootstrap logs and/or reports, but this MUST NOT be communicated via wrapper exit status unless the failure is Hard.
+- 124 vs 122: Use 124 for wrapper internal invariant violations unrelated to logging; use 122 only when the wrapper is failing because a logging failure is Hard (unsafe context / blocked required publication).
 
 ---
 
