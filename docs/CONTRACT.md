@@ -180,6 +180,8 @@ This contract exists to ensure scripts are:
 
 Violations of this contract are considered **bugs**, even if no immediate failure occurs.
 
+**Job boundary**: the stdout/stderr/exit-code interface visible to the invoker (terminal, cron mail, systemd, parent script). Boundary output is **ephemeral** and MUST NOT be relied on as the sole forensic record.
+
 ---
 
 #### 2.1.1 Stdout Is Sacred
@@ -198,6 +200,7 @@ Leaf scripts **MUST NOT** write any of the following to stdout:
 * Error descriptions
 
 If a consumer script redirects or captures stdout, it must be able to do so **without filtering**.
+The engine/wrapper MUST NOT redirect or capture leaf stdout as part of normal observability. Stdout remains for primary data and composability.
 
 > Nothing may be written to stdout unless it is part of the primary data product.
 
@@ -237,6 +240,8 @@ This includes:
 * Trace or timing information
 
 This applies **even when execution is successful**.
+
+All diagnostics intended for humans (wrapper stderr messages, logger stderr messages, bootstrap messages) **MUST be single-line**. Multiline evidence MUST be written to a dedicated artifact or emitted as multiple single-line entries.
 
 The system assumes that stderr:
 
@@ -572,6 +577,8 @@ Even when a job fails catastrophically:
 * A log file **SHOULD** exist (best-effort); if it cannot be produced, `stderr` diagnostics MUST remain intact
 * Partial logs are acceptable
 * Silent failure is not
+
+`job-wrap.sh` **MUST** create or designate a wrapper-owned **bootstrap diagnostic log** (best-effort). Any wrapper-emitted diagnostics (its own errors/warnings) **SHOULD** be recorded there, especially those occurring **before** logging is fully initialized. If file-backed persistence cannot be produced, wrapper diagnostics **MUST** remain intact on boundary stderr.
 
 Generated notes and data artifacts are the priority.
 Logging failures follow a two-tier rule:
