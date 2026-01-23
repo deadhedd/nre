@@ -242,6 +242,7 @@ This includes:
 This applies **even when execution is successful**.
 
 All diagnostics intended for humans (wrapper stderr messages, logger stderr messages, bootstrap messages) **MUST be single-line**. Multiline evidence MUST be written to a dedicated artifact or emitted as multiple single-line entries.
+Wrapper diagnostics are the intended mechanism for single-line wrapper-emitted messages at the job boundary when centralized logging is degraded (see §2.2.8).
 
 The system assumes that stderr:
 
@@ -602,6 +603,19 @@ Even when a job fails catastrophically:
 
 `job-wrap.sh` **MUST** create or designate a wrapper-owned **bootstrap diagnostic log** (best-effort). Any wrapper-emitted diagnostics (its own errors/warnings) **SHOULD** be recorded there, especially those occurring **before** logging is fully initialized. If file-backed persistence cannot be produced, wrapper diagnostics **MUST** remain intact on boundary stderr.
 
+**Wrapper diagnostic fallback (normative):**
+`job-wrap.sh` MAY implement a minimal internal diagnostic mechanism (“wrapper diagnostics”)
+to preserve human-visible failure context when centralized logging is unavailable or degraded.
+
+Wrapper diagnostics:
+
+* MUST NOT write to `stdout` under any circumstance.
+* MUST be single-line at the job boundary (multiline evidence MUST be written to a dedicated artifact such as the bootstrap diagnostic log).
+* SHOULD be recorded to the wrapper-owned bootstrap diagnostic log on a best-effort basis, especially before logging is fully initialized.
+* MUST NOT affect job success, exit semantics, or publication behavior.
+* MAY use the same level names as the centralized logging system (DEBUG/INFO/WARN/ERROR) for consistency, but are not subject to logger policy gating or formatting rules.
+* MUST remain functional even when the logger cannot be initialized.
+
 Generated notes and data artifacts are the priority.
 Logging failures follow a two-tier rule:
 
@@ -640,6 +654,8 @@ This logging contract exists to enforce these invariants:
 * Logs are **centralized**
 * Logs are **consistent**
 * Logs are **boring**
+
+Wrapper diagnostics exist only as a fallback visibility channel and MUST NOT become a second logging system.
 
 Leaf scripts should never need to think about log files, log paths, timestamps, rotation, or sinks. If they emit diagnostics, they MUST follow the level prefix protocol.
 If they are thinking about logging, the architecture has already failed.
