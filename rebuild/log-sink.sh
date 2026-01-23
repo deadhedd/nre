@@ -152,12 +152,28 @@ _ls_generate_log_file_path() {
 # ---- retention -------------------------------------------------------------
 
 _ls_prune_logs() {
-    _ls_keep_count=${LOG_KEEP_COUNT:-0}
+    _ls_keep_count=${LOG_KEEP_COUNT-}
 
-    # Must be a non-negative integer. Otherwise treat as 0.
-    if ! printf '%s' "$_ls_keep_count" | LC_ALL=C grep -Eq '^[0-9]+$'; then
+    # Contract (v0.9+ update):
+    # - unset/empty => pruning disabled (0)  [façade SHOULD supply default, but sink stays safe]
+    # - 0 => pruning disabled
+    # - N>=1 => keep N most recent per-run logs
+    # - negative or non-integer => misuse (11)
+
+    if [ -z "${_ls_keep_count}" ]; then
         _ls_keep_count=0
     fi
+
+    case "$_ls_keep_count" in
+        -*)
+            _ls_fail_misuse "invalid LOG_KEEP_COUNT (must be non-negative integer): $_ls_keep_count"
+            return 11
+            ;;
+        *[!0-9]*)
+            _ls_fail_misuse "invalid LOG_KEEP_COUNT (must be non-negative integer): $_ls_keep_count"
+            return 11
+            ;;
+    esac
     [ "$_ls_keep_count" -gt 0 ] || return 0
 
     _ls_pattern="${_ls_job}-????-??-??-??????.log"
