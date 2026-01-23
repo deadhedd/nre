@@ -528,6 +528,28 @@ This decoupling allows log layout to evolve without touching jobs.
 
 ---
 
+#### 2.2.4.X.Y Retention Count Semantics (Normative)
+
+`LOG_KEEP_COUNT` controls directory-local pruning of per-run log files.
+
+**Interpretation**
+
+* If `LOG_KEEP_COUNT` is **unset** or **empty**, the logging façade MUST supply a deterministic default value.
+* If `LOG_KEEP_COUNT=0`, retention pruning is **disabled** (keep all per-run logs).
+* If `LOG_KEEP_COUNT` is a positive integer `N>=1`, the sink MUST keep the `N` most recent per-run log files in the directory that contains the current run’s `LOG_FILE` and MUST prune older matching per-run logs.
+* `LOG_KEEP_COUNT` MUST be a non-negative integer.
+  * Any negative value or non-integer value is **misuse**:
+    * the sink MUST emit a single diagnostic line to stderr
+    * the sink MUST return `11`
+
+**Scope and candidates**
+
+* Pruning considers only files that match the per-run log filename shape (`<job>-<ts>.log`) as defined in §2.2.3.1.
+* `*-latest.log` MUST NOT be treated as a retention candidate.
+* Pruning MUST be directory-local and non-recursive as defined in §2.2.4.X.
+
+---
+
 #### 2.2.5 Structured Log Content
 
 Logs may contain:
@@ -2245,6 +2267,7 @@ This appendix defines the core engine environment variables and their required v
 | LOG_SINK_LOADED  | Log sink           | Guard to prevent double sourcing                     | Checked early                      |
 | VAULT_PATH       | Wrapper / Commit   | Default work tree for commits                        | Defaulted; not strictly validated |
 | LOG_ROOT         | Wrapper / Log sink | Base log directory                                   | Defaulted; not strictly validated |
+| LOG_KEEP_COUNT   | Wrapper / Log sink | Retention policy for per-run log files               | Defaulted; invalid is misuse (return `11`) |
 | TMPDIR           | Wrapper / Log sink | Temporary file parent                                | Default `/tmp`; not validated |
 | COMMIT_BARE_REPO | Commit helper      | Optional bare repo override                          | Used directly; git validates |
 | GIT_BIN          | Commit helper      | Optional git binary override                         | Executable verified |
@@ -2316,6 +2339,17 @@ The core engine has been implemented to remain correct when they are unset.
 * **Purpose:** Base directory for job logs
 * **Default:** Derived (often `${HOME}/logs`)
 * **Validation:** Not strictly validated
+
+#### LOG_KEEP_COUNT
+
+* **Type:** optional override (façade-consumed; sink-enforced)
+* **Meaning:** retention policy for per-run log files within the directory containing the current run’s `LOG_FILE`.
+* **Allowed values:**
+  * unset/empty → façade supplies deterministic default
+  * `0` → disable pruning (keep all per-run logs)
+  * positive integer `N>=1` → keep `N` most recent per-run logs; prune older matching files
+* **Invalid values:** negative or non-integer → logger helper misuse (sink emits one diagnostic line to stderr and returns `11`)
+* **Notes:** pruning is directory-local and ignores `*-latest.log`.
 
 #### TMPDIR
 
