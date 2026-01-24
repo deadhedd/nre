@@ -68,7 +68,8 @@ The engine consists of the following canonical components:
   * enforcing execution contracts
   * environment normalization
   * stdout/stderr routing
-  * orchestrating auto-commit behavior **only when configured** (Git availability is not required for engine correctness)
+  * orchestrating auto-commit behavior **by default** (commit mode defaults to `best-effort`; jobs may explicitly disable with `COMMIT_MODE=off`)
+  * Git + doas availability is an **engine prerequisite** in normal operation; missing Git/doas is an engine failure when auto-commit is enabled
 * `log.sh`
   The shared logging helper library.
   Provides stable, minimal logging primitives.
@@ -157,7 +158,7 @@ Engine execution follows a single linear path from invocation to reporting:
 2. **Wrapper initialization** — `job-wrap.sh` sets predictable `PATH`, detects the repository root, and establishes logging context before the leaf script logic runs.
 3. **Logging bootstrapping** — If logger initialization degrades before per-run logging exists (including any contained stdout leak), the wrapper records details in `${LOG_ROOT}/_bootstrap/` and continues execution without polluting job stdout.
 4. **Leaf execution and artifacts** — The leaf script runs with wrapper-provided context, emits data to stdout (if any), and produces primary artifacts (files, markdown, JSON) directly in the repository or vault locations as defined by the script’s contract.
-5. **Optional commit orchestration** — If the job configuration requests it, `job-wrap.sh` invokes `utils/core/commit.sh` with an explicit file list to stage and commit generated artifacts; commits never occur implicitly from the leaf script.
+5. **Commit orchestration** — By default, `job-wrap.sh` invokes `utils/core/commit.sh` with an explicit file list to stage and commit generated artifacts; commits never occur implicitly from the leaf script. Jobs may explicitly disable this with `COMMIT_MODE=off`.
    Leaf scripts MUST remain correct when commit orchestration is disabled or unavailable.
 6. **Out-of-band status reporting** — After runs, `utils/core/report.sh` invokes the reporting helpers to read wrapper-generated logs and pointers (not stdout) to classify job health, produce human-readable Markdown reports, and refresh vault log copies independent of the jobs’ data outputs.
 
@@ -1243,7 +1244,7 @@ Scripts MUST NOT perform Git operations directly.
 * Commits, staging, and repository interaction are handled by `job-wrap.sh`
 * Scripts may create or modify files, but must not assume commit behavior
 * Scripts must tolerate being run with commits disabled
-* Git presence is not an engine prerequisite; correctness of leaf scripts must not depend on auto-commit being available
+* Git presence is not a leaf-script prerequisite; correctness of leaf scripts must not depend on auto-commit being available
 
 This separation ensures that:
 
@@ -1878,7 +1879,7 @@ The commit helper is not a general Git interface and not a standalone automation
 
 Violations of this contract are considered bugs.
 
-The helper is only engaged when job-wrap is operating in auto-commit mode; absence of Git or disabled commit mode does not imply an engine failure.
+The helper is engaged by default because job-wrap operates in auto-commit mode by default (`COMMIT_MODE=best-effort`). Git and doas are expected to be present in normal operation; if the helper is invoked and Git/doas is missing or unusable, this MUST be treated as an engine failure (per Appendix C). Jobs may disable auto-commit explicitly via `COMMIT_MODE=off`.
 
 #### 3.3.2 Invocation Contract
 
@@ -1891,6 +1892,13 @@ It MUST assume it is running inside an active job-wrap execution (`JOB_WRAP_ACTI
 In hardened deployments, the commit helper executes git commands as a dedicated system account (default `git`), configurable via `GIT_USER`.
 
 job-wrap.sh owns the decision of whether to invoke the helper at all; leaf scripts must be correct regardless of whether commit orchestration runs.
+
+##### Auto-Commit Mode Default
+
+* `COMMIT_MODE` controls whether job-wrap invokes the commit helper.
+* Allowed values: `off`, `best-effort`, `required`.
+* Default: `best-effort`.
+* In `best-effort` and `required`, if commit orchestration is attempted and the commit helper returns a failure outcome, job-wrap MUST treat it as an engine failure (Appendix C).
 
 If invoked outside job-wrap, no guarantees are made about correctness or side effects unless the helper explicitly detects and rejects such invocation.
 
