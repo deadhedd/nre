@@ -328,7 +328,7 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
     rm -f "$_lc_err" 2>/dev/null || :
     : >"$_lc_err" 2>/dev/null || _lc_err=/dev/null
 
-    log_capture <"$_tmp" >/dev/null 2>"$_lc_err"
+    log_capture ERROR <"$_tmp" >/dev/null 2>"$_lc_err"
     _lc_rc=$?
 
     if [ "$_lc_rc" -ne 0 ]; then
