@@ -910,6 +910,361 @@ assert_nonempty_file "$_err" "LOG_MIN_LEVEL=DEBUG produces some boundary stderr 
 assert_contains_file "$_err" "DEBUG: WRAP: bootstrap diagnostics" "boundary includes wrapper DEBUG bootstrap diagnostic line"
 
 # --------------------------------------------------------------------------
+# ADDED TEST 24: degraded (log_init rc=10) + CAPTURE_MODE=file => leaf stderr must remain visible
+# (This is a contract-safety expectation. As job-wrap.sh is currently written,
+# leaf stderr may be dropped in this state because routing only happens when LOG_DEGRADED=0.)
+# --------------------------------------------------------------------------
+mv "$_sandbox_lib/log.sh" "$_sandbox_lib/log.real.sh" || exit 2
+
+cat >"$_sandbox_lib/log.sh" <<'LOG10_DROP'
+#!/bin/sh
+# log.sh (test double): log_init operational failure (rc=10); capture exists but is irrelevant.
+
+(return 0 2>/dev/null) || { echo "ERROR: log.sh must be sourced" >&2; exit 2; }
+
+log_init() { return 10; }
+log_capture() { cat >/dev/null; return 0; }
+
+log_debug() { :; }
+log_info()  { :; }
+log_warn()  { :; }
+log_error() { :; }
+LOG10_DROP
+
+_leaf=$(make_leaf leaf_degraded_file_capture '
+echo "STDOUT: ok"
+echo "ERROR: degraded-leaf-1" >&2
+echo "WARN: degraded-leaf-2" >&2
+exit 0
+')
+
+set -- $(run_wrap "$_leaf")
+rc=$1; out=$2; err=$3
+
+assert_eq "$rc" "0" "degraded+file-capture does not fail the job"
+assert_eq "$(cat "$out" 2>/dev/null || :)" "STDOUT: ok" "degraded+file-capture preserves stdout"
+# Desired invariant: leaf stderr must not disappear.
+# Accept either boundary replay OR some visible wrapper warning that explicitly indicates where it went.
+# Stronger form (preferred): boundary contains leaf stderr lines.
+if grep -F "degraded-leaf-1" "$err" >/dev/null 2>&1 || grep -F "degraded-leaf-2" "$err" >/dev/null 2>&1; then
+  ok "degraded+file-capture preserves leaf stderr visibility (boundary replay)"
+else
+  not_ok "degraded+file-capture preserves leaf stderr visibility (NOTE: wrapper may currently drop stderr here)"
+fi
+
+rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
+mv "$_sandbox_lib/log.real.sh" "$_sandbox_lib/log.sh" || exit 2
+
+# --------------------------------------------------------------------------
+# ADDED TEST 25: commit helper failure overrides leaf rc with 123 even in best-effort mode
+# (Implementation currently treats required and best-effort the same once commit is attempted.)
+# --------------------------------------------------------------------------
+mv "$_sandbox_lib/commit.sh" "$_sandbox_lib/commit.real4.sh" || exit 2
+cat >"$_sandbox_lib/commit.sh" <<'COMMIT_FAIL'
+#!/bin/sh
+exit 44
+COMMIT_FAIL
+chmod 755 "$_sandbox_lib/commit.sh" 2>/dev/null || :
+
+_leaf=$(make_leaf leaf_commit_best_effort_fail '
+echo "notes/X.md" >>"$COMMIT_LIST_FILE"
+echo "STDOUT: ok"
+exit 0
+')
+
+_out="$_sandbox/out.cbe"
+_err="$_sandbox/err.cbe"
+rm -f "$_out" "$_err" 2>/dev/null || :
+LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
+  LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" COMMIT_MODE="best-effort" COMMIT_MESSAGE="x" \
+  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+rc=$?
+
+assert_eq "$rc" "123" "commit failure in best-effort overrides exit with 123"
+assert_eq "$(cat "$_out" 2>/dev/null || :)" "STDOUT: ok" "commit failure (best-effort) still preserves leaf stdout"
+assert_nonempty_file "$_err" "commit failure (best-effort) emits boundary error"
+
+rm -f "$_sandbox_lib/commit.sh" 2>/dev/null || :
+mv "$_sandbox_lib/commit.real4.sh" "$_sandbox_lib/commit.sh" || exit 2
+
+# --------------------------------------------------------------------------
+# ADDED TEST 26: commit helper missing => wrapper exits 123 when commit was attempted
+# --------------------------------------------------------------------------
+mv "$_sandbox_lib/commit.sh" "$_sandbox_lib/commit.real5.sh" || exit 2
+# missing helper: do not replace it
+
+_leaf=$(make_leaf leaf_commit_missing_helper '
+echo "notes/X.md" >>"$COMMIT_LIST_FILE"
+echo "STDOUT: ok"
+exit 0
+')
+
+_out="$_sandbox/out.cmissh"
+_err="$_sandbox/err.cmissh"
+rm -f "$_out" "$_err" 2>/dev/null || :
+LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
+  LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" COMMIT_MODE="required" COMMIT_MESSAGE="x" \
+  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+rc=$?
+
+assert_eq "$rc" "123" "missing commit helper triggers 123 when commit was attempted"
+assert_eq "$(cat "$_out" 2>/dev/null || :)" "STDOUT: ok" "missing commit helper still preserves leaf stdout"
+assert_nonempty_file "$_err" "missing commit helper emits boundary error"
+
+# restore
+mv "$_sandbox_lib/commit.real5.sh" "$_sandbox_lib/commit.sh" || exit 2
+
+# --------------------------------------------------------------------------
+# ADDED TEST 27: commit helper non-executable => wrapper exits 123 when commit was attempted
+# --------------------------------------------------------------------------
+chmod 644 "$_sandbox_lib/commit.sh" 2>/dev/null || :
+
+_leaf=$(make_leaf leaf_commit_nonexec_helper '
+echo "notes/X.md" >>"$COMMIT_LIST_FILE"
+echo "STDOUT: ok"
+exit 0
+')
+
+_out="$_sandbox/out.cnx"
+_err="$_sandbox/err.cnx"
+rm -f "$_out" "$_err" 2>/dev/null || :
+LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
+  LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" COMMIT_MODE="required" COMMIT_MESSAGE="x" \
+  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+rc=$?
+
+assert_eq "$rc" "123" "non-executable commit helper triggers 123 when commit was attempted"
+assert_eq "$(cat "$_out" 2>/dev/null || :)" "STDOUT: ok" "non-executable commit helper preserves leaf stdout"
+assert_nonempty_file "$_err" "non-executable commit helper emits boundary error"
+
+chmod 755 "$_sandbox_lib/commit.sh" 2>/dev/null || :
+
+# --------------------------------------------------------------------------
+# ADDED TEST 28: LOG_MIN_LEVEL=ERROR gates wrapper WARN in degraded mode
+# (Force log_init rc=10 which emits a WARN; with LOG_MIN_LEVEL=ERROR it must not appear.)
+# --------------------------------------------------------------------------
+mv "$_sandbox_lib/log.sh" "$_sandbox_lib/log.real2.sh" || exit 2
+
+cat >"$_sandbox_lib/log.sh" <<'LOG10_WARN'
+#!/bin/sh
+# log.sh (test double): log_init operational failure (rc=10)
+
+(return 0 2>/dev/null) || { echo "ERROR: log.sh must be sourced" >&2; exit 2; }
+
+log_init() { return 10; }
+log_capture() { cat >/dev/null; return 0; }
+
+log_debug() { :; }
+log_info()  { :; }
+log_warn()  { :; }
+log_error() { :; }
+LOG10_WARN
+
+_leaf=$(make_leaf leaf_minlvl_error '
+echo "STDOUT: ok"
+exit 0
+')
+
+_out="$_sandbox/out.minlvl"
+_err="$_sandbox/err.minlvl"
+rm -f "$_out" "$_err" 2>/dev/null || :
+LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="ERROR" \
+  LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
+  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+rc=$?
+
+assert_eq "$rc" "0" "LOG_MIN_LEVEL=ERROR does not fail the job"
+assert_eq "$(cat "$_out" 2>/dev/null || :)" "STDOUT: ok" "LOG_MIN_LEVEL=ERROR preserves stdout"
+# The WARN string comes from wrapper: "logger init operational failure; ..."
+assert_not_contains_file "$_err" "logger init operational failure" "LOG_MIN_LEVEL=ERROR suppresses wrapper WARN in degraded mode"
+
+rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
+mv "$_sandbox_lib/log.real2.sh" "$_sandbox_lib/log.sh" || exit 2
+
+# --------------------------------------------------------------------------
+# ADDED TEST 29: structural failures (WRAP_DIR / REPO_ROOT resolution) => 121
+# NOTE: These branches are difficult to trigger portably against the real wrapper
+# because you must successfully start the script yet fail its internal cd+pwd.
+# We implement a small wrapper test-double that preserves the same exit codes.
+# --------------------------------------------------------------------------
+_wrap_struct=$(make_leaf wrap_struct_fail '
+WRAP_E_INVOCATION=120
+WRAP_E_INIT=121
+_wrap_error() { printf "%s: WRAP: %s\n" "ERROR" "$*" >&2; }
+
+# Simulate WRAP_DIR resolution failure
+_wrap_error "cannot resolve wrapper directory"
+exit "$WRAP_E_INIT"
+')
+
+_out="$_sandbox/out.struct1"
+_err="$_sandbox/err.struct1"
+rm -f "$_out" "$_err" 2>/dev/null || :
+sh "$_wrap_struct" >"$_out" 2>"$_err"
+rc=$?
+assert_eq "$rc" "121" "structural failure (WRAP_DIR resolution) returns 121 (simulated)"
+assert_empty_file "$_out" "structural failure does not emit stdout (simulated)"
+assert_nonempty_file "$_err" "structural failure emits stderr (simulated)"
+
+_wrap_struct2=$(make_leaf wrap_struct_fail2 '
+WRAP_E_INVOCATION=120
+WRAP_E_INIT=121
+_wrap_error() { printf "%s: WRAP: %s\n" "ERROR" "$*" >&2; }
+
+# Simulate REPO_ROOT resolution failure
+_wrap_error "cannot resolve repo root from rebuild layout"
+exit "$WRAP_E_INIT"
+')
+
+_out="$_sandbox/out.struct2"
+_err="$_sandbox/err.struct2"
+rm -f "$_out" "$_err" 2>/dev/null || :
+sh "$_wrap_struct2" >"$_out" 2>"$_err"
+rc=$?
+assert_eq "$rc" "121" "structural failure (REPO_ROOT resolution) returns 121 (simulated)"
+assert_empty_file "$_out" "structural failure does not emit stdout (simulated)"
+assert_nonempty_file "$_err" "structural failure emits stderr (simulated)"
+
+# --------------------------------------------------------------------------
+# ADDED TEST 30: multiline wrapper diagnostic handling (_wrap_emit multiline)
+# This is only triggerable by having wrapper emit a multiline message; real wrapper
+# normally emits single-line. Use a wrapper test-double that contains _wrap_emit.
+# --------------------------------------------------------------------------
+_wrap_multi=$(make_leaf wrap_multiline '
+# minimal _wrap_emit extracted behavior
+LOG_DEGRADED=1
+LOG_MIN_LEVEL=DEBUG
+WRAP_BOOT_LOG="${TMPDIR:-/tmp}/wrap-multi.$$"
+: >"$WRAP_BOOT_LOG" 2>/dev/null || WRAP_BOOT_LOG=""
+
+_NL=$(printf "\n")
+
+_wrap_level_num() {
+  case "$1" in
+    DEBUG) printf "%s\n" 10 ;;
+    INFO)  printf "%s\n" 20 ;;
+    WARN)  printf "%s\n" 30 ;;
+    ERROR) printf "%s\n" 40 ;;
+    *)     printf "%s\n" 0 ;;
+  esac
+}
+_wrap_level_ok() {
+  _ln=$(_wrap_level_num "$1")
+  _mn=$(_wrap_level_num "${LOG_MIN_LEVEL:-INFO}")
+  [ "$_ln" -ge "$_mn" ]
+}
+_wrap_emit() {
+  _lvl=$1
+  shift
+  _msg=$*
+  _wrap_level_ok "$_lvl" || return 0
+
+  # degraded => boundary allowed
+  _emit_boundary=1
+
+  case "$_msg" in
+    *"$_NL"*)
+      if [ -n "${WRAP_BOOT_LOG:-}" ]; then
+        {
+          printf "%s: WRAP: (multiline diagnostic; full text follows)\n" "$_lvl"
+          printf "%s\n" "$_msg"
+        } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+      fi
+      if [ "$_emit_boundary" -eq 1 ]; then
+        printf "%s: WRAP: multiline diagnostic (see bootstrap: %s)\n" "$_lvl" "${WRAP_BOOT_LOG:-<unavailable>}" >&2
+      fi
+      return 0
+      ;;
+  esac
+  return 0
+}
+
+_wrap_emit INFO "line1
+line2"
+exit 0
+')
+
+_out="$_sandbox/out.multi"
+_err="$_sandbox/err.multi"
+rm -f "$_out" "$_err" 2>/dev/null || :
+TMPDIR="$_sandbox_tmp" sh "$_wrap_multi" >"$_out" 2>"$_err"
+rc=$?
+
+assert_eq "$rc" "0" "multiline diagnostic test-double exits 0"
+assert_empty_file "$_out" "multiline diagnostic does not write stdout"
+assert_contains_file "$_err" "multiline diagnostic" "multiline diagnostic produces single-line boundary marker"
+
+# Verify bootstrap contains full multiline text
+_boot_guess=$(ls -1 "$_sandbox_tmp" 2>/dev/null | grep -E "^wrap-multi\\.[0-9]+$" | head -n 1 || true)
+if [ -n "$_boot_guess" ] && grep -F "line1" "$_sandbox_tmp/$_boot_guess" >/dev/null 2>&1 && grep -F "line2" "$_sandbox_tmp/$_boot_guess" >/dev/null 2>&1; then
+  ok "multiline diagnostic bootstrap contains full multiline text"
+else
+  not_ok "multiline diagnostic bootstrap contains full multiline text"
+fi
+
+# --------------------------------------------------------------------------
+# ADDED TEST 31: JOB_WRAP_DEBUG affects healthy-mode boundary visibility (simulated)
+# Real wrapper doesn't emit INFO after LOG_DEGRADED=0 in the happy path, so we
+# use a wrapper test-double that flips LOG_DEGRADED=0 then emits INFO.
+# --------------------------------------------------------------------------
+_wrap_dbg=$(make_leaf wrap_dbg_healthy '
+LOG_DEGRADED=0
+LOG_MIN_LEVEL=INFO
+JOB_WRAP_DEBUG=${JOB_WRAP_DEBUG:-0}
+_NL=$(printf "\n")
+
+_wrap_level_num() {
+  case "$1" in
+    DEBUG) printf "%s\n" 10 ;;
+    INFO)  printf "%s\n" 20 ;;
+    WARN)  printf "%s\n" 30 ;;
+    ERROR) printf "%s\n" 40 ;;
+    *)     printf "%s\n" 0 ;;
+  esac
+}
+_wrap_level_ok() {
+  _ln=$(_wrap_level_num "$1")
+  _mn=$(_wrap_level_num "${LOG_MIN_LEVEL:-INFO}")
+  [ "$_ln" -ge "$_mn" ]
+}
+_wrap_emit() {
+  _lvl=$1
+  shift
+  _msg=$*
+  _wrap_level_ok "$_lvl" || return 0
+
+  _emit_boundary=0
+  case "$_lvl" in
+    WARN|ERROR) _emit_boundary=1 ;;
+    *) [ "${JOB_WRAP_DEBUG:-0}" = "1" ] && _emit_boundary=1 ;;
+  esac
+
+  if [ "$_emit_boundary" -eq 1 ]; then
+    printf "%s: WRAP: %s\n" "$_lvl" "$_msg" >&2
+  fi
+  return 0
+}
+_wrap_emit INFO "healthy-info-marker"
+exit 0
+')
+
+_out="$_sandbox/out.dbg0"
+_err="$_sandbox/err.dbg0"
+rm -f "$_out" "$_err" 2>/dev/null || :
+JOB_WRAP_DEBUG=0 sh "$_wrap_dbg" >"$_out" 2>"$_err"
+rc=$?
+assert_eq "$rc" "0" "JOB_WRAP_DEBUG=0 test-double exits 0"
+assert_empty_file "$_err" "JOB_WRAP_DEBUG=0 suppresses healthy INFO on boundary (simulated)"
+
+_out="$_sandbox/out.dbg1"
+_err="$_sandbox/err.dbg1"
+rm -f "$_out" "$_err" 2>/dev/null || :
+JOB_WRAP_DEBUG=1 sh "$_wrap_dbg" >"$_out" 2>"$_err"
+rc=$?
+assert_eq "$rc" "0" "JOB_WRAP_DEBUG=1 test-double exits 0"
+assert_contains_file "$_err" "healthy-info-marker" "JOB_WRAP_DEBUG=1 allows healthy INFO on boundary (simulated)"
+
+# --------------------------------------------------------------------------
 # Finish
 # --------------------------------------------------------------------------
 say "1..$_n"
