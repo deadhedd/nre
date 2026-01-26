@@ -10,15 +10,13 @@
 # Contract-aligned wrapper exit codes (Appendix C)
 # 120 invocation misuse
 # 121 wrapper init failure
-# 122 hard logging / blocked required publication
+# 122 hard wrapper failure (unsafe execution context / blocked required publication)
 # 123 commit helper failure
-# 124 internal invariant / unexpected wrapper failure
 ###############################################################################
 WRAP_E_INVOCATION=120
 WRAP_E_INIT=121
-WRAP_E_LOGGING=122
+WRAP_E_HARD=122
 WRAP_E_COMMIT=123
-WRAP_E_INTERNAL=124
 
 ###############################################################################
 # Minimal, cron-safe PATH (contract: explicit baseline PATH)
