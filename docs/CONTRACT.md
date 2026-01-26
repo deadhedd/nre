@@ -2518,9 +2518,8 @@ Exit code meanings defined here are part of the public engine contract and MUST 
 | 0–255 (non-reserved)  | Exit code propagated directly from the leaf script   |
 | 120                   | Wrapper invocation or usage error                    |
 | 121                   | Wrapper initialization failure                       |
-| 122                   | Hard logging failure (unsafe execution context / blocked required publication) |
+| 122                   | Hard wrapper failure (unsafe execution context / blocked required publication) |
 | 123                   | Commit helper failure                                |
-| 124                   | Internal wrapper error or invariant violation        |
 
 **Rules:**
 
@@ -2529,9 +2528,13 @@ Exit code meanings defined here are part of the public engine contract and MUST 
 - Engine-reserved codes apply only when wrapper responsibilities fail; otherwise the wrapper exits exactly with the leaf code.
 - Engine-reserved exit codes MUST NOT be used by leaf scripts.
 - Soft logging failures MUST NOT change wrapper exit status. Soft logging failures include (non-exhaustive): inability to create/update log files, inability to update `*-latest.log`, retention pruning failure, and any other file-backed logging loss where `stderr` remains intact and execution safety is not compromised.
-- Exit code 122 MUST be used only when a logging failure qualifies as Hard under §2.2.8 (unsafe execution context evidence), or when it blocks a **contract-required publication step** that the wrapper is responsible for.
+- Exit code 122 MUST be used only when a wrapper failure qualifies as Hard under §2.2.8 (unsafe execution context evidence), or when it blocks a **contract-required publication step** that the wrapper is responsible for, or when the wrapper encounters an internal invariant violation that prevents it from fulfilling its responsibilities.
 - The wrapper MAY record “logging degraded” state in bootstrap logs and/or reports, but this MUST NOT be communicated via wrapper exit status unless the failure is Hard.
-- 124 vs 122: Use 124 for wrapper internal invariant violations unrelated to logging; use 122 only when the wrapper is failing because a logging failure is Hard (unsafe context / blocked required publication).
+- Examples of Hard wrapper failure (non-exhaustive):
+  - Unsafe execution context evidence per §2.2.8 that prevents safe operation.
+  - Required publication step blocked (e.g., required log publication cannot complete).
+  - Wrapper invariant violation that prevents normal execution or safe continuation.
+  - Wrapper internal errors that stop the engine from fulfilling its contract.
 
 ---
 
