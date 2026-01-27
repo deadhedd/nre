@@ -488,8 +488,15 @@ assert_nonempty_file "$_err" "invalid JOB_NAME emits error on stderr"
 # ADDED TEST 9: init failure when log.sh missing/unsourceable => exit 121
 # --------------------------------------------------------------------------
 mv "$_sandbox_lib/log.sh" "$_sandbox_lib/log.real.sh" || exit 2
-# Create a directory where log.sh should be (so "." fails)
-mkdir -p "$_sandbox_lib/log.sh" 2>/dev/null || :
+#
+# NOTE:
+# Do NOT use a directory here. Some /bin/sh variants can treat ". dir" oddly
+# (may not fail reliably), which makes the regression test flaky.
+# Use an unreadable file instead: permission denied should be consistent.
+cat >"$_sandbox_lib/log.sh" <<'EOF'
+#!/bin/sh
+EOF
+chmod 000 "$_sandbox_lib/log.sh" 2>/dev/null || :
 
 _leaf=$(make_leaf leaf_init_fail '
 echo "STDOUT: should-not-run"
@@ -509,7 +516,8 @@ assert_empty_file "$_out" "init failure does not emit stdout"
 assert_nonempty_file "$_err" "init failure emits stderr"
 
 # Restore real log.sh
-rm -rf "$_sandbox_lib/log.sh" 2>/dev/null || :
+chmod 644 "$_sandbox_lib/log.sh" 2>/dev/null || :
+rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
 mv "$_sandbox_lib/log.real.sh" "$_sandbox_lib/log.sh" || exit 2
 
 # --------------------------------------------------------------------------
