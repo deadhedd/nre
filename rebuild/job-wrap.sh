@@ -222,15 +222,29 @@ fi
 
 # Contain log_init stdout (stdout is sacred)
 _li_out="$TMPDIR/jobwrap.log_init.out.${JOB_NAME}.$$"
+_li_err="$TMPDIR/jobwrap.log_init.err.${JOB_NAME}.$$"
 rm -f "$_li_out" 2>/dev/null || :
+rm -f "$_li_err" 2>/dev/null || :
 : >"$_li_out" 2>/dev/null || _li_out=/dev/null
+: >"$_li_err" 2>/dev/null || _li_err=/dev/null
 
 _li_rc=0
 (
   # shellcheck disable=SC2039
   log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}"
-) >"$_li_out" 2>/dev/null
+) >"$_li_out" 2>"$_li_err"
 _li_rc=$?
+
+if [ "$_li_rc" -ne 0 ] && [ -n "${WRAP_BOOT_LOG:-}" ]; then
+  {
+    printf 'BOOTSTRAP DIAG: log_init rc=%s\n' "$_li_rc"
+    if [ -s "$_li_err" ]; then
+      printf '--- log_init stderr ---\n'
+      cat "$_li_err" 2>/dev/null || :
+      printf '\n'
+    fi
+  } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+fi
 
 if [ -s "$_li_out" ]; then
   LOG_DEGRADED=1
@@ -246,6 +260,7 @@ if [ -s "$_li_out" ]; then
 fi
 
 rm -f "$_li_out" 2>/dev/null || :
+rm -f "$_li_err" 2>/dev/null || :
 
 case "$_li_rc" in
   0)
