@@ -222,7 +222,7 @@ rm -f "$_li_out" 2>/dev/null || :
 _li_rc=0
 (
   # shellcheck disable=SC2039
-  log_init "$LOG_ROOT" "$LOG_BUCKET" "$JOB_NAME" "$LOG_KEEP_COUNT"
+  log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}"
 ) >"$_li_out" 2>/dev/null
 _li_rc=$?
 
@@ -264,7 +264,9 @@ esac
 ###############################################################################
 
 _cleanup() {
-  rm -f "$_tmp" 2>/dev/null || :
+  if [ -n "${_tmp:-}" ]; then
+    rm -f -- "$_tmp" 2>/dev/null || :
+  fi
 }
 trap _cleanup 0 1 2 15
 
