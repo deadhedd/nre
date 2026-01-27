@@ -91,12 +91,16 @@ _sandbox_logs="$_sandbox/logs"
 _sandbox_tmp="$_sandbox/tmp"
 mkdir -p "$_sandbox_bin" "$_sandbox_lib" "$_sandbox_logs" "$_sandbox_tmp" || exit 2
 
-# set KEEP_SANDBOX=1 to preserve /tmp/jobwraptest.* dirs after run
-cleanup() { rm -rf "$_sandbox"; }
-
-if [ "${KEEP_SANDBOX:-0}" != "1" ]; then
-  trap cleanup 0 1 2 15
-fi
+cleanup() {
+  # Optional: preserve sandbox for post-mortem inspection.
+  # Usage: KEEP_SANDBOX=1 sh test-job-wrap.sh
+  if [ "${KEEP_SANDBOX:-0}" = "1" ]; then
+    :
+  else
+    rm -rf "$_sandbox"
+  fi
+}
+trap cleanup 0 1 2 15
 
 # --------------------------------------------------------------------------
 # Deterministic datetime stub
@@ -226,6 +230,15 @@ make_leaf() {
   printf '%s' "$_p"
 }
 
+run_jobwrap() {
+  # Execute job-wrap under a clean shell context where `set -e` cannot leak in
+  # from the harness environment.
+  #
+  # Rationale: job-wrap intentionally treats some nonzero helper codes as
+  # non-fatal (degrade/continue). `set -e` would otherwise short-circuit.
+  sh -c 'set +e; "$@"' sh "$@"
+}
+
 run_wrap() {
   # Args:
   #   $1.. = wrapper args (leaf + leaf args)
@@ -244,7 +257,7 @@ run_wrap() {
   TMPDIR="$_sandbox_tmp"
   export LOG_ROOT LOG_BUCKET LOG_KEEP_COUNT LOG_MIN_LEVEL LOG_LIB_DIR TMPDIR
 
-  sh "$_sandbox/bin/job-wrap.sh" "$@" >"$WRAP_OUT" 2>"$WRAP_ERR"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$@" >"$WRAP_OUT" 2>"$WRAP_ERR"
   WRAP_RC=$?
 }
 
@@ -255,7 +268,7 @@ _out="$_sandbox/out.usage"
 _err="$_sandbox/err.usage"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" >"$_out" 2>"$_err"
 rc=$?
 assert_eq "$rc" "120" "job-wrap usage returns 120"
 assert_nonempty_file "$_err" "job-wrap usage emits error on stderr"
@@ -268,7 +281,7 @@ _out="$_sandbox/out.guard"
 _err="$_sandbox/err.guard"
 rm -f "$_out" "$_err" 2>/dev/null || :
 JOB_WRAP_ACTIVE=1 LOG_ROOT="$_sandbox_logs" LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" "/does/not/matter" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "/does/not/matter" >"$_out" 2>"$_err"
 rc=$?
 assert_eq "$rc" "120" "job-wrap recursion guard returns 120"
 assert_empty_file "$_out" "recursion guard emits nothing on stdout"
@@ -320,7 +333,7 @@ _err="$_sandbox/err.passthru"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_bad_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 assert_eq "$rc" "0" "passthrough mode returns leaf rc"
 assert_eq "$(cat "$_out" 2>/dev/null || :)" "STDOUT: ok" "passthrough preserves leaf stdout"
@@ -409,7 +422,7 @@ rm -f "$_out" "$_err" 2>/dev/null || :
 
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" COMMIT_MODE="best-effort" COMMIT_MESSAGE="test message" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "0" "commit best-effort success does not override leaf exit"
@@ -439,7 +452,7 @@ _err="$_sandbox/err.commitfail"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" COMMIT_MODE="required" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "123" "commit helper failure overrides exit with 123 (WRAP_E_COMMIT)"
@@ -465,7 +478,7 @@ _out="$_sandbox/out.badjob"
 _err="$_sandbox/err.badjob"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf_bad" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf_bad" >"$_out" 2>"$_err"
 rc=$?
 assert_eq "$rc" "120" "invalid JOB_NAME rejected with 120"
 assert_empty_file "$_out" "invalid JOB_NAME does not emit stdout"
@@ -488,7 +501,7 @@ _out="$_sandbox/out.initfail"
 _err="$_sandbox/err.initfail"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "121" "missing/unsourceable log.sh causes init failure 121"
@@ -563,7 +576,7 @@ _err="$_sandbox/err.log11"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "121" "log_init misuse (rc=11) causes init failure 121"
@@ -733,7 +746,7 @@ _err="$_sandbox/err.cfilter"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" COMMIT_MODE="required" COMMIT_MESSAGE="x" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "0" "commit helper rc=3 is treated as success"
@@ -772,7 +785,7 @@ _err="$_sandbox/err.cnolist"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_bad_tmp2" COMMIT_MODE="required" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "0" "commit list file creation failure does not fail the job"
@@ -837,7 +850,7 @@ _err="$_sandbox/err.miss"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_missing" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_missing" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "127" "missing leaf returns 127 (sh command not found) and is propagated"
@@ -869,7 +882,7 @@ _err="$_sandbox/err.nonexec"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="INFO" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_nonexec" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_nonexec" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "126" "non-executable leaf returns 126 and is propagated"
@@ -897,7 +910,7 @@ _err="$_sandbox/err.debuglvl"
 rm -f "$_out" "$_err" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="DEBUG" \
   LOG_LIB_DIR="$_sandbox_lib" TMPDIR="$_sandbox_tmp" \
-  sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
+  run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 
 assert_eq "$rc" "0" "LOG_MIN_LEVEL=DEBUG does not fail the job"
