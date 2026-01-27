@@ -91,8 +91,12 @@ _sandbox_logs="$_sandbox/logs"
 _sandbox_tmp="$_sandbox/tmp"
 mkdir -p "$_sandbox_bin" "$_sandbox_lib" "$_sandbox_logs" "$_sandbox_tmp" || exit 2
 
+# set KEEP_SANDBOX=1 to preserve /tmp/jobwraptest.* dirs after run
 cleanup() { rm -rf "$_sandbox"; }
-trap cleanup 0 1 2 15
+
+if [ "${KEEP_SANDBOX:-0}" != "1" ]; then
+  trap cleanup 0 1 2 15
+fi
 
 # --------------------------------------------------------------------------
 # Deterministic datetime stub
