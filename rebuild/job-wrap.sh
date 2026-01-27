@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/core/job-wrap.sh
+# rebuild/job-wrap.sh
 # Execution wrapper + logging authority bootstrap.
 # Wrapper diagnostics use the same level-prefix scheme as leaf scripts.
 # Author: deadhedd
@@ -65,7 +65,11 @@ _wrap_emit() {
   else
     case "$_lvl" in
       WARN|ERROR) _emit_boundary=1 ;;
-      *) [ "${JOB_WRAP_DEBUG:-0}" = "1" ] && _emit_boundary=1 ;;
+      *)
+        if [ "${JOB_WRAP_DEBUG:-0}" = "1" ] || [ "${LOG_MIN_LEVEL:-INFO}" = "DEBUG" ]; then
+          _emit_boundary=1
+        fi
+        ;;
     esac
   fi
 
@@ -137,6 +141,7 @@ REPO_ROOT=$(CDPATH= cd "$WRAP_DIR/.." 2>/dev/null && pwd) || {
 
 # Default LOG_LIB_DIR to wrapper dir unless caller overrides.
 LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR}
+export LOG_LIB_DIR
 
 ###############################################################################
 # Bootstrap log file (best-effort)
@@ -146,6 +151,7 @@ LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR}
 LOG_ROOT=${LOG_ROOT:-"$REPO_ROOT/logs"}
 LOG_BUCKET=${LOG_BUCKET:-other}
 LOG_KEEP_COUNT=${LOG_KEEP_COUNT:-10}
+export LOG_ROOT LOG_BUCKET LOG_KEEP_COUNT
 
 _boot_dir="$LOG_ROOT/_bootstrap"
 if mkdir -p "$_boot_dir" 2>/dev/null; then
@@ -260,6 +266,29 @@ case "$_li_rc" in
 esac
 
 ###############################################################################
+# Optional commit list file wiring (MUST exist before leaf runs)
+###############################################################################
+
+COMMIT_MODE=${COMMIT_MODE:-off}
+COMMIT_MESSAGE=${COMMIT_MESSAGE:-""}
+
+COMMIT_LIST_FILE=""
+if [ "$COMMIT_MODE" != "off" ]; then
+  _cl="$TMPDIR/jobwrap.commit-list.${JOB_NAME}.$$"
+  rm -f "$_cl" 2>/dev/null || :
+  : >"$_cl" 2>/dev/null || _cl=""
+
+  if [ -n "${_cl:-}" ]; then
+    COMMIT_LIST_FILE="$_cl"
+  else
+    COMMIT_LIST_FILE=""
+    _wrap_warn "cannot create COMMIT_LIST_FILE; commit orchestration disabled"
+  fi
+
+  export COMMIT_LIST_FILE
+fi
+
+###############################################################################
 # Cleanup
 ###############################################################################
 
@@ -326,23 +355,7 @@ fi
 # Optional commit orchestration
 ###############################################################################
 
-COMMIT_MODE=${COMMIT_MODE:-off}
-COMMIT_MESSAGE=${COMMIT_MESSAGE:-""}
-
 if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
-  _cl="$TMPDIR/jobwrap.commit-list.${JOB_NAME}.$$"
-  rm -f "$_cl" 2>/dev/null || :
-  : >"$_cl" 2>/dev/null || _cl=""
-
-  if [ -n "${_cl:-}" ]; then
-    COMMIT_LIST_FILE="$_cl"
-    export COMMIT_LIST_FILE
-  else
-    COMMIT_LIST_FILE=""
-    export COMMIT_LIST_FILE
-    _wrap_warn "cannot create COMMIT_LIST_FILE; commit orchestration disabled"
-  fi
-
   # Leaf can append to COMMIT_LIST_FILE during its run; here we act after leaf.
   if [ -n "${COMMIT_LIST_FILE:-}" ] && [ -s "$COMMIT_LIST_FILE" ]; then
     _cl2="$TMPDIR/jobwrap.commit-list.filtered.${JOB_NAME}.$$"
@@ -374,8 +387,10 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
       rm -f "$_cl2" 2>/dev/null || :
     fi
   fi
+fi
 
-  rm -f "$_cl" 2>/dev/null || :
+if [ -n "${COMMIT_LIST_FILE:-}" ]; then
+  rm -f -- "$COMMIT_LIST_FILE" 2>/dev/null || :
 fi
 
 exit "$_leaf_rc"
