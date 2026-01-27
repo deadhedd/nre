@@ -121,6 +121,16 @@ _DT_N=${_DT_N:-0}
 
 _dt_inc() { _DT_N=$(( _DT_N + 1 )); }
 
+# Canonical log timestamp required by log-sink.sh:
+#   YYYY-MM-DD-HHMMSS (local)
+dt_now_local_log_ts() {
+  _dt_inc
+  _s=$_DT_N
+  if [ "$_s" -lt 10 ]; then _s="0$_s"; fi
+  # Deterministic: 2026-01-25 at 00:00:SS
+  printf '%s' "2026-01-25-0000${_s}"
+}
+
 dt_now_local_iso_no_tz() {
   _dt_inc
   _s=$_DT_N
