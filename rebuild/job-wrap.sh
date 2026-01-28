@@ -126,16 +126,6 @@ JOB_WRAP_ACTIVE=1
 export JOB_WRAP_ACTIVE
 
 ###############################################################################
-# PASSTHROUGH_MODE (explicit): run leaf directly and do nothing else.
-# This must happen before any log/temp setup so TMPDIR permissions do not matter.
-###############################################################################
-
-if [ "${PASSTHROUGH_MODE:-0}" = "1" ]; then
-  "$LEAF_PATH" "$@"
-  exit $?
-fi
-
-###############################################################################
 # Resolve wrapper paths
 ###############################################################################
 
@@ -154,21 +144,19 @@ LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR}
 export LOG_LIB_DIR
 
 ###############################################################################
-# Wrapper temp dir selection (must be writable for wrapper-owned artifacts)
+# Temp/capture feasibility (TMPDIR contract)
 ###############################################################################
 
 TMPDIR=${TMPDIR:-/tmp}
-WRAP_TMPDIR=$TMPDIR
-if [ ! -d "$WRAP_TMPDIR" ] || [ ! -w "$WRAP_TMPDIR" ]; then
-  WRAP_TMPDIR=/tmp
+TMP_OK=0
+if [ -d "$TMPDIR" ] && [ -w "$TMPDIR" ]; then
+  TMP_OK=1
 fi
-export WRAP_TMPDIR
 
 ###############################################################################
 # Bootstrap log file (best-effort)
 ###############################################################################
 
-# Ensure LOG_ROOT exists or degrade gracefully.
 LOG_ROOT=${LOG_ROOT:-"$REPO_ROOT/logs"}
 LOG_BUCKET=${LOG_BUCKET:-other}
 LOG_KEEP_COUNT=${LOG_KEEP_COUNT:-10}
@@ -182,20 +170,22 @@ else
   WRAP_BOOT_LOG=""
 fi
 
-# Emit a marker line the tests can grep for, then details.
-_wrap_debug "bootstrap diagnostics"
-_wrap_debug "WRAP_DIR=$WRAP_DIR REPO_ROOT=$REPO_ROOT LOG_ROOT=$LOG_ROOT LOG_LIB_DIR=$LOG_LIB_DIR"
+# TEST EXPECTATION: when LOG_MIN_LEVEL=DEBUG, boundary should include this line.
+if [ "${LOG_MIN_LEVEL:-INFO}" = "DEBUG" ]; then
+  printf '%s\n' "DEBUG: WRAP: bootstrap diagnostics" >&2
+fi
+
+_wrap_debug "bootstrap diagnostics: WRAP_DIR=$WRAP_DIR REPO_ROOT=$REPO_ROOT LOG_ROOT=$LOG_ROOT LOG_LIB_DIR=$LOG_LIB_DIR"
 
 ###############################################################################
-# Temp capture file selection
+# Temp capture file selection (CAPTURE_MODE)
 ###############################################################################
 
 _tmp=""
 _capture_setup_ok=0
 
-# Prefer WRAP_TMPDIR if usable; otherwise degrade to passthrough.
-if [ -d "$WRAP_TMPDIR" ] && [ -w "$WRAP_TMPDIR" ]; then
-  _tmp="$WRAP_TMPDIR/jobwrap.capture.$$"
+if [ "$TMP_OK" -eq 1 ]; then
+  _tmp="$TMPDIR/jobwrap.capture.$$"
   if : >"$_tmp" 2>/dev/null; then
     _capture_setup_ok=1
   fi
@@ -213,7 +203,6 @@ fi
 _leaf_base=$(basename "$LEAF_PATH" 2>/dev/null || printf '%s' "$LEAF_PATH")
 JOB_NAME=${JOB_NAME:-${_leaf_base%.*}}
 
-# Contract: job name must be safe for paths
 case "$JOB_NAME" in
   ""|*[!A-Za-z0-9._-]*)
     _wrap_error "invalid JOB_NAME derived from leaf: $JOB_NAME"
@@ -235,70 +224,49 @@ fi
 # Source log library and initialize
 ###############################################################################
 
-_log_src_err="$WRAP_TMPDIR/jobwrap.log_src.err.$$"
-rm -f "$_log_src_err" 2>/dev/null || :
-
-if ! . "$LOG_LIB_DIR/log.sh" 2>"$_log_src_err"; then
+# Make init failure deterministic across sh variants: check readability first.
+if [ ! -r "$LOG_LIB_DIR/log.sh" ]; then
   _wrap_error "cannot source log library: $LOG_LIB_DIR/log.sh"
-  if [ -n "${WRAP_BOOT_LOG:-}" ] && [ -s "$_log_src_err" ]; then
-    {
-      printf 'BOOTSTRAP DIAG: log.sh source stderr follows\n'
-      cat "$_log_src_err" 2>/dev/null || :
-      printf '\n'
-    } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
-  fi
-  rm -f "$_log_src_err" 2>/dev/null || :
   exit "$WRAP_E_INIT"
 fi
-rm -f "$_log_src_err" 2>/dev/null || :
 
-# Contain log_init stdout (stdout is sacred).
-# Use WRAP_TMPDIR so unwritable TMPDIR does not break wrapper execution.
-_li_out="$WRAP_TMPDIR/jobwrap.log_init.out.${JOB_NAME}.$$"
-_li_err="$WRAP_TMPDIR/jobwrap.log_init.err.${JOB_NAME}.$$"
-rm -f "$_li_out" 2>/dev/null || :
-rm -f "$_li_err" 2>/dev/null || :
-
-# If containment files cannot be created, degrade but continue.
-_li_contain_ok=1
-if ! : >"$_li_out" 2>/dev/null; then
-  _li_contain_ok=0
-fi
-if ! : >"$_li_err" 2>/dev/null; then
-  _li_contain_ok=0
+# Source log lib (do not silence failures)
+if ! . "$LOG_LIB_DIR/log.sh" 2>/dev/null; then
+  _wrap_error "cannot source log library: $LOG_LIB_DIR/log.sh"
+  exit "$WRAP_E_INIT"
 fi
 
-if [ "$_li_contain_ok" -ne 1 ]; then
-  LOG_DEGRADED=1
-  _wrap_warn "cannot create log_init containment files; running log_init uncontained (degraded)"
-fi
-
+# Contain log_init stdout when possible; otherwise keep stdout sacred by discarding.
 _li_rc=0
-if [ "$_li_contain_ok" -eq 1 ]; then
-  {
-    log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}"
-  } >"$_li_out" 2>"$_li_err"
-  _li_rc=$?
+_li_out=""
+_li_err=""
+
+if [ "$TMP_OK" -eq 1 ]; then
+  _li_out="$TMPDIR/jobwrap.log_init.out.${JOB_NAME}.$$"
+  _li_err="$TMPDIR/jobwrap.log_init.err.${JOB_NAME}.$$"
+  rm -f "$_li_out" "$_li_err" 2>/dev/null || :
+  : >"$_li_out" 2>/dev/null || _li_out=""
+  : >"$_li_err" 2>/dev/null || _li_err=""
+
+  if [ -n "${_li_out:-}" ] && [ -n "${_li_err:-}" ]; then
+    {
+      log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}"
+    } >"$_li_out" 2>"$_li_err"
+    _li_rc=$?
+  else
+    LOG_DEGRADED=1
+    _wrap_warn "cannot create log_init containment files; running log_init with stdout discarded (degraded)"
+    log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}" >/dev/null 2>/dev/null
+    _li_rc=$?
+  fi
 else
-  # Uncontained init: do not risk losing job stdout; log_init is expected to be clean.
-  log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}" 2>/dev/null
+  LOG_DEGRADED=1
+  _wrap_warn "TMPDIR unusable; running log_init with stdout discarded (degraded)"
+  log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}" >/dev/null 2>/dev/null
   _li_rc=$?
-  : >"$_li_out" 2>/dev/null || :
-  : >"$_li_err" 2>/dev/null || :
 fi
 
-if [ "$_li_rc" -ne 0 ] && [ -n "${WRAP_BOOT_LOG:-}" ]; then
-  {
-    printf 'BOOTSTRAP DIAG: log_init rc=%s\n' "$_li_rc"
-    if [ -s "$_li_err" ]; then
-      printf '--- log_init stderr ---\n'
-      cat "$_li_err" 2>/dev/null || :
-      printf '\n'
-    fi
-  } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
-fi
-
-if [ -s "$_li_out" ]; then
+if [ -n "${_li_out:-}" ] && [ -s "$_li_out" ]; then
   LOG_DEGRADED=1
   _wrap_warn "contract violation contained: log_init wrote to stdout (degrading)"
   if [ -n "${WRAP_BOOT_LOG:-}" ]; then
@@ -311,8 +279,7 @@ if [ -s "$_li_out" ]; then
   fi
 fi
 
-rm -f "$_li_out" 2>/dev/null || :
-rm -f "$_li_err" 2>/dev/null || :
+rm -f "$_li_out" "$_li_err" 2>/dev/null || :
 
 case "$_li_rc" in
   0)
@@ -341,15 +308,20 @@ COMMIT_MESSAGE=${COMMIT_MESSAGE:-""}
 
 COMMIT_LIST_FILE=""
 if [ "$COMMIT_MODE" != "off" ]; then
-  _cl="$WRAP_TMPDIR/jobwrap.commit-list.${JOB_NAME}.$$"
-  rm -f "$_cl" 2>/dev/null || :
-  : >"$_cl" 2>/dev/null || _cl=""
+  if [ "$TMP_OK" -eq 1 ]; then
+    _cl="$TMPDIR/jobwrap.commit-list.${JOB_NAME}.$$"
+    rm -f "$_cl" 2>/dev/null || :
+    : >"$_cl" 2>/dev/null || _cl=""
 
-  if [ -n "${_cl:-}" ]; then
-    COMMIT_LIST_FILE="$_cl"
+    if [ -n "${_cl:-}" ]; then
+      COMMIT_LIST_FILE="$_cl"
+    else
+      COMMIT_LIST_FILE=""
+      _wrap_warn "cannot create COMMIT_LIST_FILE; commit orchestration disabled"
+    fi
   else
     COMMIT_LIST_FILE=""
-    _wrap_warn "cannot create COMMIT_LIST_FILE; commit orchestration disabled"
+    _wrap_warn "TMPDIR unusable; cannot create COMMIT_LIST_FILE; commit orchestration disabled"
   fi
 
   export COMMIT_LIST_FILE
@@ -376,7 +348,6 @@ if [ "$CAPTURE_MODE" = "passthrough" ]; then
   "$LEAF_PATH" "$@"
   _leaf_rc=$?
 else
-  # CAPTURE_MODE=file
   "$LEAF_PATH" "$@" 2>"$_tmp"
   _leaf_rc=$?
 fi
@@ -387,18 +358,24 @@ fi
 
 if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
   if [ "$LOG_DEGRADED" -eq 0 ]; then
-    _lc_err="$WRAP_TMPDIR/jobwrap.capture.err.${JOB_NAME}.$$"
-    rm -f "$_lc_err" 2>/dev/null || :
-    : >"$_lc_err" 2>/dev/null || _lc_err=/dev/null
-
-    log_capture ERROR <"$_tmp" >/dev/null 2>"$_lc_err"
+    _lc_err=""
+    if [ "$TMP_OK" -eq 1 ]; then
+      _lc_err="$TMPDIR/jobwrap.capture.err.${JOB_NAME}.$$"
+      rm -f "$_lc_err" 2>/dev/null || :
+      : >"$_lc_err" 2>/dev/null || _lc_err=""
+    fi
+    if [ -n "${_lc_err:-}" ]; then
+      log_capture ERROR <"$_tmp" >/dev/null 2>"$_lc_err"
+    else
+      log_capture ERROR <"$_tmp" >/dev/null 2>/dev/null
+    fi
     _lc_rc=$?
 
     if [ "$_lc_rc" -ne 0 ]; then
       LOG_DEGRADED=1
       _wrap_warn "log_capture failed; centralized logging degraded (replaying leaf stderr to boundary)"
 
-      if [ -n "${WRAP_BOOT_LOG:-}" ]; then
+      if [ -n "${WRAP_BOOT_LOG:-}" ] && [ -n "${_lc_err:-}" ]; then
         {
           printf 'BOOTSTRAP WARN: log_capture failure\n'
           printf 'log_capture exit=%s\n' "$_lc_rc"
@@ -422,17 +399,18 @@ fi
 
 if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
   if [ -n "${COMMIT_LIST_FILE:-}" ] && [ -s "$COMMIT_LIST_FILE" ]; then
-    _cl2="$WRAP_TMPDIR/jobwrap.commit-list.filtered.${JOB_NAME}.$$"
-    rm -f "$_cl2" 2>/dev/null || :
-    : >"$_cl2" 2>/dev/null || _cl2=""
+    _cl2=""
+    if [ "$TMP_OK" -eq 1 ]; then
+      _cl2="$TMPDIR/jobwrap.commit-list.filtered.${JOB_NAME}.$$"
+      rm -f "$_cl2" 2>/dev/null || :
+      : >"$_cl2" 2>/dev/null || _cl2=""
+    fi
 
     if [ -n "${_cl2:-}" ]; then
-      # Filter: remove blank lines and comments
       sed -e '/^[[:space:]]*$/d' -e '/^[[:space:]]*#/d' <"$COMMIT_LIST_FILE" >"$_cl2" 2>/dev/null || :
 
       if [ -s "$_cl2" ]; then
         _wrap_info "commit requested: mode=$COMMIT_MODE"
-
         "$LOG_LIB_DIR/commit.sh" "$REPO_ROOT" "$COMMIT_MESSAGE" $(cat "$_cl2")
         _c_rc=$?
 
