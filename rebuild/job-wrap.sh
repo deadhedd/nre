@@ -229,10 +229,10 @@ rm -f "$_li_err" 2>/dev/null || :
 : >"$_li_err" 2>/dev/null || _li_err=/dev/null
 
 _li_rc=0
-(
+{
   # shellcheck disable=SC2039
   log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}"
-) >"$_li_out" 2>"$_li_err"
+} >"$_li_out" 2>"$_li_err"
 _li_rc=$?
 
 if [ "$_li_rc" -ne 0 ] && [ -n "${WRAP_BOOT_LOG:-}" ]; then
