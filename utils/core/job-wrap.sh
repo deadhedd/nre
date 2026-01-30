@@ -26,6 +26,11 @@
 #                                  Defaults to:
 #                                  "job-wrap(<job>): auto-commit (exit=<status>)"
 #
+# Transition scaffolding (temporary):
+#   JOB_WRAP_PREFER_LEGACY=1       Skip trying new wrapper; run legacy wrapper (this file)
+#   JOB_WRAP_NEW_WRAPPER=<path>    Override new wrapper path (else $REPO_ROOT/rebuild/job-wrap.sh)
+#   JOB_WRAP_BRIDGE_TRIED=1        Loop guard (internal)
+#
 # Debug knobs (all opt-in; never stdout):
 #   JOB_WRAP_DEBUG=1               Enable wrapper internal debug.
 #   JOB_WRAP_DEBUG_FILE=<path>     Write wrapper debug to this file (else stderr).
@@ -238,6 +243,45 @@ export LOG_FILE
 : "${LOG_INTERNAL_LEVEL:=INFO}"
 : "${LOG_ASCII_ONLY:=1}"
 export LOG_KEEP_COUNT LOG_INTERNAL_LEVEL LOG_ASCII_ONLY
+
+# ------------------------------------------------------------------------------
+# Transition bridge (temporary): try new wrapper first, fall back to legacy
+# ------------------------------------------------------------------------------
+# This wrapper is the stable entrypoint leaf scripts call today.
+# We temporarily try the new wrapper first; if it succeeds, we stop here.
+# If it fails (non-zero), we fall through and run the legacy behavior below.
+#
+# IMPORTANT: invoke new wrapper with JOB_WRAP_ACTIVE cleared so it does not think
+# it is already wrapped (this file sets JOB_WRAP_ACTIVE=1 below).
+#
+if [ "${JOB_WRAP_PREFER_LEGACY:-0}" -eq 0 ] 2>/dev/null; then
+  if [ "${JOB_WRAP_BRIDGE_TRIED:-0}" -ne 1 ] 2>/dev/null; then
+    NEW_WRAP_CANDIDATE=${JOB_WRAP_NEW_WRAPPER:-"$REPO_ROOT/rebuild/job-wrap.sh"}
+
+    # Avoid accidental self-call; loop guard also protects, but this is cheap.
+    if [ "$NEW_WRAP_CANDIDATE" != "$0" ] && [ -x "$NEW_WRAP_CANDIDATE" ]; then
+      JOB_WRAP_BRIDGE_TRIED=1
+      export JOB_WRAP_BRIDGE_TRIED
+
+      job_wrap__dbg "bridge: trying NEW wrapper: $NEW_WRAP_CANDIDATE"
+
+      set +e
+      JOB_WRAP_ACTIVE= /bin/sh "$NEW_WRAP_CANDIDATE" "$ORIGINAL_CMD" "$@"
+      bridge_rc=$?
+      set -e
+
+      if [ "$bridge_rc" -eq 0 ]; then
+        job_wrap__dbg "bridge: NEW wrapper succeeded"
+        exit 0
+      fi
+
+      job_wrap__dbg "bridge: NEW wrapper failed rc=$bridge_rc, falling back to legacy wrapper"
+      # fall through to legacy implementation below
+    else
+      job_wrap__dbg "bridge: NEW wrapper not executable (or self): $NEW_WRAP_CANDIDATE (skipping)"
+    fi
+  fi
+fi
 
 JOB_WRAP_ACTIVE=1
 export JOB_WRAP_ACTIVE
