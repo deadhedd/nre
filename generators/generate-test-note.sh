@@ -1,0 +1,127 @@
+#!/bin/sh
+# Generate a small test note in the vault to validate wrapper/logging/commit end-to-end.
+
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
+utils_dir="$repo_root/utils"
+job_wrap="$utils_dir/core/job-wrap.sh"
+script_path="$script_dir/$(basename "$0")"
+
+# Self-wrap (matches the pattern used by your generators) :contentReference[oaicite:1]{index=1}
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
+  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+fi
+
+usage() {
+  cat <<'EOF_USAGE'
+Usage: generate-test-note.sh [--vault <path>] [--outdir <name>] [--name <title>] [--force] [--dry-run]
+
+Options:
+  --vault <path>    Vault root where the note should be created.
+                    Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
+  --outdir <name>   Subdirectory inside the vault. Defaults to "Scratch/Test Notes".
+  --name <title>    Base note title (without extension). Defaults to "Wrapper Test".
+  --force           Overwrite if the note already exists.
+  --dry-run         Print note contents to stdout instead of writing a file.
+  --help            Show this message.
+EOF_USAGE
+}
+
+vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
+outdir="Scratch/Test Notes"
+base_name="Wrapper Test"
+force=0
+dry_run=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --vault)
+      [ $# -ge 2 ] || { printf 'ERR  %s\n' "Missing value for --vault" >&2; usage; exit 2; }
+      vault_path=$2
+      shift 2
+      ;;
+    --outdir)
+      [ $# -ge 2 ] || { printf 'ERR  %s\n' "Missing value for --outdir" >&2; usage; exit 2; }
+      outdir=$2
+      shift 2
+      ;;
+    --name)
+      [ $# -ge 2 ] || { printf 'ERR  %s\n' "Missing value for --name" >&2; usage; exit 2; }
+      base_name=$2
+      shift 2
+      ;;
+    --force)
+      force=1
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'ERR  %s\n' "Unknown option: $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+# Normalize vault path (strip trailing slashes)
+vault_root=${vault_path%/}
+
+# Trim leading/trailing slashes from outdir (matches your quarterly generator style) :contentReference[oaicite:2]{index=2}
+trimmed_outdir=$outdir
+while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir#/}; done
+while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir%/}; done
+
+if [ -n "$trimmed_outdir" ]; then
+  note_dir="$vault_root/$trimmed_outdir"
+else
+  note_dir="$vault_root"
+fi
+
+# Timestamp for uniqueness (UTC to keep it deterministic-ish across machines)
+ts_utc=$(date -u '+%Y-%m-%dT%H%M%SZ' 2>/dev/null || date '+%Y-%m-%dT%H%M%S')
+safe_base=$(printf '%s' "$base_name" | tr -c 'A-Za-z0-9._ -' '_' | tr ' ' '_')
+note_path="${note_dir%/}/${safe_base}-${ts_utc}.md"
+
+if [ "$dry_run" -ne 1 ]; then
+  mkdir -p "$note_dir"
+fi
+
+if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
+  printf 'ERR  %s\n' "Refusing to overwrite existing file: $note_path" >&2
+  printf 'ERR  %s\n' "Re-run with --force to overwrite." >&2
+  exit 1
+fi
+
+write_note() {
+  cat <<EOF_NOTE
+# $base_name
+
+This is a small test note generated to validate:
+- leaf self-wrap
+- wrapper logging/capture
+- optional commit helper
+
+Generated at (UTC): $ts_utc
+Host: $(hostname 2>/dev/null || printf unknown)
+Job: ${JOB_NAME:-<unset>}
+Log file: ${LOG_FILE:-<unset>}
+
+EOF_NOTE
+}
+
+if [ "$dry_run" -eq 1 ]; then
+  write_note
+  exit 0
+fi
+
+write_note >"$note_path"
+printf 'INFO %s\n' "Wrote test note: $note_path"
