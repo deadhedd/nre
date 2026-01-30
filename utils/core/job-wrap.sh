@@ -3,48 +3,6 @@
 # Author: deadhedd
 # License: MIT
 # shellcheck shell=sh
-#
-# Paradigm:
-# - Leaf scripts must re-exec via this wrapper when JOB_WRAP_ACTIVE!=1.
-# - ONLY this wrapper sources utils/core/log.sh (leaf scripts must NOT).
-# - Wrapper routing:
-#     * leaf stdout is sacred (passes through untouched)
-#     * leaf stderr is appended verbatim to the per-run log file
-# - Each run has: <job>-<timestamp>.log and <job>-latest.log
-# - Rotation: keep last N logs (default 10), per job, per bucket.
-# - Log path mapping MUST match legacy behavior (daily-notes / weekly-notes / long-cycle / other).
-#
-# Usage:
-#   job-wrap.sh <command_or_script> [args...]
-#
-# Environment knobs:
-#   JOB_WRAP_SEARCH_PATH           Colon-separated dirs to search before repo/PATH.
-#   JOB_WRAP_JOB_NAME              Override derived job name (used for logging).
-#   JOB_WRAP_DEFAULT_WORK_TREE     Override default commit work tree (else VAULT_PATH).
-#   JOB_WRAP_DISABLE_COMMIT        If non-empty, skip commit step.
-#   JOB_WRAP_DEFAULT_COMMIT_MESSAGE
-#                                  Defaults to:
-#                                  "job-wrap(<job>): auto-commit (exit=<status>)"
-#
-# Transition scaffolding (temporary):
-#   JOB_WRAP_PREFER_LEGACY=1       Skip trying new wrapper; run legacy wrapper (this file)
-#   JOB_WRAP_NEW_WRAPPER=<path>    Override new wrapper path (else $REPO_ROOT/rebuild/job-wrap.sh)
-#   JOB_WRAP_BRIDGE_TRIED=1        Loop guard (internal)
-#
-# Debug knobs (all opt-in; never stdout):
-#   JOB_WRAP_DEBUG=1               Enable wrapper internal debug.
-#   JOB_WRAP_DEBUG_FILE=<path>     Write wrapper debug to this file (else stderr).
-#   JOB_WRAP_ASCII_ONLY=1|0        Wrapper dbg sanitization (default 1).
-#   JOB_WRAP_XTRACE=1              Enable shell xtrace to JOB_WRAP_XTRACE_FILE.
-#   JOB_WRAP_XTRACE_FILE=<path>    File for xtrace output (else $LOG_ROOT/debug/...).
-#
-# Logging knobs (wrapper -> new logger):
-#   LOG_ROOT                       Base logs dir (default ${HOME:-/home/obsidian}/logs)
-#   LOG_INTERNAL_LEVEL             DEBUG|INFO|WARN|ERR (default INFO)
-#   LOG_ASCII_ONLY                 1|0 (default 1)
-#   LOG_KEEP_COUNT                 keep last N (default 10)
-#   LOG_INTERNAL_DEBUG             1|0 (default 0)
-#   LOG_INTERNAL_DEBUG_FILE        path for logger internal debug (optional)
 
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -206,53 +164,15 @@ case "$ORIGINAL_CMD" in
       exit 127
     fi
     ;;
-esac
-
-set -- "$RESOLVED_CMD" "$@"
-
-JOB_BASENAME=$(basename -- "$RESOLVED_CMD")
-JOB_NAME="${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}"
-
-job_wrap__dbg "job: RESOLVED_CMD=$RESOLVED_CMD JOB_BASENAME=$JOB_BASENAME JOB_NAME=$JOB_NAME"
-
-# ------------------------------------------------------------------------------
-# Legacy log path mapping (same as old logger)
-# ------------------------------------------------------------------------------
-job_wrap__default_log_dir() {
-  # Mirrors legacy log__default_log_dir mapping.
-  case "$1" in
-    *daily-note*)   printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/daily-notes" ;;
-    *weekly-note*)  printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/weekly-notes" ;;
-    *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
-                   printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/long-cycle" ;;
-    *)              printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/other" ;;
-  esac
-}
-
-job_wrap__runid() { date '+%Y%m%dT%H%M%S' 2>/dev/null || printf 'run'; }
-
-# Set env for new logger
-LOG_RUN_TS=${LOG_RUN_TS:-$(job_wrap__runid)}
-SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
-LOG_DIR=$(job_wrap__default_log_dir "$SAFE_JOB_NAME")
-LOG_FILE="$LOG_DIR/$SAFE_JOB_NAME-$LOG_RUN_TS.log"
-
-export JOB_NAME="$SAFE_JOB_NAME"
-export LOG_FILE
-: "${LOG_KEEP_COUNT:=10}"
-: "${LOG_INTERNAL_LEVEL:=INFO}"
-: "${LOG_ASCII_ONLY:=1}"
-export LOG_KEEP_COUNT LOG_INTERNAL_LEVEL LOG_ASCII_ONLY
+ esac
 
 # ------------------------------------------------------------------------------
 # Transition bridge (temporary): try new wrapper first, fall back to legacy
 # ------------------------------------------------------------------------------
-# This wrapper is the stable entrypoint leaf scripts call today.
-# We temporarily try the new wrapper first; if it succeeds, we stop here.
-# If it fails (non-zero), we fall through and run the legacy behavior below.
-#
-# IMPORTANT: invoke new wrapper with JOB_WRAP_ACTIVE cleared so it does not think
-# it is already wrapped (this file sets JOB_WRAP_ACTIVE=1 below).
+# IMPORTANT FIX:
+#   This runs BEFORE we mutate argv with:
+#     set -- "$RESOLVED_CMD" "$@"
+#   so the new wrapper receives the true original args intended for the leaf.
 #
 if [ "${JOB_WRAP_PREFER_LEGACY:-0}" -eq 0 ] 2>/dev/null; then
   if [ "${JOB_WRAP_BRIDGE_TRIED:-0}" -ne 1 ] 2>/dev/null; then
@@ -266,6 +186,7 @@ if [ "${JOB_WRAP_PREFER_LEGACY:-0}" -eq 0 ] 2>/dev/null; then
       job_wrap__dbg "bridge: trying NEW wrapper: $NEW_WRAP_CANDIDATE"
 
       set +e
+      # Option 2: clear JOB_WRAP_ACTIVE for the subprocess so NEW wrapper doesn't think it's already wrapped
       JOB_WRAP_ACTIVE= /bin/sh "$NEW_WRAP_CANDIDATE" "$ORIGINAL_CMD" "$@"
       bridge_rc=$?
       set -e
@@ -283,13 +204,48 @@ if [ "${JOB_WRAP_PREFER_LEGACY:-0}" -eq 0 ] 2>/dev/null; then
   fi
 fi
 
+# From here on, legacy wrapper proceeds as normal
+set -- "$RESOLVED_CMD" "$@"
+
+JOB_BASENAME=$(basename -- "$RESOLVED_CMD")
+JOB_NAME="${JOB_WRAP_JOB_NAME:-${JOB_BASENAME%.*}}"
+
+job_wrap__dbg "job: RESOLVED_CMD=$RESOLVED_CMD JOB_BASENAME=$JOB_BASENAME JOB_NAME=$JOB_NAME"
+
+# ------------------------------------------------------------------------------
+# Legacy log path mapping (same as old logger)
+# ------------------------------------------------------------------------------
+job_wrap__default_log_dir() {
+  case "$1" in
+    *daily-note*)   printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/daily-notes" ;;
+    *weekly-note*)  printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/weekly-notes" ;;
+    *monthly-note*|*quarterly-note*|*yearly-note*|*periodic-note*)
+                   printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/long-cycle" ;;
+    *)              printf '%s' "${LOG_ROOT:-${HOME:-/home/obsidian}/logs}/other" ;;
+  esac
+}
+
+job_wrap__runid() { date '+%Y%m%dT%H%M%S' 2>/dev/null || printf 'run'; }
+
+LOG_RUN_TS=${LOG_RUN_TS:-$(job_wrap__runid)}
+SAFE_JOB_NAME=$(printf '%s' "$JOB_NAME" | tr -c 'A-Za-z0-9._-' '-')
+LOG_DIR=$(job_wrap__default_log_dir "$SAFE_JOB_NAME")
+LOG_FILE="$LOG_DIR/$SAFE_JOB_NAME-$LOG_RUN_TS.log"
+
+export JOB_NAME="$SAFE_JOB_NAME"
+export LOG_FILE
+: "${LOG_KEEP_COUNT:=10}"
+: "${LOG_INTERNAL_LEVEL:=INFO}"
+: "${LOG_ASCII_ONLY:=1}"
+export LOG_KEEP_COUNT LOG_INTERNAL_LEVEL LOG_ASCII_ONLY
+
 JOB_WRAP_ACTIVE=1
 export JOB_WRAP_ACTIVE
 
 # Initialize sink + prune + latest (writes banner)
 log_init
 
-# Metadata (replacement for old log_run_job meta lines)
+# Metadata
 log_audit "== ${JOB_NAME} start =="
 log_audit "start=$LOG_RUN_TS"
 log_audit "cwd=$(pwd 2>/dev/null || pwd)"
@@ -350,9 +306,7 @@ perform_commit() {
 }
 
 # ------------------------------------------------------------------------------
-# Run the job (foreground routing)
-#   - stdout passes through untouched
-#   - stderr appended to LOG_FILE
+# Run the job
 # ------------------------------------------------------------------------------
 job_wrap__shutdown() {
   if [ "${JOB_WRAP_SHUTDOWN_DONE:-0}" -ne 0 ] 2>/dev/null; then
@@ -415,7 +369,9 @@ trap 'job_wrap__on_signal INT' INT
 trap 'job_wrap__on_signal TERM' TERM
 trap 'job_wrap__on_signal HUP' HUP
 
-# Execute the job (note: preserve old behavior of running the resolved path directly)
+# Execute the job:
+#   - stdout passes through untouched
+#   - stderr appended to LOG_FILE
 set +e
 "$@" 2>>"$LOG_FILE"
 STATUS=$?
