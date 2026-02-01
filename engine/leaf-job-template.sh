@@ -17,7 +17,7 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
-job_wrap="$repo_root/rebuild/job-wrap.sh"
+job_wrap="$repo_root/engine/job-wrap.sh"
 script_path="$script_dir/$(basename -- "$0")"
 
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then

@@ -1,5 +1,5 @@
 #!/bin/sh
-# rebuild/log-sink.sh
+# engine/log-sink.sh
 #
 # Logging sink lifecycle manager.
 # Library-only. MUST be sourced by log.sh (wrapper-only).

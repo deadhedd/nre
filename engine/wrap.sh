@@ -1,5 +1,5 @@
 #!/bin/sh
-# rebuild/job-wrap.sh
+# engine/job-wrap.sh
 # Execution wrapper + logging authority bootstrap.
 # Wrapper diagnostics use the same level-prefix scheme as leaf scripts.
 # Author: deadhedd
@@ -135,7 +135,7 @@ WRAP_DIR=$(CDPATH= cd "$(dirname "$0")" 2>/dev/null && pwd) || {
 }
 
 REPO_ROOT=$(CDPATH= cd "$WRAP_DIR/.." 2>/dev/null && pwd) || {
-  _wrap_error "cannot resolve repo root from rebuild layout"
+  _wrap_error "cannot resolve repo root from engine layout"
   exit "$WRAP_E_INIT"
 }
 
