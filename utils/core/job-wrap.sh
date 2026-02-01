@@ -176,7 +176,7 @@ case "$ORIGINAL_CMD" in
 #
 if [ "${JOB_WRAP_PREFER_LEGACY:-0}" -eq 0 ] 2>/dev/null; then
   if [ "${JOB_WRAP_BRIDGE_TRIED:-0}" -ne 1 ] 2>/dev/null; then
-    NEW_WRAP_CANDIDATE=${JOB_WRAP_NEW_WRAPPER:-"$REPO_ROOT/rebuild/job-wrap.sh"}
+    NEW_WRAP_CANDIDATE=${JOB_WRAP_NEW_WRAPPER:-"$REPO_ROOT/engine/wrap.sh"}
 
     # Avoid accidental self-call; loop guard also protects, but this is cheap.
     if [ "$NEW_WRAP_CANDIDATE" != "$0" ] && [ -x "$NEW_WRAP_CANDIDATE" ]; then
