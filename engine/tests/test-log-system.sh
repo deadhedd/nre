@@ -12,10 +12,10 @@
 #   sh test-log-system.sh [--lib-dir DIR] [--facade PATH]
 #
 # Defaults assume:
-#   rebuild/log.sh
-#   rebuild/log-format.sh
-#   rebuild/log-sink.sh
-#   rebuild/log-capture.sh
+#   engine/log.sh
+#   engine/log-format.sh
+#   engine/log-sink.sh
+#   engine/log-capture.sh
 #
 # Notes:
 # - This script creates a sandbox and copies your logging libs into it.
@@ -134,8 +134,8 @@ show_file_bytes_tail() {
   dbg "---- end bytes ----"
 }
 
-LIB_DIR="./rebuild"
-FACADE_PATH="./rebuild/log.sh"
+LIB_DIR="./engine"
+FACADE_PATH="./engine/log.sh"
 
 while [ $# -gt 0 ]; do
   case "$1" in

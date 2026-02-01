@@ -5,7 +5,7 @@
 # shellcheck shell=sh
 #
 # Purpose:
-# - Smoke/regression tests for rebuild/utils/core/job-wrap.sh
+# - Smoke/regression tests for engine/job-wrap.sh
 # - Focus: wrapper boundary guarantees (stdout sacred), stderr capture/routing,
 #   degraded-mode behavior, and commit helper orchestration.
 #
@@ -13,8 +13,8 @@
 #   sh test-job-wrap.sh [--wrap PATH] [--lib-dir DIR]
 #
 # Defaults assume:
-#   ./rebuild/job-wrap.sh
-#   ./rebuild/log.sh + helpers in ./rebuild/
+#   ./engine/job-wrap.sh
+#   ./engine/log.sh + helpers in ./engine/
 #
 # Notes:
 # - POSIX sh, ASCII-only.
@@ -23,8 +23,8 @@
 
 set -u
 
-WRAP_PATH="./rebuild/job-wrap.sh"
-LIB_DIR="./rebuild"
+WRAP_PATH="./engine/job-wrap.sh"
+LIB_DIR="./engine"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -1118,7 +1118,7 @@ assert_nonempty_file "$_err" "structural failure emits stderr (simulated)"
 
 _wrap_struct2=$(make_leaf wrap_struct_fail2 '
 WRAP_E_INIT=121
-echo "ERROR: WRAP: cannot resolve repo root from rebuild layout" >&2
+echo "ERROR: WRAP: cannot resolve repo root from engine layout" >&2
 exit "$WRAP_E_INIT"
 ')
 

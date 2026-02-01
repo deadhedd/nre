@@ -1,5 +1,5 @@
 #!/bin/sh
-# rebuild/log.sh
+# engine/log.sh
 # Logging facade and coordinator (library-only; wrapper-only).
 # Author: deadhedd
 # License: MIT
