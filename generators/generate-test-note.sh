@@ -14,6 +14,16 @@ if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
 
+# When wrapped, logging MUST be available (by contract).
+# Wrapper cannot export shell functions to this child process, so we source log.sh here.
+if [ "${JOB_WRAP_ACTIVE:-0}" = "1" ]; then
+  # LOG_LIB_DIR is exported by the wrapper. Fall back to repo_root/engine if needed.
+  LOG_LIB_DIR=${LOG_LIB_DIR:-"$repo_root/engine"}
+  export LOG_LIB_DIR
+  # shellcheck disable=SC1090
+  . "$LOG_LIB_DIR/log.sh"
+fi
+
 usage() {
   cat <<'EOF_USAGE'
 Usage: generate-test-note.sh [--vault <path>] [--outdir <name>] [--name <title>] [--force] [--dry-run]
@@ -126,9 +136,9 @@ fi
 write_note >"$note_path"
 
 # Log success without contaminating stdout (stdout is sacred).
-if command -v log_info >/dev/null 2>&1; then
+if [ "${JOB_WRAP_ACTIVE:-0}" = "1" ]; then
   log_info "Wrote test note: $note_path"
 else
-  # Fallback if someone runs this without the wrapper/log lib.
+  # Unwrapped fallback: don't contaminate stdout
   printf '%s\n' "INFO Wrote test note: $note_path" >&2
 fi
