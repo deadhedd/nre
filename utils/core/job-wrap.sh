@@ -170,9 +170,9 @@ case "$ORIGINAL_CMD" in
 # Transition bridge (temporary): try new wrapper first, fall back to legacy
 # ------------------------------------------------------------------------------
 # IMPORTANT FIX:
-#   This runs BEFORE we mutate argv with:
-#     set -- "$RESOLVED_CMD" "$@"
-#   so the new wrapper receives the true original args intended for the leaf.
+#   Legacy leaves set JOB_WRAP_ACTIVE=1 before invoking this wrapper.
+#   New engine/wrap.sh *owns* JOB_WRAP_ACTIVE and refuses to start if it is "1".
+#   So we "juggle" the variable for the engine attempt and restore it if we fall back.
 #
 if [ "${JOB_WRAP_PREFER_LEGACY:-0}" -eq 0 ] 2>/dev/null; then
   if [ "${JOB_WRAP_BRIDGE_TRIED:-0}" -ne 1 ] 2>/dev/null; then
@@ -185,11 +185,24 @@ if [ "${JOB_WRAP_PREFER_LEGACY:-0}" -eq 0 ] 2>/dev/null; then
 
       job_wrap__dbg "bridge: trying NEW wrapper: $NEW_WRAP_CANDIDATE"
 
+      # Save legacy expectation and temporarily clear for engine attempt.
+      _jwa_saved=${JOB_WRAP_ACTIVE:-}
+      JOB_WRAP_ACTIVE=0
+      export JOB_WRAP_ACTIVE
+
       set +e
-      # Option 2: clear JOB_WRAP_ACTIVE for the subprocess so NEW wrapper doesn't think it's already wrapped
-      JOB_WRAP_ACTIVE= /bin/sh "$NEW_WRAP_CANDIDATE" "$ORIGINAL_CMD" "$@"
+      /bin/sh "$NEW_WRAP_CANDIDATE" "$ORIGINAL_CMD" "$@"
       bridge_rc=$?
       set -e
+
+      # Restore legacy semantics for fallback path.
+      if [ -n "${_jwa_saved:-}" ]; then
+        JOB_WRAP_ACTIVE=$_jwa_saved
+      else
+        JOB_WRAP_ACTIVE=1
+      fi
+      export JOB_WRAP_ACTIVE
+      _jwa_saved=""
 
       if [ "$bridge_rc" -eq 0 ]; then
         job_wrap__dbg "bridge: NEW wrapper succeeded"
