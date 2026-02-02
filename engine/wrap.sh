@@ -1,5 +1,5 @@
 #!/bin/sh
-# engine/job-wrap.sh
+# engine/wrap.sh
 # Execution wrapper + logging authority bootstrap.
 # Wrapper diagnostics use the same level-prefix scheme as leaf scripts.
 # Author: deadhedd
@@ -139,6 +139,98 @@ REPO_ROOT=$(CDPATH= cd "$WRAP_DIR/.." 2>/dev/null && pwd) || {
   exit "$WRAP_E_INIT"
 }
 
+###############################################################################
+# Resolve leaf by name (convenience)
+###############################################################################
+#
+# If LEAF_PATH has no '/' component, treat it as a script name and try to resolve
+# it to a path within the repo, so callers don't need to specify the full path.
+#
+# Override search order with:
+#   JOB_WRAP_SEARCH_PATH="/path/a:/path/b"
+#
+# Default search path prefers common repo locations.
+: "${JOB_WRAP_SEARCH_PATH:=$REPO_ROOT/bin:$REPO_ROOT/jobs:$REPO_ROOT/generators:$REPO_ROOT/engine:$REPO_ROOT/utils:$REPO_ROOT/scripts}"
+
+LEAF_USE_SH=0
+
+case "$LEAF_PATH" in
+  */*)
+    # Already a path (relative or absolute). Leave it alone.
+    ;;
+  *)
+    _resolved=""
+
+    # 1) Search configured path list (fast path).
+    if [ -n "$JOB_WRAP_SEARCH_PATH" ]; then
+      _old_ifs=$IFS
+      IFS=:
+      for _d in $JOB_WRAP_SEARCH_PATH; do
+        [ -n "$_d" ] || continue
+        _cand="$_d/$LEAF_PATH"
+        if [ -x "$_cand" ]; then
+          _resolved=$_cand
+          break
+        fi
+        # If it's a readable .sh but not executable, allow it (we'll run via sh).
+        case "$_cand" in
+          *.sh)
+            if [ -f "$_cand" ] && [ -r "$_cand" ]; then
+              _resolved=$_cand
+              LEAF_USE_SH=1
+              break
+            fi
+            ;;
+        esac
+      done
+      IFS=$_old_ifs
+    fi
+
+    # 2) Search repo recursively for an executable match (prune .git and logs).
+    if [ -z "$_resolved" ]; then
+      _hits=$(
+        find "$REPO_ROOT" \
+          \( -path "$REPO_ROOT/.git" -o -path "$REPO_ROOT/logs" \) -prune -o \
+          -type f -name "$LEAF_PATH" -perm -111 -print 2>/dev/null \
+          | sort | head -n 1 || true
+      )
+      if [ -n "$_hits" ]; then
+        _resolved=$_hits
+      fi
+    fi
+
+    # 3) If not found as executable, allow any readable .sh anywhere in repo.
+    if [ -z "$_resolved" ]; then
+      _hits=$(
+        find "$REPO_ROOT" \
+          \( -path "$REPO_ROOT/.git" -o -path "$REPO_ROOT/logs" \) -prune -o \
+          -type f -name "$LEAF_PATH" -print 2>/dev/null \
+          | sort | head -n 1 || true
+      )
+      if [ -n "$_hits" ]; then
+        _resolved=$_hits
+        case "$_resolved" in
+          *.sh) LEAF_USE_SH=1 ;;
+        esac
+      fi
+    fi
+
+    # 4) Finally, try PATH (command -v).
+    if [ -z "$_resolved" ]; then
+      _hits=$(command -v "$LEAF_PATH" 2>/dev/null || true)
+      [ -n "$_hits" ] && _resolved=$_hits
+    fi
+
+    if [ -z "$_resolved" ]; then
+      _wrap_error "leaf not found: $LEAF_PATH"
+      exit 127
+    fi
+
+    LEAF_PATH=$_resolved
+    ;;
+esac
+
+
 # Default LOG_LIB_DIR to wrapper dir unless caller overrides.
 LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR}
 export LOG_LIB_DIR
@@ -208,7 +300,7 @@ case "$JOB_NAME" in
     _wrap_error "invalid JOB_NAME derived from leaf: $JOB_NAME"
     exit "$WRAP_E_INVOCATION"
     ;;
-esac
+  esac
 
 export JOB_NAME
 
@@ -345,10 +437,18 @@ trap _cleanup 0 1 2 15
 _leaf_rc=0
 
 if [ "$CAPTURE_MODE" = "passthrough" ]; then
-  "$LEAF_PATH" "$@"
+  if [ "${LEAF_USE_SH:-0}" -eq 1 ]; then
+    sh "$LEAF_PATH" "$@"
+  else
+    "$LEAF_PATH" "$@"
+  fi
   _leaf_rc=$?
 else
-  "$LEAF_PATH" "$@" 2>"$_tmp"
+  if [ "${LEAF_USE_SH:-0}" -eq 1 ]; then
+    sh "$LEAF_PATH" "$@" 2>"$_tmp"
+  else
+    "$LEAF_PATH" "$@" 2>"$_tmp"
+  fi
   _leaf_rc=$?
 fi
 
