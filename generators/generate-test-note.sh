@@ -6,10 +6,10 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 utils_dir="$repo_root/utils"
-job_wrap="$utils_dir/core/job-wrap.sh"
+job_wrap="$repo_root/engine/wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
-# Self-wrap (matches the pattern used by your generators) :contentReference[oaicite:1]{index=1}
+# Self-wrap (matches the pattern used by your generators)
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
@@ -75,7 +75,7 @@ done
 # Normalize vault path (strip trailing slashes)
 vault_root=${vault_path%/}
 
-# Trim leading/trailing slashes from outdir (matches your quarterly generator style) :contentReference[oaicite:2]{index=2}
+# Trim leading/trailing slashes from outdir (matches your quarterly generator style)
 trimmed_outdir=$outdir
 while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir#/}; done
 while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir%/}; done
@@ -124,4 +124,11 @@ if [ "$dry_run" -eq 1 ]; then
 fi
 
 write_note >"$note_path"
-printf 'INFO %s\n' "Wrote test note: $note_path"
+
+# Log success without contaminating stdout (stdout is sacred).
+if command -v log_info >/dev/null 2>&1; then
+  log_info "Wrote test note: $note_path"
+else
+  # Fallback if someone runs this without the wrapper/log lib.
+  printf '%s\n' "INFO Wrote test note: $note_path" >&2
+fi
