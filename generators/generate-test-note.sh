@@ -5,24 +5,21 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
-utils_dir="$repo_root/utils"
-job_wrap="$repo_root/engine/wrap.sh"
+
+# Preferred wrapper (new engine wrapper), with legacy fallback.
+new_wrap="$repo_root/engine/wrap.sh"
+legacy_wrap="$repo_root/utils/core/job-wrap.sh"
+
 script_path="$script_dir/$(basename "$0")"
 
-# Self-wrap (matches the pattern used by your generators)
-# NOTE: Do NOT set JOB_WRAP_ACTIVE here; engine/wrap.sh owns the recursion flag.
-if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
-  exec /bin/sh "$job_wrap" "$script_path" "$@"
-fi
-
-# When wrapped, logging MUST be available (by contract).
-# Wrapper cannot export shell functions to this child process, so we source log.sh here.
-if [ "${JOB_WRAP_ACTIVE:-0}" = "1" ]; then
-  # LOG_LIB_DIR is exported by the wrapper. Fall back to repo_root/engine if needed.
-  LOG_LIB_DIR=${LOG_LIB_DIR:-"$repo_root/engine"}
-  export LOG_LIB_DIR
-  # shellcheck disable=SC1090
-  . "$LOG_LIB_DIR/log.sh"
+# Self-wrap (contract: leaf must re-exec under wrapper; leaf must not source logging libs)
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
+  if [ -x "$new_wrap" ]; then
+    JOB_WRAP_ACTIVE=1 exec /bin/sh "$new_wrap" "$script_path" "$@"
+  fi
+  if [ -x "$legacy_wrap" ]; then
+    JOB_WRAP_ACTIVE=1 exec /bin/sh "$legacy_wrap" "$script_path" "$@"
+  fi
 fi
 
 usage() {
@@ -49,17 +46,17 @@ dry_run=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --vault)
-      [ $# -ge 2 ] || { printf 'ERR  %s\n' "Missing value for --vault" >&2; usage; exit 2; }
+      [ $# -ge 2 ] || { printf 'ERROR: %s\n' "Missing value for --vault" >&2; usage >&2; exit 2; }
       vault_path=$2
       shift 2
       ;;
     --outdir)
-      [ $# -ge 2 ] || { printf 'ERR  %s\n' "Missing value for --outdir" >&2; usage; exit 2; }
+      [ $# -ge 2 ] || { printf 'ERROR: %s\n' "Missing value for --outdir" >&2; usage >&2; exit 2; }
       outdir=$2
       shift 2
       ;;
     --name)
-      [ $# -ge 2 ] || { printf 'ERR  %s\n' "Missing value for --name" >&2; usage; exit 2; }
+      [ $# -ge 2 ] || { printf 'ERROR: %s\n' "Missing value for --name" >&2; usage >&2; exit 2; }
       base_name=$2
       shift 2
       ;;
@@ -76,8 +73,8 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      printf 'ERR  %s\n' "Unknown option: $1" >&2
-      usage
+      printf 'ERROR: %s\n' "Unknown option: $1" >&2
+      usage >&2
       exit 2
       ;;
   esac
@@ -86,7 +83,7 @@ done
 # Normalize vault path (strip trailing slashes)
 vault_root=${vault_path%/}
 
-# Trim leading/trailing slashes from outdir (matches your quarterly generator style)
+# Trim leading/trailing slashes from outdir
 trimmed_outdir=$outdir
 while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir#/}; done
 while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir%/}; done
@@ -97,7 +94,7 @@ else
   note_dir="$vault_root"
 fi
 
-# Timestamp for uniqueness (UTC to keep it deterministic-ish across machines)
+# Timestamp for uniqueness (UTC)
 ts_utc=$(date -u '+%Y-%m-%dT%H%M%SZ' 2>/dev/null || date '+%Y-%m-%dT%H%M%S')
 safe_base=$(printf '%s' "$base_name" | tr -c 'A-Za-z0-9._ -' '_' | tr ' ' '_')
 note_path="${note_dir%/}/${safe_base}-${ts_utc}.md"
@@ -107,8 +104,8 @@ if [ "$dry_run" -ne 1 ]; then
 fi
 
 if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
-  printf 'ERR  %s\n' "Refusing to overwrite existing file: $note_path" >&2
-  printf 'ERR  %s\n' "Re-run with --force to overwrite." >&2
+  printf 'ERROR: %s\n' "Refusing to overwrite existing file: $note_path" >&2
+  printf 'ERROR: %s\n' "Re-run with --force to overwrite." >&2
   exit 1
 fi
 
@@ -136,10 +133,5 @@ fi
 
 write_note >"$note_path"
 
-# Log success without contaminating stdout (stdout is sacred).
-if [ "${JOB_WRAP_ACTIVE:-0}" = "1" ]; then
-  log_info "Wrote test note: $note_path"
-else
-  # Unwrapped fallback: don't contaminate stdout
-  printf '%s\n' "INFO Wrote test note: $note_path" >&2
-fi
+# IMPORTANT: diagnostics go to stderr with level prefix (wrapper captures stderr to logs)
+printf 'INFO: %s\n' "Wrote test note: $note_path" >&2
