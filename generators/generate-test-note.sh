@@ -10,8 +10,9 @@ job_wrap="$repo_root/engine/wrap.sh"
 script_path="$script_dir/$(basename "$0")"
 
 # Self-wrap (matches the pattern used by your generators)
+# NOTE: Do NOT set JOB_WRAP_ACTIVE here; engine/wrap.sh owns the recursion flag.
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
-  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+  exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
 
 # When wrapped, logging MUST be available (by contract).
