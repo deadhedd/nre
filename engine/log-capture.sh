@@ -47,6 +47,20 @@ _lc_is_numeric() {
     esac
 }
 
+# _lc_leaf_prefix_level LINE
+# Strict recognition of the leaf prefix protocol:
+#   ^(DEBUG|INFO|WARN|ERROR):[ ]?
+# Returns the level on stdout if matched; otherwise prints nothing.
+_lc_leaf_prefix_level() {
+    case "${1-}" in
+        DEBUG:*) printf '%s' DEBUG ;;
+        INFO:*)  printf '%s' INFO ;;
+        WARN:*)  printf '%s' WARN ;;
+        ERROR:*) printf '%s' ERROR ;;
+        *)       : ;;
+    esac
+}
+
 ###############################################################################
 # log_capture_stream LEVEL
 ###############################################################################
@@ -94,13 +108,23 @@ log_capture_stream() {
     while IFS= read -r _lc_line || [ -n "$_lc_line" ]; do
         _lc_fmt=""
 
+        # Strict leaf prefix recognition (logger-owned policy gating support).
+        # - If a valid prefix exists, it defines the effective level.
+        # - Otherwise, fall back to the capture LEVEL provided by the caller.
+        #   The wrapper should pass UNDEF when capturing leaf stderr so
+        #   missing/invalid prefixes surface as UNDEF per contract.
+        _lc_eff=$(_lc_leaf_prefix_level "$_lc_line")
+        if [ -z "${_lc_eff:-}" ]; then
+            _lc_eff="${_lc_level}"
+        fi
+
         # Build formatted line via log-format.
         # Redirect formatter stdout to /dev/null so nothing can leak toward job stdout
         # even if the formatter is buggy. It returns output via OUT_VAR.
         log_format_build_line \
             _lc_fmt \
             "${LOG_MIN_LEVEL}" \
-            "${_lc_level}" \
+            "${_lc_eff}" \
             "${_lc_line}" \
             1>/dev/null
         _lc_rc=$?
