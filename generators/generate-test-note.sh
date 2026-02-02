@@ -6,16 +6,16 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 
-# Preferred wrapper (new engine wrapper), with legacy fallback.
 new_wrap="$repo_root/engine/wrap.sh"
 legacy_wrap="$repo_root/utils/core/job-wrap.sh"
 
 script_path="$script_dir/$(basename "$0")"
 
-# Self-wrap (contract: leaf must re-exec under wrapper; leaf must not source logging libs)
+# Self-wrap: leaf does NOT source logging libs; wrapper coordinates logging.
+# IMPORTANT: engine/wrap.sh owns JOB_WRAP_ACTIVE; do not set it here.
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
   if [ -x "$new_wrap" ]; then
-    JOB_WRAP_ACTIVE=1 exec /bin/sh "$new_wrap" "$script_path" "$@"
+    exec /bin/sh "$new_wrap" "$script_path" "$@"
   fi
   if [ -x "$legacy_wrap" ]; then
     JOB_WRAP_ACTIVE=1 exec /bin/sh "$legacy_wrap" "$script_path" "$@"
@@ -80,10 +80,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Normalize vault path (strip trailing slashes)
 vault_root=${vault_path%/}
 
-# Trim leading/trailing slashes from outdir
 trimmed_outdir=$outdir
 while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir#/}; done
 while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir%/}; done
@@ -94,7 +92,6 @@ else
   note_dir="$vault_root"
 fi
 
-# Timestamp for uniqueness (UTC)
 ts_utc=$(date -u '+%Y-%m-%dT%H%M%SZ' 2>/dev/null || date '+%Y-%m-%dT%H%M%S')
 safe_base=$(printf '%s' "$base_name" | tr -c 'A-Za-z0-9._ -' '_' | tr ' ' '_')
 note_path="${note_dir%/}/${safe_base}-${ts_utc}.md"
@@ -133,5 +130,5 @@ fi
 
 write_note >"$note_path"
 
-# IMPORTANT: diagnostics go to stderr with level prefix (wrapper captures stderr to logs)
+# Diagnostics go to stderr with level prefix (wrapper captures stderr).
 printf 'INFO: %s\n' "Wrote test note: $note_path" >&2
