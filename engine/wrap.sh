@@ -230,7 +230,6 @@ case "$LEAF_PATH" in
     ;;
 esac
 
-
 # Default LOG_LIB_DIR to wrapper dir unless caller overrides.
 LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR}
 export LOG_LIB_DIR
@@ -300,7 +299,7 @@ case "$JOB_NAME" in
     _wrap_error "invalid JOB_NAME derived from leaf: $JOB_NAME"
     exit "$WRAP_E_INVOCATION"
     ;;
-  esac
+esac
 
 export JOB_NAME
 
@@ -498,6 +497,11 @@ fi
 ###############################################################################
 
 if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
+  # Warn loudly if commit mode is enabled but we never got a usable list.
+  if [ -z "${COMMIT_LIST_FILE:-}" ] || [ ! -s "$COMMIT_LIST_FILE" ]; then
+    _wrap_warn "COMMIT_MODE=$COMMIT_MODE but no commit list provided; nothing to commit"
+  fi
+
   if [ -n "${COMMIT_LIST_FILE:-}" ] && [ -s "$COMMIT_LIST_FILE" ]; then
     _cl2=""
     if [ "$TMP_OK" -eq 1 ]; then
@@ -510,8 +514,25 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
       sed -e '/^[[:space:]]*$/d' -e '/^[[:space:]]*#/d' <"$COMMIT_LIST_FILE" >"$_cl2" 2>/dev/null || :
 
       if [ -s "$_cl2" ]; then
+        # Optional visibility: record the exact filtered list to bootstrap.
+        _wrap_debug "commit list (filtered): writing to bootstrap"
+        if [ -n "${WRAP_BOOT_LOG:-}" ]; then
+          {
+            printf 'DEBUG: WRAP: commit list (filtered):\n'
+            cat "$_cl2" 2>/dev/null || :
+            printf '\n'
+          } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+        fi
+
+        # Build argv safely from newline-delimited list (preserve spaces).
+        set --
+        while IFS= read -r _p; do
+          [ -n "$_p" ] || continue
+          set -- "$@" "$_p"
+        done <"$_cl2"
+
         _wrap_info "commit requested: mode=$COMMIT_MODE"
-        "$LOG_LIB_DIR/commit.sh" "$REPO_ROOT" "$COMMIT_MESSAGE" $(cat "$_cl2")
+        "$LOG_LIB_DIR/commit.sh" "$REPO_ROOT" "$COMMIT_MESSAGE" "$@"
         _c_rc=$?
 
         case "$_c_rc" in
