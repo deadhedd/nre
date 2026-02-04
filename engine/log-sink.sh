@@ -266,8 +266,8 @@ log_sink_init() {
     fi
     export LOG_BUCKET
 
-    _ls_log_dir="${LOG_ROOT}/${LOG_BUCKET}/${JOB_NAME}/runs"
-    _ls_latest_link="${LOG_ROOT}/${LOG_BUCKET}/${JOB_NAME}/${JOB_NAME}-latest.log"
+    _ls_log_dir="${LOG_ROOT}/${LOG_BUCKET}"
+    _ls_latest_link="${LOG_ROOT}/${LOG_BUCKET}/${JOB_NAME}-latest.log"
 
     _ls_mkdir_p "$_ls_log_dir" || return $?
 
