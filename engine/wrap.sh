@@ -149,6 +149,13 @@ shift
 JOB_WRAP_ACTIVE=1
 export JOB_WRAP_ACTIVE
 
+# Debug run override: when JOB_WRAP_DEBUG=1, force minimum log level to DEBUG
+# so *everything* is visible (wrapper + leaf capture + logger formatting policy).
+if [ "${JOB_WRAP_DEBUG:-0}" = "1" ]; then
+  LOG_MIN_LEVEL=DEBUG
+  export LOG_MIN_LEVEL
+fi
+
 ###############################################################################
 # Resolve wrapper paths
 ###############################################################################
