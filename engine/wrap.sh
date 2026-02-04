@@ -139,6 +139,19 @@ REPO_ROOT=$(CDPATH= cd "$WRAP_DIR/.." 2>/dev/null && pwd) || {
   exit "$WRAP_E_INIT"
 }
 
+# Default LOG_ROOT: sibling of repo at ../logs (i.e., parent-of-repo-root/logs).
+# Respect an explicit LOG_ROOT if provided by caller.
+if [ -z "${LOG_ROOT+x}" ] || [ -z "${LOG_ROOT:-}" ]; then
+  repo_parent=$(CDPATH= cd -- "$REPO_ROOT/.." 2>/dev/null && pwd -P || printf '')
+  if [ -n "$repo_parent" ]; then
+    LOG_ROOT="$repo_parent/logs"
+  else
+    LOG_ROOT="$REPO_ROOT/logs"
+  fi
+fi
+
+export LOG_ROOT
+
 ###############################################################################
 # Resolve leaf by name (convenience)
 ###############################################################################
@@ -248,7 +261,6 @@ fi
 # Bootstrap log file (best-effort)
 ###############################################################################
 
-LOG_ROOT=${LOG_ROOT:-"$REPO_ROOT/logs"}
 LOG_BUCKET=${LOG_BUCKET:-other}
 LOG_KEEP_COUNT=${LOG_KEEP_COUNT:-10}
 export LOG_ROOT LOG_BUCKET LOG_KEEP_COUNT
