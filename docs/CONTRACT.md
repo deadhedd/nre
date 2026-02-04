@@ -390,6 +390,9 @@ The logging model is intentionally simple and robust:
 * “Lines missing a valid prefix MUST be tagged as UNDEF by the logging subsystem.”
 * The wrapper MUST NOT assign log levels to leaf output and MUST NOT inject any per-line markers into captured leaf stderr.
 
+The wrapper MAY emit its own diagnostics into the per-run log via the logging subsystem, but such lines MUST be clearly tagged as wrapper-origin (e.g., `WRAP:`) and MUST NOT be interleaved into the captured leaf stderr stream.
+`log_capture` MUST treat stdin as a stream of level-prefixed lines and MUST NOT allow the wrapper to override per-line levels.
+
 No ad-hoc filtering or heuristic parsing is applied at capture time. The only permitted parsing is strict recognition of the leaf log level prefix defined by this contract, performed by the logger subsystem as part of policy gating. The only permitted omission is explicit logger policy gating (e.g., level gating performed by `log-format.sh`), which is treated as a non-failure “no output by design” outcome. (See Appendix C.6 for logger helper return codes, including the non-failure “suppressed by policy” outcome.)
 Policy gating MUST NOT rewrite or reinterpret message content; it only determines whether a line is emitted. Prefix recognition MUST NOT alter the message payload; the full original line content MUST remain visible in logs (with UNDEF used when the prefix is missing/invalid).
 
@@ -468,6 +471,9 @@ Bootstrap logs exist only to record logging bootstrap failures (soft failures), 
   * `<job>-<ts>.log` naming invariants
   * `<job>-latest.log` symlink behavior
   * retention policy managed by the logging sink
+
+**Bootstrap logs MUST NOT be used for routine wrapper diagnostics when centralized logging is available.**
+They exist only for forensic evidence of logging bootstrap failures or degraded logging conditions.
 
 ---
 
@@ -612,7 +618,8 @@ Wrapper diagnostics:
 
 * MUST NOT write to `stdout` under any circumstance.
 * MUST be single-line at the job boundary (multiline evidence MUST be written to a dedicated artifact such as the bootstrap diagnostic log).
-* SHOULD be recorded to the wrapper-owned bootstrap diagnostic log on a best-effort basis, especially before logging is fully initialized.
+* **Before logging is initialized or when logging is degraded:** wrapper diagnostics **SHOULD** be recorded to the bootstrap diagnostic log (best-effort).
+* **When logging is healthy:** wrapper diagnostics (when emitted) **MUST** be routed through the centralized logging subsystem into the per-run log (opt-in policy gating allowed), and **MUST NOT** be written to the bootstrap log.
 * MUST NOT affect job success, exit semantics, or publication behavior.
 * MAY use the same level names as the centralized logging system (DEBUG/INFO/WARN/ERROR) for consistency, but are not subject to logger policy gating or formatting rules.
 * MUST remain functional even when the logger cannot be initialized.
