@@ -261,9 +261,8 @@ fi
 # Bootstrap log file (best-effort)
 ###############################################################################
 
-LOG_BUCKET=${LOG_BUCKET:-other}
 LOG_KEEP_COUNT=${LOG_KEEP_COUNT:-10}
-export LOG_ROOT LOG_BUCKET LOG_KEEP_COUNT
+export LOG_ROOT LOG_KEEP_COUNT
 
 _boot_dir="$LOG_ROOT/_bootstrap"
 if mkdir -p "$_boot_dir" 2>/dev/null; then
