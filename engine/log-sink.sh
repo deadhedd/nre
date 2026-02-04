@@ -245,7 +245,26 @@ log_sink_init() {
     # Layout is logger-owned (bucket placement + directories).
     # LOG_ROOT may be provided by wrapper as an override. Default is repo-relative.
     LOG_ROOT=${LOG_ROOT:-"./logs"}
-    LOG_BUCKET=${LOG_BUCKET:-other}
+
+    # LOG_BUCKET default is policy-owned and derived from JOB_NAME.
+    # If caller provided LOG_BUCKET explicitly, respect it.
+    if [ -z "${LOG_BUCKET:-}" ]; then
+        case "$JOB_NAME" in
+            generate-daily-note|daily-note-snapshot)
+                LOG_BUCKET="daily-notes"
+                ;;
+            generate-weekly-note)
+                LOG_BUCKET="weekly-notes"
+                ;;
+            generate-monthly-note|generate-quarterly-note|generate-yearly-note)
+                LOG_BUCKET="long-cycle"
+                ;;
+            *)
+                LOG_BUCKET="other"
+                ;;
+        esac
+    fi
+    export LOG_BUCKET
 
     _ls_log_dir="${LOG_ROOT}/${LOG_BUCKET}/${JOB_NAME}/runs"
     _ls_latest_link="${LOG_ROOT}/${LOG_BUCKET}/${JOB_NAME}/${JOB_NAME}-latest.log"
