@@ -445,6 +445,11 @@ _cleanup() {
       rm -f -- "$WRAP_BOOT_LOG" 2>/dev/null || :
     fi
   fi
+
+  # If the bootstrap dir is now empty, remove it (best-effort).
+  if [ "${LOG_DEGRADED:-1}" -eq 0 ] && [ -n "${_boot_dir:-}" ]; then
+    rmdir -- "$_boot_dir" 2>/dev/null || :
+  fi
 }
 trap _cleanup 0 1 2 15
 
