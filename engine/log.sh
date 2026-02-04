@@ -54,6 +54,37 @@ _log_require_nonempty() {
   return 0
 }
 
+_log_validate_bucket() {
+  _b=${1-}
+  case "$_b" in
+    ""|*[!A-Za-z0-9._-]*)
+      _log_err "misuse: invalid LOG_BUCKET=${_b} (allowed: [A-Za-z0-9._-])"
+      return 11
+      ;;
+  esac
+  return 0
+}
+
+_log_derive_bucket() {
+  # Sets LOG_BUCKET based on JOB_NAME (policy).
+  case "$JOB_NAME" in
+    generate-daily-note|daily-note-snapshot)
+      LOG_BUCKET="daily-notes"
+      ;;
+    generate-weekly-note)
+      LOG_BUCKET="weekly-notes"
+      ;;
+    generate-monthly-note|generate-quarterly-note|generate-yearly-note)
+      LOG_BUCKET="long-cycle"
+      ;;
+    *)
+      LOG_BUCKET="other"
+      ;;
+  esac
+  export LOG_BUCKET
+  return 0
+}
+
 _log_resolve_lib_dir() {
   # Resolve wrapper-provided logger library directory.
   #
@@ -190,6 +221,26 @@ log_init() {
       return 11
       ;;
   esac
+
+  # --------------------------------------------------------------------------
+  # LOG_BUCKET authority (facade-owned)
+  # --------------------------------------------------------------------------
+  # If caller set LOG_BUCKET, validate and respect it.
+  # Otherwise, derive deterministically from JOB_NAME.
+  if [ -n "${LOG_BUCKET+x}" ] && [ -n "${LOG_BUCKET:-}" ]; then
+    _log_validate_bucket "${LOG_BUCKET}" || {
+      _log_sink_ready=0
+      LOG_SINK_FD=2
+      return 11
+    }
+    export LOG_BUCKET
+  else
+    _log_derive_bucket || {
+      _log_sink_ready=0
+      LOG_SINK_FD=2
+      return 10
+    }
+  fi
 
   # --------------------------------------------------------------------------
   # Phase 2: operational setup (source helpers)
