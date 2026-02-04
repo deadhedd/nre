@@ -56,6 +56,14 @@ _wrap_emit() {
 
   _wrap_level_ok "$_lvl" || return 0
 
+  # When centralized logging is healthy and internal debug is enabled,
+  # mirror wrapper diagnostics into the per-run log via log_capture.
+  # This keeps bootstrap logs reserved for bootstrap/degraded logging evidence.
+  _emit_runlog=0
+  if [ "${LOG_DEGRADED:-1}" -eq 0 ] && { [ "${JOB_WRAP_DEBUG:-0}" = "1" ] || [ "${LOG_MIN_LEVEL:-INFO}" = "DEBUG" ]; }; then
+    _emit_runlog=1
+  fi
+
   # Default boundary emission rules:
   # - If degraded: allow DEBUG/INFO/WARN/ERROR (subject to LOG_MIN_LEVEL)
   # - If healthy: allow WARN/ERROR; allow DEBUG/INFO only when JOB_WRAP_DEBUG=1
@@ -76,11 +84,19 @@ _wrap_emit() {
   # Multiline diagnostics: keep boundary single-line; write full text to bootstrap.
   case "$_msg" in
     *"$_NL"*)
-      if [ -n "${WRAP_BOOT_LOG:-}" ]; then
-        {
-          printf '%s: WRAP: (multiline diagnostic; full text follows)\n' "$_lvl"
-          printf '%s\n' "$_msg"
-        } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+      # Healthy logging: record a single-line marker in the run log (opt-in).
+      if [ "$_emit_runlog" -eq 1 ]; then
+        log_capture <<EOF >/dev/null 2>/dev/null || :
+${_lvl}: WRAP: multiline diagnostic (suppressed)
+EOF
+      else
+        # Degraded / pre-init: preserve full multiline evidence in bootstrap log.
+        if [ -n "${WRAP_BOOT_LOG:-}" ]; then
+          {
+            printf '%s: WRAP: (multiline diagnostic; full text follows)\n' "$_lvl"
+            printf '%s\n' "$_msg"
+          } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+        fi
       fi
       if [ "$_emit_boundary" -eq 1 ]; then
         printf '%s: WRAP: multiline diagnostic (see bootstrap: %s)\n' "$_lvl" "${WRAP_BOOT_LOG:-<unavailable>}" >&2
@@ -93,8 +109,16 @@ _wrap_emit() {
     printf '%s: WRAP: %s\n' "$_lvl" "$_msg" >&2
   fi
 
-  if [ -n "${WRAP_BOOT_LOG:-}" ]; then
-    printf '%s: WRAP: %s\n' "$_lvl" "$_msg" >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+  # Healthy logging: mirror wrapper diagnostics into the per-run log (opt-in).
+  if [ "$_emit_runlog" -eq 1 ]; then
+    log_capture <<EOF >/dev/null 2>/dev/null || :
+${_lvl}: WRAP: ${_msg}
+EOF
+  else
+    # Bootstrap logging: only when degraded / pre-init.
+    if [ -n "${WRAP_BOOT_LOG:-}" ] && [ "${LOG_DEGRADED:-1}" -eq 1 ]; then
+      printf '%s: WRAP: %s\n' "$_lvl" "$_msg" >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+    fi
   fi
 
   return 0
@@ -488,9 +512,9 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
       : >"$_lc_err" 2>/dev/null || _lc_err=""
     fi
     if [ -n "${_lc_err:-}" ]; then
-      log_capture ERROR <"$_tmp" >/dev/null 2>"$_lc_err"
+      log_capture <"$_tmp" >/dev/null 2>"$_lc_err"
     else
-      log_capture ERROR <"$_tmp" >/dev/null 2>/dev/null
+      log_capture <"$_tmp" >/dev/null 2>/dev/null
     fi
     _lc_rc=$?
 
@@ -521,6 +545,8 @@ fi
 ###############################################################################
 
 if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
+  _wrap_debug "commit gate: leaf_rc=$_leaf_rc COMMIT_MODE=$COMMIT_MODE COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
+
   # Warn loudly if commit mode is enabled but we never got a usable list.
   if [ -z "${COMMIT_LIST_FILE:-}" ] || [ ! -s "$COMMIT_LIST_FILE" ]; then
     _wrap_warn "COMMIT_MODE=$COMMIT_MODE but no commit list provided; nothing to commit"
@@ -536,6 +562,10 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
 
     if [ -n "${_cl2:-}" ]; then
       sed -e '/^[[:space:]]*$/d' -e '/^[[:space:]]*#/d' <"$COMMIT_LIST_FILE" >"$_cl2" 2>/dev/null || :
+
+      if [ ! -s "$_cl2" ]; then
+        _wrap_warn "commit skipped: filtered commit list empty (only blanks/comments?)"
+      fi
 
       if [ -s "$_cl2" ]; then
         # Optional visibility: record the exact filtered list to bootstrap.
