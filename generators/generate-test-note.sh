@@ -15,11 +15,16 @@ script_path="$script_dir/$(basename "$0")"
 # IMPORTANT: engine/wrap.sh owns JOB_WRAP_ACTIVE; do not set it here.
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
   if [ -x "$new_wrap" ]; then
+    printf 'INFO: leaf wrap: exec new wrapper: %s\n' "$new_wrap" >&2
     exec /bin/sh "$new_wrap" "$script_path" "$@"
   fi
   if [ -x "$legacy_wrap" ]; then
+    printf 'INFO: leaf wrap: exec legacy wrapper: %s\n' "$legacy_wrap" >&2
     JOB_WRAP_ACTIVE=1 exec /bin/sh "$legacy_wrap" "$script_path" "$@"
   fi
+  printf 'WARN: leaf wrap: no wrapper found/executable; continuing unwrapped\n' >&2
+else
+  printf 'WARN: leaf wrap: JOB_WRAP_ACTIVE=1; skipping wrapper and continuing unwrapped\n' >&2
 fi
 
 usage() {
