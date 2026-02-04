@@ -86,7 +86,7 @@ _wrap_emit() {
     *"$_NL"*)
       # Healthy logging: record a single-line marker in the run log (opt-in).
       if [ "$_emit_runlog" -eq 1 ]; then
-        log_capture <<EOF >/dev/null 2>/dev/null || :
+        log_capture "$_lvl" <<EOF >/dev/null 2>/dev/null || :
 ${_lvl}: WRAP: multiline diagnostic (suppressed)
 EOF
       else
@@ -111,7 +111,7 @@ EOF
 
   # Healthy logging: mirror wrapper diagnostics into the per-run log (opt-in).
   if [ "$_emit_runlog" -eq 1 ]; then
-    log_capture <<EOF >/dev/null 2>/dev/null || :
+    log_capture "$_lvl" <<EOF >/dev/null 2>/dev/null || :
 ${_lvl}: WRAP: ${_msg}
 EOF
   else
@@ -512,9 +512,9 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
       : >"$_lc_err" 2>/dev/null || _lc_err=""
     fi
     if [ -n "${_lc_err:-}" ]; then
-      log_capture <"$_tmp" >/dev/null 2>"$_lc_err"
+      log_capture UNDEF <"$_tmp" >/dev/null 2>"$_lc_err"
     else
-      log_capture <"$_tmp" >/dev/null 2>/dev/null
+      log_capture UNDEF <"$_tmp" >/dev/null 2>/dev/null
     fi
     _lc_rc=$?
 
