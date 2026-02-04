@@ -434,8 +434,16 @@ fi
 ###############################################################################
 
 _cleanup() {
+  # Remove temp capture file.
   if [ -n "${_tmp:-}" ]; then
     rm -f -- "$_tmp" 2>/dev/null || :
+  fi
+
+  # Remove empty bootstrap log if logging ended healthy.
+  if [ "${LOG_DEGRADED:-1}" -eq 0 ] && [ -n "${WRAP_BOOT_LOG:-}" ]; then
+    if [ -f "$WRAP_BOOT_LOG" ] && [ ! -s "$WRAP_BOOT_LOG" ]; then
+      rm -f -- "$WRAP_BOOT_LOG" 2>/dev/null || :
+    fi
   fi
 }
 trap _cleanup 0 1 2 15
