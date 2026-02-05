@@ -26,9 +26,6 @@ LOG_DEGRADED=1
 WRAP_BOOT_LOG=""
 CAPTURE_MODE="file"
 
-# Wrapper "level prefix" newline for multiline detection
-_NL=$(printf '\n')
-
 ###############################################################################
 # Level helpers (small, local)
 ###############################################################################
@@ -81,9 +78,12 @@ _wrap_emit() {
     esac
   fi
 
-  # Multiline diagnostics: keep boundary single-line; write full text to bootstrap.
-  case "$_msg" in
-    *"$_NL"*)
+  # Multiline diagnostics: keep boundary single-line; write full text to bootstrap/runlog.
+  # Detect newline in a POSIX-safe way (no command substitution / no external tools):
+  # If removing the shortest prefix ending in a literal newline changes the string,
+  # then the string contained a newline.
+  if [ "${_msg#*
+}" != "$_msg" ]; then
       # Healthy logging: write full multiline content into the per-run log (opt-in).
       if [ "$_emit_runlog" -eq 1 ]; then
         # Preserve newlines by streaming the message as-is.
@@ -106,8 +106,7 @@ _wrap_emit() {
         fi
       fi
       return 0
-      ;;
-  esac
+  fi
 
   if [ "$_emit_boundary" -eq 1 ]; then
     printf '%s: WRAP: %s\n' "$_lvl" "$_msg" >&2
