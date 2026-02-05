@@ -24,7 +24,7 @@ if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
   fi
   printf 'WARN: leaf wrap: no wrapper found/executable; continuing unwrapped\n' >&2
 else
-  printf 'WARN: leaf wrap: JOB_WRAP_ACTIVE=1; skipping wrapper and continuing unwrapped\n' >&2
+  printf 'DEBUG: leaf wrap: already wrapped; continuing\n' >&2
 fi
 
 usage() {
