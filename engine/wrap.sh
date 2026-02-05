@@ -443,7 +443,7 @@ _wrap_debug "log-init: rc=$_li_rc LOG_DEGRADED=$LOG_DEGRADED LOG_BUCKET=${LOG_BU
 # Optional commit list file wiring (MUST exist before leaf runs)
 ###############################################################################
 
-COMMIT_MODE=${COMMIT_MODE:-best-effort}
+COMMIT_MODE=${COMMIT_MODE:-required}
 COMMIT_MESSAGE=${COMMIT_MESSAGE:-""}
 
 COMMIT_LIST_FILE=""
@@ -566,6 +566,9 @@ fi
 
 if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
   _wrap_debug "commit gate: leaf_rc=$_leaf_rc COMMIT_MODE=$COMMIT_MODE COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
+  _commit_fatal=0
+  [ "$COMMIT_MODE" = "required" ] && _commit_fatal=1
+  _wrap_debug "commit policy: mode=$COMMIT_MODE fatal=$_commit_fatal"
 
   # Warn loudly if commit mode is enabled but we never got a usable list.
   if [ -z "${COMMIT_LIST_FILE:-}" ] || [ ! -s "$COMMIT_LIST_FILE" ]; then
@@ -615,8 +618,12 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
             : # success or "no changes"
             ;;
           *)
-            _wrap_error "commit helper failed (rc=$_c_rc)"
-            exit "$WRAP_E_COMMIT"
+            if [ "$_commit_fatal" -eq 1 ]; then
+              _wrap_error "commit helper failed (rc=$_c_rc)"
+              exit "$WRAP_E_COMMIT"
+            fi
+            _wrap_warn "commit helper failed (rc=$_c_rc); continuing (mode=$COMMIT_MODE)"
+            ;;
             ;;
         esac
       fi
