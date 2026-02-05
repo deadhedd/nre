@@ -63,6 +63,7 @@ _lf_level_val() {
     INFO)  printf '%s' 20 ;;
     WARN)  printf '%s' 30 ;;
     ERROR) printf '%s' 40 ;;
+    UNDEF) printf '%s' 50 ;;  # always passes gating
     *) return 10 ;;
   esac
 }
@@ -79,7 +80,7 @@ _lf_validate_min_level_name() {
 _lf_validate_msg_level_name() {
   # Per-message LEVEL is an argument; invalid => operational failure (10).
   _lf_level_val "${1:-}" >/dev/null 2>&1 || {
-    _lf_die "invalid LEVEL: ${1:-} (expected DEBUG|INFO|WARN|ERROR)"
+    _lf_die "invalid LEVEL: ${1:-} (expected DEBUG|INFO|WARN|ERROR|UNDEF)"
     return 10
   }
   return 0
