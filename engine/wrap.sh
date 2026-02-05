@@ -443,17 +443,21 @@ _wrap_debug "log-init: rc=$_li_rc LOG_DEGRADED=$LOG_DEGRADED LOG_BUCKET=${LOG_BU
 # Optional commit list file wiring (MUST exist before leaf runs)
 ###############################################################################
 
-# Commit work tree root.
+# Vault root (artifact destination root).
 # Notes live in the vault, not the tools repo.
 # Resolution order:
-#   1) COMMIT_WORK_TREE (explicit override)
+#   1) VAULT_ROOT (explicit override)
 #   2) VAULT_PATH
 #   3) hard default: /home/obsidian/vaults/Main
-
-COMMIT_WORK_TREE=${COMMIT_WORK_TREE:-}
-if [ -z "$COMMIT_WORK_TREE" ]; then
-  COMMIT_WORK_TREE=${VAULT_PATH:-/home/obsidian/vaults/Main}
+VAULT_ROOT=${VAULT_ROOT:-}
+if [ -z "$VAULT_ROOT" ]; then
+  VAULT_ROOT=${VAULT_PATH:-/home/obsidian/vaults/Main}
 fi
+export VAULT_ROOT
+
+# Back-compat alias: commit subsystem still uses COMMIT_WORK_TREE.
+COMMIT_WORK_TREE=${COMMIT_WORK_TREE:-$VAULT_ROOT}
+export COMMIT_WORK_TREE
 
 COMMIT_MODE=${COMMIT_MODE:-required}
 COMMIT_MESSAGE=${COMMIT_MESSAGE:-""}
@@ -485,7 +489,7 @@ if [ "$COMMIT_MODE" != "off" ]; then
 
   export COMMIT_LIST_FILE
 fi
-_wrap_debug "commit-setup: COMMIT_MODE=$COMMIT_MODE COMMIT_MESSAGE=$COMMIT_MESSAGE COMMIT_WORK_TREE=$COMMIT_WORK_TREE COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
+_wrap_debug "commit-setup: COMMIT_MODE=$COMMIT_MODE COMMIT_MESSAGE=$COMMIT_MESSAGE VAULT_ROOT=$VAULT_ROOT COMMIT_WORK_TREE=$COMMIT_WORK_TREE COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
 
 ###############################################################################
 # Cleanup
