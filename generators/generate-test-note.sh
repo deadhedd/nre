@@ -135,5 +135,13 @@ fi
 
 write_note >"$note_path"
 
+# If wrapped and commit orchestration is enabled, register the artifact.
+# Contract: leaf declares commit targets by appending paths to COMMIT_LIST_FILE.
+if [ "${JOB_WRAP_ACTIVE:-0}" = "1" ] && [ -n "${COMMIT_LIST_FILE:-}" ]; then
+  # Best-effort: never fail note generation due to commit registration issues.
+  # note_path is absolute by construction; keep one path per line.
+  printf '%s\n' "$note_path" >>"$COMMIT_LIST_FILE" 2>/dev/null || :
+fi
+
 # Diagnostics go to stderr with level prefix (wrapper captures stderr).
 printf 'INFO: %s\n' "Wrote test note: $note_path" >&2
