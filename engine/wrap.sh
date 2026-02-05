@@ -443,6 +443,18 @@ _wrap_debug "log-init: rc=$_li_rc LOG_DEGRADED=$LOG_DEGRADED LOG_BUCKET=${LOG_BU
 # Optional commit list file wiring (MUST exist before leaf runs)
 ###############################################################################
 
+# Commit work tree root.
+# Notes live in the vault, not the tools repo.
+# Resolution order:
+#   1) COMMIT_WORK_TREE (explicit override)
+#   2) VAULT_PATH
+#   3) hard default: /home/obsidian/vaults/Main
+
+COMMIT_WORK_TREE=${COMMIT_WORK_TREE:-}
+if [ -z "$COMMIT_WORK_TREE" ]; then
+  COMMIT_WORK_TREE=${VAULT_PATH:-/home/obsidian/vaults/Main}
+fi
+
 COMMIT_MODE=${COMMIT_MODE:-required}
 COMMIT_MESSAGE=${COMMIT_MESSAGE:-""}
 
@@ -473,7 +485,7 @@ if [ "$COMMIT_MODE" != "off" ]; then
 
   export COMMIT_LIST_FILE
 fi
-_wrap_debug "commit-setup: COMMIT_MODE=$COMMIT_MODE COMMIT_MESSAGE=$COMMIT_MESSAGE COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
+_wrap_debug "commit-setup: COMMIT_MODE=$COMMIT_MODE COMMIT_MESSAGE=$COMMIT_MESSAGE COMMIT_WORK_TREE=$COMMIT_WORK_TREE COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
 
 ###############################################################################
 # Cleanup
@@ -616,7 +628,7 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
         done <"$_cl2"
 
         _wrap_info "commit requested: mode=$COMMIT_MODE"
-        "$LOG_LIB_DIR/commit.sh" "$REPO_ROOT" "$COMMIT_MESSAGE" "$@"
+        "$LOG_LIB_DIR/commit.sh" "$COMMIT_WORK_TREE" "$COMMIT_MESSAGE" "$@"
         _c_rc=$?
         _wrap_debug "commit: helper_rc=$_c_rc"
 
