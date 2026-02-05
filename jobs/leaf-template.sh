@@ -1,5 +1,5 @@
 #!/bin/sh
-# Leaf job template
+# Leaf job template (wrapper required)
 #
 # Responsibilities:
 # - Perform one job
@@ -32,11 +32,12 @@ script_path="$script_dir/$(basename "$0")"
 
 # engine/wrap.sh owns JOB_WRAP_ACTIVE; leaf does not set it.
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
-  if [ -x "$wrap" ]; then
-    printf 'INFO: leaf wrap: exec wrapper: %s\n' "$wrap" >&2
-    exec /bin/sh "$wrap" "$script_path" "$@"
+  if [ ! -x "$wrap" ]; then
+    printf 'ERROR: leaf wrap: wrapper not found/executable: %s\n' "$wrap" >&2
+    exit 127
   fi
-  printf 'WARN: leaf wrap: wrapper not found/executable; continuing without wrapper\n' >&2
+  printf 'INFO: leaf wrap: exec wrapper: %s\n' "$wrap" >&2
+  exec /bin/sh "$wrap" "$script_path" "$@"
 else
   # Wrapped execution path; informational only.
   printf 'DEBUG: leaf wrap: wrapper active; executing leaf\n' >&2
