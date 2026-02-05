@@ -291,6 +291,7 @@ TMP_OK=0
 if [ -d "$TMPDIR" ] && [ -w "$TMPDIR" ]; then
   TMP_OK=1
 fi
+_wrap_debug "env: JOB_WRAP_DEBUG=${JOB_WRAP_DEBUG:-0} LOG_MIN_LEVEL=${LOG_MIN_LEVEL:-INFO} TMPDIR=$TMPDIR TMP_OK=$TMP_OK"
 
 ###############################################################################
 # Bootstrap log file (best-effort)
@@ -332,6 +333,7 @@ if [ "$_capture_setup_ok" -ne 1 ]; then
   CAPTURE_MODE="passthrough"
   _wrap_warn "cannot create temp capture file; using passthrough mode"
 fi
+_wrap_debug "capture: CAPTURE_MODE=$CAPTURE_MODE tmp_capture=${_tmp:-<unset>}"
 
 ###############################################################################
 # Derive JOB_NAME
@@ -352,10 +354,11 @@ export JOB_NAME
 # Update bootstrap log name now that JOB_NAME exists (best-effort)
 if [ -n "${WRAP_BOOT_LOG:-}" ]; then
   _new_boot="$_boot_dir/${JOB_NAME}-bootstrap-$(date +%s 2>/dev/null || echo $$).log"
-  if mv "$WRAP_BOOT_LOG" "$_new_boot" 2>/dev/null; then
+if mv "$WRAP_BOOT_LOG" "$_new_boot" 2>/dev/null; then
     WRAP_BOOT_LOG="$_new_boot"
   fi
 fi
+_wrap_debug "job: JOB_NAME=$JOB_NAME LEAF_PATH=$LEAF_PATH LEAF_USE_SH=${LEAF_USE_SH:-0} WRAP_BOOT_LOG=${WRAP_BOOT_LOG:-<unset>}"
 
 ###############################################################################
 # Source log library and initialize
@@ -435,6 +438,7 @@ case "$_li_rc" in
     _wrap_warn "logger init unexpected rc=$_li_rc; centralized logging degraded"
     ;;
 esac
+_wrap_debug "log-init: rc=$_li_rc LOG_DEGRADED=$LOG_DEGRADED LOG_BUCKET=${LOG_BUCKET:-<unset>} LOG_FILE=${LOG_FILE:-<unset>} LOG_SINK_FD=${LOG_SINK_FD:-<unset>}"
 
 ###############################################################################
 # Optional commit list file wiring (MUST exist before leaf runs)
@@ -463,6 +467,7 @@ if [ "$COMMIT_MODE" != "off" ]; then
 
   export COMMIT_LIST_FILE
 fi
+_wrap_debug "commit-setup: COMMIT_MODE=$COMMIT_MODE COMMIT_MESSAGE=${COMMIT_MESSAGE:-<empty>} COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
 
 ###############################################################################
 # Cleanup
@@ -509,6 +514,7 @@ else
   fi
   _leaf_rc=$?
 fi
+_wrap_debug "leaf: rc=$_leaf_rc"
 
 ###############################################################################
 # Capture forwarding
@@ -522,6 +528,7 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
       rm -f "$_lc_err" 2>/dev/null || :
       : >"$_lc_err" 2>/dev/null || _lc_err=""
     fi
+    _wrap_debug "capture-forward: tmp_has_data=1 lc_err=${_lc_err:-<unset>}"
     if [ -n "${_lc_err:-}" ]; then
       log_capture UNDEF <"$_tmp" >/dev/null 2>"$_lc_err"
     else
@@ -549,6 +556,9 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
   else
     cat "$_tmp" >&2 2>/dev/null || :
   fi
+fi
+if [ "$CAPTURE_MODE" = "file" ] && [ -n "${_tmp:-}" ] && [ ! -s "$_tmp" ]; then
+  _wrap_debug "capture-forward: tmp_has_data=0"
 fi
 
 ###############################################################################
@@ -599,6 +609,7 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
         _wrap_info "commit requested: mode=$COMMIT_MODE"
         "$LOG_LIB_DIR/commit.sh" "$REPO_ROOT" "$COMMIT_MESSAGE" "$@"
         _c_rc=$?
+        _wrap_debug "commit: helper_rc=$_c_rc"
 
         case "$_c_rc" in
           0|3)
@@ -618,6 +629,15 @@ fi
 
 if [ -n "${COMMIT_LIST_FILE:-}" ]; then
   rm -f -- "$COMMIT_LIST_FILE" 2>/dev/null || :
+fi
+
+###############################################################################
+# Debug summary (end-of-run observability)
+###############################################################################
+if [ "${JOB_WRAP_DEBUG:-0}" = "1" ] || [ "${LOG_MIN_LEVEL:-INFO}" = "DEBUG" ]; then
+  _wrap_debug "summary: JOB_NAME=$JOB_NAME leaf_rc=$_leaf_rc LOG_DEGRADED=$LOG_DEGRADED CAPTURE_MODE=$CAPTURE_MODE"
+  _wrap_debug "summary: LOG_ROOT=$LOG_ROOT LOG_BUCKET=${LOG_BUCKET:-<unset>} LOG_FILE=${LOG_FILE:-<unset>} LOG_SINK_FD=${LOG_SINK_FD:-<unset>}"
+  _wrap_debug "summary: COMMIT_MODE=$COMMIT_MODE COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
 fi
 
 exit "$_leaf_rc"
