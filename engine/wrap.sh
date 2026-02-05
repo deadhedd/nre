@@ -84,11 +84,11 @@ _wrap_emit() {
   # Multiline diagnostics: keep boundary single-line; write full text to bootstrap.
   case "$_msg" in
     *"$_NL"*)
-      # Healthy logging: record a single-line marker in the run log (opt-in).
+      # Healthy logging: write full multiline content into the per-run log (opt-in).
       if [ "$_emit_runlog" -eq 1 ]; then
-        log_capture "$_lvl" <<EOF >/dev/null 2>/dev/null || :
-${_lvl}: WRAP: multiline diagnostic (suppressed)
-EOF
+        # Preserve newlines by streaming the message as-is.
+        # Each line will be formatted by the logger with LEVEL=$_lvl.
+        printf '%s\n' "$_msg" | log_capture "$_lvl" >/dev/null 2>/dev/null || :
       else
         # Degraded / pre-init: preserve full multiline evidence in bootstrap log.
         if [ -n "${WRAP_BOOT_LOG:-}" ]; then
@@ -99,7 +99,11 @@ EOF
         fi
       fi
       if [ "$_emit_boundary" -eq 1 ]; then
-        printf '%s: WRAP: multiline diagnostic (see bootstrap: %s)\n' "$_lvl" "${WRAP_BOOT_LOG:-<unavailable>}" >&2
+        if [ "$_emit_runlog" -eq 1 ]; then
+          printf '%s: WRAP: multiline diagnostic (see run log)\n' "$_lvl" >&2
+        else
+          printf '%s: WRAP: multiline diagnostic (see bootstrap: %s)\n' "$_lvl" "${WRAP_BOOT_LOG:-<unavailable>}" >&2
+        fi
       fi
       return 0
       ;;
