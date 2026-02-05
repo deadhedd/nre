@@ -624,7 +624,6 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
             fi
             _wrap_warn "commit helper failed (rc=$_c_rc); continuing (mode=$COMMIT_MODE)"
             ;;
-            ;;
         esac
       fi
 
