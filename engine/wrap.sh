@@ -446,6 +446,13 @@ _wrap_debug "log-init: rc=$_li_rc LOG_DEGRADED=$LOG_DEGRADED LOG_BUCKET=${LOG_BU
 COMMIT_MODE=${COMMIT_MODE:-required}
 COMMIT_MESSAGE=${COMMIT_MESSAGE:-""}
 
+# Default commit message (wrapper-owned):
+# commit.sh requires a non-empty message. If caller didn't supply one,
+# derive a stable, informative default from JOB_NAME.
+if [ -z "${COMMIT_MESSAGE:-}" ]; then
+  COMMIT_MESSAGE="job: ${JOB_NAME}"
+fi
+
 COMMIT_LIST_FILE=""
 if [ "$COMMIT_MODE" != "off" ]; then
   if [ "$TMP_OK" -eq 1 ]; then
@@ -466,7 +473,7 @@ if [ "$COMMIT_MODE" != "off" ]; then
 
   export COMMIT_LIST_FILE
 fi
-_wrap_debug "commit-setup: COMMIT_MODE=$COMMIT_MODE COMMIT_MESSAGE=${COMMIT_MESSAGE:-<empty>} COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
+_wrap_debug "commit-setup: COMMIT_MODE=$COMMIT_MODE COMMIT_MESSAGE=$COMMIT_MESSAGE COMMIT_LIST_FILE=${COMMIT_LIST_FILE:-<unset>}"
 
 ###############################################################################
 # Cleanup
