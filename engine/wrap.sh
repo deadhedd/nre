@@ -440,7 +440,7 @@ esac
 # Optional commit list file wiring (MUST exist before leaf runs)
 ###############################################################################
 
-COMMIT_MODE=${COMMIT_MODE:-off}
+COMMIT_MODE=${COMMIT_MODE:-best-effort}
 COMMIT_MESSAGE=${COMMIT_MESSAGE:-""}
 
 COMMIT_LIST_FILE=""
