@@ -92,9 +92,17 @@ done
 # - absolute path
 # - single, obvious artifact
 # - stored in `primary_result`
+# Artifact root:
+# - Must be provided by wrapper.
+if [ -z "${VAULT_ROOT:-}" ]; then
+  printf 'ERROR: VAULT_ROOT not set (wrapper required)\n' >&2
+  exit 127
+fi
+artifact_root=$VAULT_ROOT
+
 if [ -z "$output_path" ]; then
   ts_utc=$(date -u '+%Y-%m-%dT%H%M%SZ' 2>/dev/null || date '+%Y-%m-%dT%H%M%S')
-  primary_result="$repo_root/output/example-${ts_utc}.txt"
+  primary_result="$artifact_root/output/example-${ts_utc}.txt"
 else
   primary_result="$output_path"
 fi
