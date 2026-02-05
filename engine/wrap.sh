@@ -53,6 +53,7 @@ _wrap_emit() {
   _lvl=$1
   shift
   _msg=$*
+  _msg_chk=""
 
   _wrap_level_ok "$_lvl" || return 0
 
@@ -82,19 +83,21 @@ _wrap_emit() {
   fi
 
   # Multiline diagnostics: keep boundary single-line; write full text to bootstrap.
-  case "$_msg" in
+  # Normalize via printf to avoid false positives from odd shell/IFS behaviors.
+  _msg_chk=$(printf '%s' "$_msg")
+  case "$_msg_chk" in
     *"$_NL"*)
       # Healthy logging: write full multiline content into the per-run log (opt-in).
       if [ "$_emit_runlog" -eq 1 ]; then
         # Preserve newlines by streaming the message as-is.
         # Each line will be formatted by the logger with LEVEL=$_lvl.
-        printf '%s\n' "$_msg" | log_capture "$_lvl" >/dev/null 2>/dev/null || :
+        printf '%s\n' "$_msg_chk" | log_capture "$_lvl" >/dev/null 2>/dev/null || :
       else
         # Degraded / pre-init: preserve full multiline evidence in bootstrap log.
         if [ -n "${WRAP_BOOT_LOG:-}" ]; then
           {
             printf '%s: WRAP: (multiline diagnostic; full text follows)\n' "$_lvl"
-            printf '%s\n' "$_msg"
+            printf '%s\n' "$_msg_chk"
           } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
         fi
       fi
@@ -110,18 +113,18 @@ _wrap_emit() {
   esac
 
   if [ "$_emit_boundary" -eq 1 ]; then
-    printf '%s: WRAP: %s\n' "$_lvl" "$_msg" >&2
+    printf '%s: WRAP: %s\n' "$_lvl" "$_msg_chk" >&2
   fi
 
   # Healthy logging: mirror wrapper diagnostics into the per-run log (opt-in).
   if [ "$_emit_runlog" -eq 1 ]; then
     log_capture "$_lvl" <<EOF >/dev/null 2>/dev/null || :
-${_lvl}: WRAP: ${_msg}
+${_lvl}: WRAP: ${_msg_chk}
 EOF
   else
     # Bootstrap logging: only when degraded / pre-init.
     if [ -n "${WRAP_BOOT_LOG:-}" ] && [ "${LOG_DEGRADED:-1}" -eq 1 ]; then
-      printf '%s: WRAP: %s\n' "$_lvl" "$_msg" >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+      printf '%s: WRAP: %s\n' "$_lvl" "$_msg_chk" >>"$WRAP_BOOT_LOG" 2>/dev/null || :
     fi
   fi
 
