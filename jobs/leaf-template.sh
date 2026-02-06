@@ -53,8 +53,9 @@ esac
 # Canonicalize the final script path to avoid surprises (symlinks/cwd oddities).
 # POSIX note: this resolves directory via cd+pwd; basename is preserved.
 script_path=$(
-  CDPATH= cd "$(dirname "$script_path")" 2>/dev/null && \
-  printf '%s/%s\n' "$(pwd)" "${script_path##*/}"
+  CDPATH= cd "$(dirname "$script_path")" && \
+  d=$(pwd) && \
+  printf '%s/%s\n' "$d" "${script_path##*/}"
 ) || {
   log_error "failed to canonicalize script path: $script_path"
   exit 127
@@ -167,10 +168,6 @@ if [ -z "$output_path" ]; then
   fi
   primary_result="$artifact_root/example-${ts_local}.md"
 else
-  if [ -z "$output_path" ]; then
-    log_error "internal: --output produced empty path"
-    exit 127
-  fi
   case "$output_path" in
     */)
       log_error "internal: --output ends with '/': $output_path"
@@ -207,6 +204,9 @@ EOF_CONTENT
 }
 
 if [ "$dry_run" -eq 1 ]; then
+  if [ -n "$output_path" ]; then
+    log_warn "--dry-run ignores --output: $output_path"
+  fi
   generate_content
   exit 0
 fi
@@ -223,7 +223,7 @@ tmp="${primary_parent}/${primary_result##*/}.tmp.$$"
 cleanup_tmp() {
   [ -n "${tmp:-}" ] && [ -f "$tmp" ] && rm -f "$tmp"
 }
-trap cleanup_tmp HUP INT TERM EXIT
+trap cleanup_tmp HUP INT TERM 0
 
 if ! generate_content >"$tmp"; then
   log_error "failed to write temp artifact: $tmp"
@@ -236,7 +236,7 @@ fi
 
 # Success: disarm cleanup for this temp path.
 tmp=""
-trap - HUP INT TERM EXIT
+trap - HUP INT TERM 0
 
 ###############################################################################
 # Commit registration (contractual)
