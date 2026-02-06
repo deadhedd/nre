@@ -39,11 +39,16 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 # Resolve paths
 ###############################################################################
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
+script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
+repo_root=$(CDPATH= cd "$script_dir/.." && pwd -P)
 
 wrap="$repo_root/engine/wrap.sh"
-script_path=$0
+
+# Prefer passing an absolute script path to the wrapper for sturdiness.
+case "$0" in
+  /*) script_path=$0 ;;
+  *)  script_path=$script_dir/${0##*/} ;;
+esac
 
 ###############################################################################
 # Self-wrap (minimal, dumb, contract-aligned)
@@ -178,7 +183,9 @@ if [ "$dry_run" -eq 1 ]; then
   exit 0
 fi
 
-mkdir -p "$(dirname "$primary_result")"
+# Avoid an extra process (dirname) by using shell pattern removal.
+primary_parent=${primary_result%/*}
+mkdir -p "$primary_parent"
 generate_content >"$primary_result"
 
 ###############################################################################
