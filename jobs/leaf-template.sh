@@ -22,7 +22,7 @@ set -eu
 #
 # Contract expectation (example):
 #   DEBUG: <message>
-#   INFO:  <message>
+#   INFO: <message>
 #   WARN:  <message>
 #   ERROR: <message>
 #
@@ -49,6 +49,16 @@ case "$0" in
   /*) script_path=$0 ;;
   *)  script_path=$script_dir/${0##*/} ;;
 esac
+
+# Canonicalize the final script path to avoid surprises (symlinks/cwd oddities).
+# POSIX note: this resolves directory via cd+pwd; basename is preserved.
+script_path=$(
+  CDPATH= cd "$(dirname "$script_path")" 2>/dev/null && \
+  printf '%s/%s\n' "$(pwd)" "${script_path##*/}"
+) || {
+  log_error "failed to canonicalize script path: $script_path"
+  exit 127
+}
 
 ###############################################################################
 # Self-wrap (minimal, dumb, contract-aligned)
@@ -185,8 +195,15 @@ fi
 
 # Avoid an extra process (dirname) by using shell pattern removal.
 primary_parent=${primary_result%/*}
-mkdir -p "$primary_parent"
-generate_content >"$primary_result"
+if ! mkdir -p "$primary_parent"; then
+  log_error "failed to create artifact directory: $primary_parent"
+  exit 1
+fi
+
+# Write atomically to avoid partial artifacts on crash/interruption.
+tmp="${primary_parent}/${primary_result##*/}.tmp.$$"
+generate_content >"$tmp"
+mv "$tmp" "$primary_result"
 
 ###############################################################################
 # Commit registration (contractual)
@@ -194,7 +211,9 @@ generate_content >"$primary_result"
 
 # Leaf declares what it produced; wrapper decides whether/how to commit.
 if [ -n "${COMMIT_LIST_FILE:-}" ]; then
-  printf '%s\n' "$primary_result" >>"$COMMIT_LIST_FILE" 2>/dev/null || :
+  if ! printf '%s\n' "$primary_result" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
+    log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
+  fi
 fi
 
 ###############################################################################
