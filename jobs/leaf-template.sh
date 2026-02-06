@@ -1,10 +1,44 @@
 #!/bin/sh
 # Leaf job template (wrapper required)
 #
+# Version: 1.0
+# Status: frozen (contract-stable)
+#
+# ---------------------------------------------------------------------------
+# How to use this template
+#
+# This file is a *reference leaf job*. It is not meant to be executed directly
+# in production or modified in-place.
+#
+# To create a new leaf job:
+#   1. Copy this file to a new job-specific path/name.
+#   2. Modify ONLY the sections marked "Argument parsing" and "Job logic".
+#   3. Preserve the wrapper logic, path resolution, logging helpers,
+#      artifact/result declaration, and commit registration exactly as-is.
+#
+# Design intent:
+# - One leaf = one job = one result set.
+# - A result set may contain one or many artifacts.
+# - Leaf code assumes a healthy wrapper unless explicitly degraded.
+# - Leaf emits structured stderr logs; it never initializes logging.
+# - Leaf declares outputs; wrapper decides whether/how to commit.
+#
+# Result declaration rules:
+# - All produced artifacts MUST be declared via COMMIT_LIST_FILE (if provided).
+# - For single-artifact jobs, that artifact is the result.
+# - For multi-artifact jobs, prefer generating a manifest file (plain text,
+#   one absolute path per line) that enumerates the full result set.
+# - When a manifest is used, it should be included in COMMIT_LIST_FILE and
+#   may be treated as the diagnostic pointer for the job outcome.
+#
+# This template is contract-stable.
+# If it needs to change, the engine or wrapper contract probably does first.
+# ---------------------------------------------------------------------------
+#
 # Responsibilities:
 # - Perform one job
-# - Produce one primary artifact
-# - Declare that artifact via COMMIT_LIST_FILE (if provided)
+# - Produce one result set (one or more artifacts)
+# - Declare all produced artifacts via COMMIT_LIST_FILE (if provided)
 #
 # Non-responsibilities:
 # - Logging setup
