@@ -167,6 +167,16 @@ if [ -z "$output_path" ]; then
   fi
   primary_result="$artifact_root/example-${ts_local}.md"
 else
+  if [ -z "$output_path" ]; then
+    log_error "internal: --output produced empty path"
+    exit 127
+  fi
+  case "$output_path" in
+    */)
+      log_error "internal: --output ends with '/': $output_path"
+      exit 2
+      ;;
+  esac
   # Contract: --output must be an absolute path.
   case "$output_path" in
     /*)
@@ -178,6 +188,14 @@ else
       ;;
   esac
 fi
+
+if [ -z "$primary_result" ]; then
+  log_error "internal: primary_result empty"
+  exit 127
+fi
+case "$primary_result" in
+  */) log_error "internal: primary_result ends with '/': $primary_result"; exit 2 ;;
+esac
 
 generate_content() {
   cat <<EOF_CONTENT
@@ -200,10 +218,25 @@ if ! mkdir -p "$primary_parent"; then
   exit 1
 fi
 
-# Write atomically to avoid partial artifacts on crash/interruption.
+# Write atomically and clean up temp file on failure/interruption.
 tmp="${primary_parent}/${primary_result##*/}.tmp.$$"
-generate_content >"$tmp"
-mv "$tmp" "$primary_result"
+cleanup_tmp() {
+  [ -n "${tmp:-}" ] && [ -f "$tmp" ] && rm -f "$tmp"
+}
+trap cleanup_tmp HUP INT TERM EXIT
+
+if ! generate_content >"$tmp"; then
+  log_error "failed to write temp artifact: $tmp"
+  exit 1
+fi
+if ! mv "$tmp" "$primary_result"; then
+  log_error "failed to finalize artifact (mv): $tmp -> $primary_result"
+  exit 1
+fi
+
+# Success: disarm cleanup for this temp path.
+tmp=""
+trap - HUP INT TERM EXIT
 
 ###############################################################################
 # Commit registration (contractual)
