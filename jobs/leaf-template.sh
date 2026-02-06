@@ -63,6 +63,22 @@ else
 fi
 
 ###############################################################################
+# Engine libs (wrapped path only)
+###############################################################################
+
+datetime_lib=$repo_root/engine/datetime.sh
+if [ ! -r "$datetime_lib" ]; then
+  log_error "datetime lib not found/readable: $datetime_lib"
+  exit 127
+fi
+
+# shellcheck source=/dev/null
+. "$datetime_lib" || {
+  log_error "failed to source datetime lib: $datetime_lib"
+  exit 127
+}
+
+###############################################################################
 # Argument parsing (example - customize per job)
 ###############################################################################
 
@@ -129,8 +145,12 @@ fi
 artifact_root=$VAULT_ROOT
 
 if [ -z "$output_path" ]; then
-  ts_utc=$(date -u '+%Y-%m-%dT%H%M%SZ' 2>/dev/null || date '+%Y-%m-%dT%H%M%S')
-  primary_result="$artifact_root/example-output/example-${ts_utc}.txt"
+  ts_local=$(dt_now_local_compact 2>/dev/null || printf '%s' "")
+  if [ -z "$ts_local" ]; then
+    log_error "datetime unavailable: dt_now_local_compact failed (refusing unsafe filename)"
+    exit 127
+  fi
+  primary_result="$artifact_root/example-output/example-${ts_local}.txt"
 else
   # Contract: --output must be an absolute path.
   case "$output_path" in
@@ -148,7 +168,7 @@ generate_content() {
   cat <<EOF_CONTENT
 Example leaf output
 
-Generated at (UTC): $(date -u '+%Y-%m-%dT%H%M%SZ' 2>/dev/null || date)
+Generated at (local): $(dt_now_local_iso 2>/dev/null || printf '%s' "<unknown>")
 Job: ${JOB_NAME:-<unset>}
 EOF_CONTENT
 }
