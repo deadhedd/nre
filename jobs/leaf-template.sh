@@ -39,8 +39,8 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 # Resolve paths
 ###############################################################################
 
-script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
-repo_root=$(CDPATH= cd "$script_dir/.." && pwd -P)
+script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+repo_root=$(CDPATH= cd "$script_dir/.." && pwd)
 
 wrap="$repo_root/engine/wrap.sh"
 
@@ -61,7 +61,7 @@ if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
     exit 127
   fi
   log_info "leaf wrap: exec wrapper: $wrap"
-  exec sh "$wrap" "$script_path" "$@"
+  exec "$wrap" "$script_path" ${1+"$@"}
 else
   # Wrapped execution path; informational only.
   log_debug "leaf wrap: wrapper active; executing leaf"
@@ -155,7 +155,7 @@ if [ -z "$output_path" ]; then
     log_error "datetime unavailable: dt_now_local_compact failed (refusing unsafe filename)"
     exit 127
   fi
-  primary_result="$artifact_root/example-output/example-${ts_local}.txt"
+  primary_result="$artifact_root/example-${ts_local}.md"
 else
   # Contract: --output must be an absolute path.
   case "$output_path" in
