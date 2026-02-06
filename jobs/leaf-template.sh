@@ -17,6 +17,25 @@
 set -eu
 
 ###############################################################################
+# Logging (leaf responsibility: emit correctly-formatted messages to stderr)
+###############################################################################
+#
+# Contract expectation (example):
+#   DEBUG: <message>
+#   INFO:  <message>
+#   WARN:  <message>
+#   ERROR: <message>
+#
+# Notes:
+# - Leaf does not initialize logging; it only emits messages.
+# - Wrapper captures leaf stderr and forwards to centralized logging when healthy.
+#
+log_debug() { printf '%s\n' "DEBUG: $*" >&2; }
+log_info()  { printf '%s\n' "INFO: $*"  >&2; }
+log_warn()  { printf '%s\n' "WARN: $*"  >&2; }
+log_error() { printf '%s\n' "ERROR: $*" >&2; }
+
+###############################################################################
 # Resolve paths
 ###############################################################################
 
@@ -33,14 +52,14 @@ script_path="$script_dir/$(basename "$0")"
 # engine/wrap.sh owns JOB_WRAP_ACTIVE; leaf does not set it.
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
   if [ ! -x "$wrap" ]; then
-    printf 'ERROR: leaf wrap: wrapper not found/executable: %s\n' "$wrap" >&2
+    log_error "leaf wrap: wrapper not found/executable: $wrap"
     exit 127
   fi
-  printf 'INFO: leaf wrap: exec wrapper: %s\n' "$wrap" >&2
+  log_info "leaf wrap: exec wrapper: $wrap"
   exec /bin/sh "$wrap" "$script_path" "$@"
 else
   # Wrapped execution path; informational only.
-  printf 'DEBUG: leaf wrap: wrapper active; executing leaf\n' >&2
+  log_debug "leaf wrap: wrapper active; executing leaf"
 fi
 
 ###############################################################################
@@ -87,6 +106,15 @@ done
 ###############################################################################
 # Job logic
 ###############################################################################
+
+# Logging examples (copy/paste patterns):
+# log_debug "starting: foo=$foo bar=$bar"
+# log_info  "doing thing: step=1"
+# log_warn  "non-fatal issue: falling back to default"
+# log_error "fatal: missing required input"
+#
+# NOTE: prefer *one line per message*; if you must emit multiline, it will be
+# captured, but boundary emission may summarize it depending on wrapper state.
 
 # Contract:
 # - absolute path
@@ -137,6 +165,6 @@ fi
 # Diagnostics
 ###############################################################################
 
-printf 'INFO: %s\n' "Produced artifact: $primary_result" >&2
+log_info "Produced artifact: $primary_result"
 
 exit 0
