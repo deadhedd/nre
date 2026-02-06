@@ -132,7 +132,16 @@ if [ -z "$output_path" ]; then
   ts_utc=$(date -u '+%Y-%m-%dT%H%M%SZ' 2>/dev/null || date '+%Y-%m-%dT%H%M%S')
   primary_result="$artifact_root/example-output/example-${ts_utc}.txt"
 else
-  primary_result="$output_path"
+  # Contract: --output must be an absolute path.
+  case "$output_path" in
+    /*)
+      primary_result="$output_path"
+      ;;
+    *)
+      log_error "--output must be an absolute path: $output_path"
+      exit 2
+      ;;
+  esac
 fi
 
 generate_content() {
