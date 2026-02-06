@@ -203,7 +203,26 @@ LEAF_USE_SH=0
 
 case "$LEAF_PATH" in
   */*)
-    # Already a path (relative or absolute). Leave it alone.
+    # Path provided (relative or absolute).
+    # If relative, anchor to current physical cwd so execution is stable.
+    case "$LEAF_PATH" in
+      /*) : ;;
+      *)
+        _pwdp=$(pwd -P 2>/dev/null || pwd 2>/dev/null || printf '')
+        if [ -n "$_pwdp" ]; then
+          LEAF_PATH="$_pwdp/$LEAF_PATH"
+        fi
+        ;;
+    esac
+
+    # If it's a readable .sh but not executable, allow it (we'll run via sh).
+    case "$LEAF_PATH" in
+      *.sh)
+        if [ -f "$LEAF_PATH" ] && [ -r "$LEAF_PATH" ] && [ ! -x "$LEAF_PATH" ]; then
+          LEAF_USE_SH=1
+        fi
+        ;;
+    esac
     ;;
   *)
     _resolved=""
