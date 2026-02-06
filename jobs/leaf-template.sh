@@ -43,7 +43,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 
 wrap="$repo_root/engine/wrap.sh"
-script_path="$script_dir/$(basename "$0")"
+script_path=$0
 
 ###############################################################################
 # Self-wrap (minimal, dumb, contract-aligned)
