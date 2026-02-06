@@ -56,7 +56,7 @@ if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
     exit 127
   fi
   log_info "leaf wrap: exec wrapper: $wrap"
-  exec /bin/sh "$wrap" "$script_path" "$@"
+  exec sh "$wrap" "$script_path" "$@"
 else
   # Wrapped execution path; informational only.
   log_debug "leaf wrap: wrapper active; executing leaf"
@@ -123,14 +123,14 @@ done
 # Artifact root:
 # - Must be provided by wrapper.
 if [ -z "${VAULT_ROOT:-}" ]; then
-  printf 'ERROR: VAULT_ROOT not set (wrapper required)\n' >&2
+  log_error "VAULT_ROOT not set (wrapper required)"
   exit 127
 fi
 artifact_root=$VAULT_ROOT
 
 if [ -z "$output_path" ]; then
   ts_utc=$(date -u '+%Y-%m-%dT%H%M%SZ' 2>/dev/null || date '+%Y-%m-%dT%H%M%S')
-  primary_result="$artifact_root/output/example-${ts_utc}.txt"
+  primary_result="$artifact_root/example-output/example-${ts_utc}.txt"
 else
   primary_result="$output_path"
 fi
