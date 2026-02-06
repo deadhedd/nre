@@ -185,7 +185,7 @@ done
 # Contract:
 # - absolute path
 # - single, obvious artifact
-# - stored in `primary_result`
+# - stored in `result_ref`
 # Artifact root:
 # - Must be provided by wrapper.
 if [ -z "${VAULT_ROOT:-}" ]; then
@@ -200,7 +200,7 @@ if [ -z "$output_path" ]; then
     log_error "datetime unavailable: dt_now_local_compact failed (refusing unsafe filename)"
     exit 127
   fi
-  primary_result="$artifact_root/example-${ts_local}.md"
+  result_ref="$artifact_root/example-${ts_local}.md"
 else
   case "$output_path" in
     */)
@@ -211,7 +211,7 @@ else
   # Contract: --output must be an absolute path.
   case "$output_path" in
     /*)
-      primary_result="$output_path"
+      result_ref="$output_path"
       ;;
     *)
       log_error "--output must be an absolute path: $output_path"
@@ -220,12 +220,12 @@ else
   esac
 fi
 
-if [ -z "$primary_result" ]; then
-  log_error "internal: primary_result empty"
+if [ -z "$result_ref" ]; then
+  log_error "internal: result_ref empty"
   exit 127
 fi
-case "$primary_result" in
-  */) log_error "internal: primary_result ends with '/': $primary_result"; exit 2 ;;
+case "$result_ref" in
+  */) log_error "internal: result_ref ends with '/': $result_ref"; exit 2 ;;
 esac
 
 generate_content() {
@@ -246,14 +246,14 @@ if [ "$dry_run" -eq 1 ]; then
 fi
 
 # Avoid an extra process (dirname) by using shell pattern removal.
-primary_parent=${primary_result%/*}
+primary_parent=${result_ref%/*}
 if ! mkdir -p "$primary_parent"; then
   log_error "failed to create artifact directory: $primary_parent"
   exit 1
 fi
 
 # Write atomically and clean up temp file on failure/interruption.
-tmp="${primary_parent}/${primary_result##*/}.tmp.$$"
+tmp="${primary_parent}/${result_ref##*/}.tmp.$$"
 cleanup_tmp() {
   [ -n "${tmp:-}" ] && [ -f "$tmp" ] && rm -f "$tmp"
 }
@@ -263,8 +263,8 @@ if ! generate_content >"$tmp"; then
   log_error "failed to write temp artifact: $tmp"
   exit 1
 fi
-if ! mv "$tmp" "$primary_result"; then
-  log_error "failed to finalize artifact (mv): $tmp -> $primary_result"
+if ! mv "$tmp" "$result_ref"; then
+  log_error "failed to finalize artifact (mv): $tmp -> $result_ref"
   exit 1
 fi
 
@@ -278,7 +278,7 @@ trap - HUP INT TERM 0
 
 # Leaf declares what it produced; wrapper decides whether/how to commit.
 if [ -n "${COMMIT_LIST_FILE:-}" ]; then
-  if ! printf '%s\n' "$primary_result" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
+  if ! printf '%s\n' "$result_ref" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
     log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
   fi
 fi
@@ -287,6 +287,6 @@ fi
 # Diagnostics
 ###############################################################################
 
-log_info "Produced artifact: $primary_result"
+log_info "Produced artifact: $result_ref"
 
 exit 0
