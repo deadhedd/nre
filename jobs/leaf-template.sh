@@ -29,11 +29,16 @@
 #
 # Result declaration rules:
 # - All produced artifacts MUST be declared via COMMIT_LIST_FILE (if provided).
-# - For single-artifact jobs, that artifact is the result.
-# - For multi-artifact jobs, prefer generating a manifest file (plain text,
-#   one absolute path per line) that enumerates the full result set.
-# - When a manifest is used, it should be included in COMMIT_LIST_FILE and
-#   may be treated as the diagnostic pointer for the job outcome.
+# - Leaf scripts producing multiple artifacts:
+#   - MUST declare the full result set via COMMIT_LIST_FILE
+#   - MUST append one absolute artifact path per line
+#   - MUST do so only after each artifact is fully finalized (e.g., after
+#     atomic mv)
+#
+#   Notes:
+#   - A separate manifest file is OPTIONAL.
+#   - If a manifest is produced, it is treated as a normal artifact and MUST be
+#     declared via COMMIT_LIST_FILE like any other output.
 #
 # This template is contract-stable.
 # If it needs to change, the engine or wrapper contract probably does first.
