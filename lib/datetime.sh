@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/core/datetime.sh
+# utils/lib/datetime.sh
 # Author: deadhedd
 # License: MIT
 # shellcheck shell=sh
@@ -13,6 +13,9 @@
 # - As a sourced library, this file MUST NOT mutate the caller's shell options
 #   (e.g., set -e / set -u) or global environment like PATH.
 # - Callers (wrappers/leaf scripts) own strict-mode policy.
+#
+# Contract note:
+# - This library is local-first. It MUST NOT expose UTC-oriented APIs.
 
 # Must be sourced, not executed.
 # POSIX pattern: `return` only works when sourced.
@@ -68,6 +71,70 @@ dt__detect_date_backend() {
 dt__detect_date_backend || { dt_die "no supported date backend (need BSD date or GNU date)"; return 10; }
 
 # ------------------
+# Date parsing/validation (local)
+# ------------------
+
+dt_is_ymd() {
+  case "${1-}" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+dt_check_ymd() {
+  dt_need "date" "${1-}" || return $?
+  d=$1
+  dt_is_ymd "$d" || { dt_die "invalid date format (expected YYYY-MM-DD): $d"; return 10; }
+
+  case "$DT_DATE_BACKEND" in
+    1)
+      "$DT_DATE_BIN" -j -f '%Y-%m-%d' "$d" '+%Y-%m-%d' >/dev/null 2>&1 \
+        || { dt_die "invalid date: $d"; return 10; }
+      ;;
+    2)
+      "$DT_DATE_BIN" -d "$d" '+%Y-%m-%d' >/dev/null 2>&1 \
+        || { dt_die "invalid date: $d"; return 10; }
+      ;;
+    *)
+      dt_die "internal: date backend not set"; return 10 ;;
+  esac
+}
+
+dt_date_parts() {
+  dt_need "date" "${1-}" || return $?
+  dt_check_ymd "$1" || return $?
+  y=${1%%-*}
+  rest=${1#*-}
+  m=${rest%%-*}
+  d=${rest#*-}
+  printf '%s %s %s\n' "$y" "$m" "$d"
+}
+
+dt_time_parts_hhmm() {
+  dt_need "time" "${1-}" || return $?
+  t=$1
+  case "$t" in
+    [0-9][0-9]:[0-9][0-9]) : ;;
+    *) dt_die "invalid time format (expected HH:MM): $t"; return 10 ;;
+  esac
+
+  h=${t%%:*}
+  m=${t#*:}
+  # numeric range checks without external tools
+  case "$h" in
+    00|01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|16|17|18|19|20|21|22|23) : ;;
+    *) dt_die "invalid hour in time: $t"; return 10 ;;
+  esac
+  case "$m" in
+    00|01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56|57|58|59) : ;;
+    *) dt_die "invalid minute in time: $t"; return 10 ;;
+  esac
+
+  # strip leading zeros for arithmetic consumers (still strings)
+  printf '%s %s\n' "${h#0}" "${m#0}"
+}
+
+# ------------------
 # Clock (local-first)
 # ------------------
 
@@ -77,6 +144,33 @@ dt_now_local_iso_no_tz() { "$DT_DATE_BIN" '+%Y-%m-%dT%H:%M:%S'; }
 dt_now_local_compact() { "$DT_DATE_BIN" '+%Y%m%dT%H%M%S'; }
 dt_now_local_log_ts() { "$DT_DATE_BIN" '+%Y-%m-%d-%H%M%S'; }
 dt_today_local() { "$DT_DATE_BIN" '+%Y-%m-%d'; }
+
+dt_date_shift_days() {
+  dt_need "date" "${1-}" || return $?
+  dt_need "day offset" "${2-}" || return $?
+  base=$1
+  off=$2
+  dt_check_ymd "$base" || return $?
+
+  case "$DT_DATE_BACKEND" in
+    1)
+      # BSD: -v supports relative adjustments in local time.
+      # Use -j (no set system clock) and -f (parse).
+      "$DT_DATE_BIN" -j -f '%Y-%m-%d' "$base" -v"${off}"d '+%Y-%m-%d' 2>/dev/null \
+        || { dt_die "failed to shift date by days: base=$base off=$off"; return 10; }
+      ;;
+    2)
+      # GNU: date -d understands "YYYY-MM-DD +N day" in local time.
+      "$DT_DATE_BIN" -d "$base ${off} day" '+%Y-%m-%d' 2>/dev/null \
+        || { dt_die "failed to shift date by days: base=$base off=$off"; return 10; }
+      ;;
+    *)
+      dt_die "internal: date backend not set"; return 10 ;;
+  esac
+}
+
+dt_yesterday_local() { dt_date_shift_days "$(dt_today_local)" -1; }
+dt_tomorrow_local()   { dt_date_shift_days "$(dt_today_local)"  1; }
 
 # ------------------
 # Epoch formatting (local)
@@ -97,35 +191,5 @@ dt_epoch_to_local_date() {
     1) "$DT_DATE_BIN" -r "$1" '+%Y-%m-%d' ;;
     2) "$DT_DATE_BIN" -d "@$1" '+%Y-%m-%d' ;;
     *) dt_die "internal: date backend not set" ;;
-  esac
-}
-
-# ------------------
-# UTC -> epoch (API boundary only)
-# ------------------
-
-dt_utc_iso_z_to_epoch() {
-  dt_need "utc timestamp" "${1-}" || return $?
-
-  s=$1
-  s=$(printf '%s' "$s" | tr ' ' 'T')
-
-  case "$s" in
-    *Z) ;;
-    *) dt_die "not a UTC Z timestamp: $s" ;;
-  esac
-
-  case "$DT_DATE_BACKEND" in
-    1)
-      "$DT_DATE_BIN" -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$s" '+%s' 2>/dev/null \
-        || dt_die "failed to parse UTC timestamp: $s"
-      ;;
-    2)
-      "$DT_DATE_BIN" -u -d "$s" '+%s' 2>/dev/null \
-        || dt_die "failed to parse UTC timestamp: $s"
-      ;;
-    *)
-      dt_die "internal: date backend not set"
-      ;;
   esac
 }
