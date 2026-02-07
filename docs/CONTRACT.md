@@ -1453,6 +1453,25 @@ Any such behavior is a contract violation.
 
 ---
 
+#### 3.1.2.X Artifact Declaration (COMMIT_LIST_FILE)
+
+When commit orchestration is enabled, `job-wrap.sh` MAY provide `COMMIT_LIST_FILE`
+for leaf scripts to declare artifacts.
+
+Leaf scripts producing multiple artifacts:
+
+* MUST declare the full result set via `COMMIT_LIST_FILE`
+* MUST append one absolute artifact path per line
+* MUST do so only after each artifact is fully finalized (e.g., after atomic `mv`)
+
+Notes:
+
+* A separate manifest file is OPTIONAL.
+* If a manifest is produced, it is treated as a normal artifact and MUST be
+  declared via `COMMIT_LIST_FILE` like any other output.
+
+---
+
 #### 3.1.3 Single-Process Wrapper Model
 
 The execution model is intentionally **single-wrapper, single-shell**:
