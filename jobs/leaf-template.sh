@@ -13,6 +13,10 @@
 # To create a new leaf job:
 #   1. Copy this file to a new job-specific path/name.
 #   2. Modify ONLY the sections marked "Argument parsing" and "Job logic".
+#      - The pre-existing scaffold within those two sections is part of the template contract.
+#      - Do NOT remove or rewrite the baseline patterns; extend them to support job-specific logic.
+#      - Keep existing options, defaults, variable initialization, and validation unless you are
+#        deliberately changing the template itself.
 #   3. Preserve the wrapper logic, path resolution, logging helpers,
 #      artifact/result declaration, and commit registration exactly as-is.
 #
@@ -132,6 +136,12 @@ fi
 # Argument parsing (example - customize per job)
 ###############################################################################
 
+# Rules for this section:
+# - Keep the baseline scaffold: usage(), default flags (--output/--dry-run/--help),
+#   variable initialization, and the parsing loop structure.
+# - Extend by adding job-specific flags, validation, and derived variables.
+# - Avoid changing parsing style or removing baseline flags; that is a template change.
+
 usage() {
   cat <<'EOF_USAGE'
 Usage: leaf-template.sh [--output <path>] [--dry-run]
@@ -172,6 +182,13 @@ done
 ###############################################################################
 # Job logic
 ###############################################################################
+
+# Rules for this section:
+# - Keep the baseline artifact contract: result_ref computation, absolute-path requirements,
+#   atomic write (temp + mv), cleanup trap, and COMMIT_LIST_FILE registration.
+# - Extend by adding job-specific artifact(s) or additional logic while preserving the baseline
+#   write/declare pattern.
+# - Do not bypass atomic write, bypass result declaration, or change wrapper expectations.
 
 # Logging examples (copy/paste patterns):
 # log_debug "starting: foo=$foo bar=$bar"
