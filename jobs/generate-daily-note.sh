@@ -1,80 +1,122 @@
 #!/bin/sh
 # Generate a daily note markdown file that mirrors the legacy Node implementation.
-# Uses helper scripts in ../utils when available to populate dynamic sections.
+#
+# Leaf job (wrapper required). Uses /lib periods+datetime helpers (local time).
+#
+# Author: deadhedd
+# License: MIT
 
 set -eu
 
 ###############################################################################
-# Paths, logging, and helpers
+# Logging (leaf responsibility: emit correctly-formatted messages to stderr)
 ###############################################################################
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
-utils_dir="$repo_root/utils"
-elements_dir="$utils_dir/elements"
-finances_dir="$utils_dir/finances"
-job_wrap="$repo_root/utils/core/job-wrap.sh"
-script_path="$script_dir/$(basename "$0")"
+log_debug() { printf '%s\n' "DEBUG: $*" >&2; }
+log_info()  { printf '%s\n' "INFO: $*"  >&2; }
+log_warn()  { printf '%s\n' "WARN: $*"  >&2; }
+log_error() { printf '%s\n' "ERROR: $*" >&2; }
 
+###############################################################################
+# Resolve paths
+###############################################################################
 
-if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
-  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+repo_root=$(CDPATH= cd "$script_dir/.." && pwd)
+
+wrap="$repo_root/engine/wrap.sh"
+
+# Prefer passing an absolute script path to the wrapper for sturdiness.
+case "$0" in
+  /*) script_path=$0 ;;
+  *)  script_path=$script_dir/${0##*/} ;;
+esac
+
+# Canonicalize the final script path to avoid surprises (symlinks/cwd oddities).
+# POSIX note: this resolves directory via cd+pwd; basename is preserved.
+script_path=$(
+  CDPATH= cd "$(dirname "$script_path")" && \
+  d=$(pwd) && \
+  printf '%s/%s\n' "$d" "${script_path##*/}"
+) || {
+  log_error "failed to canonicalize script path: $script_path"
+  exit 127
+}
+
+###############################################################################
+# Self-wrap (minimal, dumb, contract-aligned)
+###############################################################################
+
+# engine/wrap.sh owns JOB_WRAP_ACTIVE; leaf does not set it.
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
+  if [ ! -x "$wrap" ]; then
+    log_error "leaf wrap: wrapper not found/executable: $wrap"
+    exit 127
+  fi
+  log_info "leaf wrap: exec wrapper: $wrap"
+  exec "$wrap" "$script_path" ${1+"$@"}
+else
+  log_debug "leaf wrap: wrapper active; executing leaf"
 fi
 
+###############################################################################
+# Engine libs (wrapped path only)
+###############################################################################
+
 lib_dir=$repo_root/lib
+
 periods_lib=$lib_dir/periods.sh
 datetime_lib=$lib_dir/datetime.sh
-day_plan_script="$elements_dir/generate-day-plan.sh"
-celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
-f1_script="$elements_dir/f1-schedule-and-standings.sh"
-f1_dashboard_helper="$elements_dir/update-f1-dashboard.sh"
-finances_callout_script="$finances_dir/daily-finances-callout.sh"
 
 # Periods (days / weeks / months / quarters)
 if [ ! -r "$periods_lib" ]; then
-  printf 'ERR  %s\n' "periods lib not found/readable: $periods_lib" >&2
+  log_error "periods lib not found/readable: $periods_lib"
   exit 127
 fi
 # shellcheck source=/dev/null
 . "$periods_lib" || {
-  printf 'ERR  %s\n' "failed to source periods lib: $periods_lib" >&2
+  log_error "failed to source periods lib: $periods_lib"
   exit 127
 }
 
 # Datetime (local-time only)
 if [ ! -r "$datetime_lib" ]; then
-  printf 'ERR  %s\n' "datetime lib not found/readable: $datetime_lib" >&2
+  log_error "datetime lib not found/readable: $datetime_lib"
   exit 127
 fi
 # shellcheck source=/dev/null
 . "$datetime_lib" || {
-  printf 'ERR  %s\n' "failed to source datetime lib: $datetime_lib" >&2
+  log_error "failed to source datetime lib: $datetime_lib"
   exit 127
 }
 
-# Ensure common tools are found even under cron (put /usr/local/bin first)
-PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
-
 ###############################################################################
-# CLI parsing
+# Argument parsing (template scaffold preserved + --force extension)
 ###############################################################################
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: generate-daily-note.sh [--force] [--dry-run]
+Usage: generate-daily-note.sh [--output <path>] [--dry-run] [--force]
 
 Options:
-  --force    Overwrite the note if it already exists.
-  --dry-run  Write note content to "Daily Note Sample.md" in the repo root without touching the vault.
-  --help     Show this message.
+  --output <path>   Output file path (absolute). Defaults to today's daily note in the vault.
+  --dry-run         Emit the main daily note content to stdout instead of writing files.
+  --force           Overwrite existing files (main note + subnotes) if present.
+  --help            Show this message.
 EOF_USAGE
 }
 
 force=0
 dry_run=0
+output_path=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --output)
+      [ $# -ge 2 ] || { printf 'ERROR: missing value for --output\n' >&2; usage >&2; exit 2; }
+      output_path=$2
+      shift 2
+      ;;
     --force)
       force=1
       shift
@@ -88,7 +130,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      printf 'ERR  %s\n' "Unknown option: $1" >&2
+      printf 'ERROR: unknown option: %s\n' "$1" >&2
       usage >&2
       exit 2
       ;;
@@ -96,60 +138,41 @@ while [ $# -gt 0 ]; do
 done
 
 ###############################################################################
-# Output helper
+# Job logic
 ###############################################################################
 
-write_output() {
-  dest=$1
-  output_target=$dest
+# Ensure common tools are found even under cron (put /usr/local/bin first)
+PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-  if [ "$dry_run" -eq 1 ] && [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
-    output_target=$dry_run_output_path
-    printf 'INFO %s\n' "Dry run: redirecting output to sample file: $output_target"
-    cat >"$output_target"
-    return
-  fi
+# Artifact root:
+# - Must be provided by wrapper.
+if [ -z "${VAULT_ROOT:-}" ]; then
+  log_error "VAULT_ROOT not set (wrapper required)"
+  exit 127
+fi
+artifact_root=$VAULT_ROOT
 
-  if [ "$dry_run" -eq 1 ]; then
-    printf -- '--- DRY RUN: %s ---\n' "$dest"
-    cat
-    printf -- '--- END DRY RUN: %s ---\n' "$dest"
-  else
-    cat >"$dest"
-  fi
-}
+# Internal helper layout (repo-local)
+utils_dir="$repo_root/utils"
+elements_dir="$utils_dir/elements"
+finances_dir="$utils_dir/finances"
 
-ensure_dir() {
-  dir=$1
-  if [ "$dry_run" -eq 1 ]; then
-    printf 'INFO %s\n' "Dry run: would ensure directory exists: $dir"
-  else
-    mkdir -p "$dir"
-  fi
-}
+day_plan_script="$elements_dir/generate-day-plan.sh"
+celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
+f1_script="$elements_dir/f1-schedule-and-standings.sh"
+f1_dashboard_helper="$elements_dir/update-f1-dashboard.sh"
+finances_callout_script="$finances_dir/daily-finances-callout.sh"
 
 ###############################################################################
-# Vault paths and basic date info
+# Compute primary output path (result_ref)
 ###############################################################################
 
-printf 'INFO %s\n' "Starting daily note generation"
-
-vault_path="${VAULT_PATH:-/home/obsidian/vaults/Main}"
-vault_root="${vault_path%/}"
-periodic_dir="${vault_root}/Periodic Notes"
+# Default vault structure (within VAULT_ROOT)
+periodic_dir="${artifact_root%/}/Periodic Notes"
 daily_note_dir="${periodic_dir%/}/Daily Notes"
 
-printf 'INFO %s\n' "Vault path: $vault_root"
-printf 'INFO %s\n' "Daily note directory: $daily_note_dir"
-
-if [ ! -d "$daily_note_dir" ]; then
-  printf 'ERR  %s\n' "Periodic notes folder does not exist: $daily_note_dir" >&2
-  printf 'ERR  %s\n' "Edit generate-daily-note.sh to match your vault structure." >&2
-  exit 1
-fi
-
 today=$(pr_today)
-current_date_parts=$(pr_date_parts)
+current_date_parts=$(pr_date_parts) # "YYYY MM DD"
 year=${current_date_parts%% *}
 month_day=${current_date_parts#* }
 month=${month_day%% *}
@@ -162,38 +185,93 @@ quarter_tag_iso=$(pr_quarter_tag_iso)
 yesterday=$(pr_yesterday)
 tomorrow=$(pr_tomorrow)
 
-file_path="${daily_note_dir%/}/${today}.md"
-dry_run_primary_path=$file_path
-dry_run_output_path="${repo_root%/}/Daily Note Sample.md"
+if [ -z "$output_path" ]; then
+  result_ref="${daily_note_dir%/}/${today}.md"
+else
+  case "$output_path" in
+    */)
+      log_error "internal: --output ends with '/': $output_path"
+      exit 2
+      ;;
+  esac
+  # Contract: --output must be an absolute path.
+  case "$output_path" in
+    /*) result_ref="$output_path" ;;
+    *)  log_error "--output must be an absolute path: $output_path"; exit 2 ;;
+  esac
+fi
 
-printf 'INFO %s\n' "Generating note for date: $today"
-printf 'INFO %s\n' "Primary daily note path: $file_path"
+if [ -z "$result_ref" ]; then
+  log_error "internal: result_ref empty"
+  exit 127
+fi
+case "$result_ref" in
+  */) log_error "internal: result_ref ends with '/': $result_ref"; exit 2 ;;
+esac
 
 ###############################################################################
-# Finances callout (car loan + credit cards)
+# Helpers (job-specific; contract-preserving)
 ###############################################################################
 
-build_finances_callout() {
-  if [ ! -r "$finances_callout_script" ]; then
-    printf 'WARN %s\n' "Finances callout script not found: $finances_callout_script" >&2
-    return
+write_atomic_file() {
+  _dest=$1
+  _tmp_dir=${_dest%/*}
+  _tmp="${_tmp_dir}/${_dest##*/}.tmp.$$"
+
+  if ! mkdir -p "$_tmp_dir"; then
+    log_error "failed to create artifact directory: $_tmp_dir"
+    exit 1
   fi
 
-  if output=$(sh "$finances_callout_script" "$year" "$month" "$day" 2>/dev/null); then
-    printf '%s' "$output"
-  else
-    status=$?
-    printf 'WARN %s\n' "Finances callout script failed with exit code $status; skipping finances section" >&2
+  # Contain trap scope to a subshell so we don't stomp outer traps.
+  (
+    trap 'rm -f "$_tmp"' HUP INT TERM 0
+    if ! cat >"$_tmp"; then
+      exit 1
+    fi
+    if ! mv "$_tmp" "$_dest"; then
+      exit 1
+    fi
+    trap - HUP INT TERM 0
+    exit 0
+  ) || {
+    log_error "failed atomic write: $_dest"
+    rm -f "$_tmp" 2>/dev/null || true
+    exit 1
+  }
+}
+
+register_artifact() {
+  _p=$1
+  if [ -n "${COMMIT_LIST_FILE:-}" ]; then
+    if ! printf '%s\n' "$_p" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
+      log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
+    fi
   fi
 }
 
-finances_callout=$(build_finances_callout)
+build_finances_callout() {
+  if [ ! -r "$finances_callout_script" ]; then
+    log_warn "finances callout script not found: $finances_callout_script"
+    return 0
+  fi
+  if _out=$(sh "$finances_callout_script" "$year" "$month" "$day" 2>/dev/null); then
+    printf '%s' "$_out"
+    return 0
+  fi
+  _rc=$?
+  log_warn "finances callout script failed rc=$_rc; skipping finances section"
+  return 0
+}
 
 ###############################################################################
-# Time block navigation and periodic links
+# Dry run behavior (template contract)
 ###############################################################################
 
-time_blocks_nav=$(cat <<EOF_TB
+generate_main_note() {
+  finances_callout=$(build_finances_callout)
+
+  time_blocks_nav=$(cat <<EOF_TB
 ### 🕑 Time Blocks
 
  [[Periodic Notes/Daily Notes/Subnotes/${today} - Wake Up|Wake Up]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Morning|Morning]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Afternoon|Afternoon]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Evening|Evening]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Night|Night]]
@@ -208,192 +286,30 @@ time_blocks_nav=$(cat <<EOF_TB
 EOF_TB
 )
 
-###############################################################################
-# F1 dashboard handling
-###############################################################################
-
-f1_dashboard_note="Reference/Dashboards/Formula 1"
-f1_dashboard_path="${vault_root%/}/${f1_dashboard_note}.md"
-
-printf 'INFO %s\n' "Formula 1 dashboard note: $f1_dashboard_path"
-
-if [ -r "$f1_dashboard_helper" ]; then
-  if [ "$dry_run" -eq 1 ]; then
-    sh "$f1_dashboard_helper" --dashboard-path "$f1_dashboard_path" \
-      --content-script "$f1_script" --dry-run
-  else
-    sh "$f1_dashboard_helper" --dashboard-path "$f1_dashboard_path" \
-      --content-script "$f1_script"
-  fi
-else
-  printf 'WARN %s\n' "F1 dashboard helper not found: $f1_dashboard_helper" >&2
-fi
-
-###############################################################################
-# Overwrite guard for main daily note
-###############################################################################
-
-if [ "$dry_run" -eq 1 ]; then
-  printf 'INFO %s\n' "Dry run: skipping overwrite guard for $file_path"
-elif [ -f "$file_path" ] && [ "$force" -ne 1 ]; then
-  printf 'ERR  %s\n' "Refusing to overwrite existing file: $file_path" >&2
-  printf '     Re-run with --force to overwrite.\n' >&2
-  exit 1
-fi
-
-###############################################################################
-# Time block subnotes
-###############################################################################
-
-time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
-ensure_dir "$time_block_subnotes_dir"
-
-populate_block() {
-  block_name=$1
-  # Warn instead of exiting so daily note generation continues even if the plan is incomplete.
-  if [ ! -r "$day_plan_script" ]; then
-    printf 'WARN %s\n' "Daily plan script not found: $day_plan_script" >&2
-    return 0
-  fi
-
-  if block_output=$(sh "$day_plan_script" --block "$block_name" 2>/dev/null); then
-    printf '%s' "$block_output"
-  else
-    status=$?
-    printf 'WARN %s\n' "Daily plan script failed for block '$block_name' with exit code $status" >&2
-    return 0
-  fi
-}
-
-printf 'INFO %s\n' "Preparing time block subnotes"
-# We'll use positional params solely as commit targets from this point.
-set -- "$file_path"
-# F1 dashboard may or may not exist in dry-run; we still pass it for parity.
-set -- "$@" "$f1_dashboard_path"
-
-for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
-  subnote_path="${time_block_subnotes_dir%/}/${today} - ${subnote}.md"
-  printf 'INFO %s\n' "Generating subnote for block: $subnote"
-
-  block_content=$(populate_block "$subnote" || true)
-
-  if [ -n "$block_content" ]; then
-    block_section=$block_content
-  else
-    block_section='_No entries for this block._'
-  fi
-
-  write_output "$subnote_path" <<EOF_SUBNOTE
-# ${subnote} — ${today}
-
-@-- autogenerated: filled from Daily Plan.md by generate-daily-note.sh; do not edit here --
-
-## From Daily Plan
-${block_section}
-
-## 🗺️ Navigation
-
-${time_blocks_nav}
-
-EOF_SUBNOTE
-
-  set -- "$@" "$subnote_path"
-
-  if [ "$dry_run" -eq 1 ]; then
-    printf 'INFO %s\n' "Dry run: would update subnote: $subnote_path"
-  else
-    printf 'INFO %s\n' "Subnote updated: $subnote_path"
-  fi
-done
-
-pagan_timings_text=""
-
-if [ -r "$celestial_timings_script" ]; then
-  printf 'INFO %s\n' "Generating celestial timings section"
-  if pagan_timings_text=$(sh "$celestial_timings_script"); then
-    printf 'INFO %s\n' "Celestial timings section generated"
-  else
-    status=$?
-    printf 'WARN %s\n' "Celestial timings script failed with exit code $status; using fallback text" >&2
-  fi
-else
-  printf 'WARN %s\n' "Celestial timings script not found: $celestial_timings_script" >&2
-fi
-
-if [ -z "$pagan_timings_text" ]; then
-  pagan_timings_text="### 🌌 Celestial Timings
-_Celestial timings unavailable._"
-fi
-
-###############################################################################
-# Daily plan intro (day + focus)
-###############################################################################
-
-build_daily_plan_intro() {
-  if [ ! -r "$day_plan_script" ]; then
-    printf 'WARN %s\n' "Daily plan script not found, skipping intro" >&2
-    return 0
-  fi
-
-  printf 'INFO %s\n' "Loading daily plan intro"
-  if ! day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
-    printf 'WARN %s\n' "Daily plan script failed, skipping intro" >&2
-    return 0
-  fi
-
-  intro_lines=$(printf '%s\n' "$day_plan_output" | awk '
-    /^# Daily Plan - / {in_today=1; next}
-    in_today && /^## Preview of Tomorrow:/ {exit}
-    in_today {
-      if (!day && /^##[[:space:]]+/) {
-        line = $0
-        sub(/^##[[:space:]]+/, "", line)
-        day = line
-        next
-      }
-      if (!focus && /^###[[:space:]]+/) {
-        line = $0
-        sub(/^###[[:space:]]+/, "", line)
-        focus = line
-      }
-    }
-    END {
-      if (day && focus) {
-        printf("## %s (%s)\n", day, focus)
-      } else if (day) {
-        printf("## %s\n", day)
-      } else if (focus) {
-        printf("## %s\n", focus)
-      }
-    }
-  ')
-
-  if [ -n "$intro_lines" ]; then
-    printf 'INFO %s\n' "Daily plan intro captured"
-    printf '%s\n' "$intro_lines"
-  else
-    printf 'WARN %s\n' "Daily plan intro not found in output" >&2
-  fi
-}
-
-daily_plan_intro=$(build_daily_plan_intro || true)
-if [ -n "$daily_plan_intro" ]; then
-  daily_plan_intro_section=$(printf '%s\n\n' "$daily_plan_intro")
-else
-  daily_plan_intro_section=""
-fi
-
-###############################################################################
-# Callouts / sections
-###############################################################################
-
-navigation_callout=$(cat <<EOF_NAVIGATION
+  navigation_callout=$(cat <<EOF_NAVIGATION
 > [!note]+ 🗺️ Navigation
 $(printf '%s\n' "$time_blocks_nav" | sed 's/^/> /')
 EOF_NAVIGATION
 )
 
-daily_context_callout=$(cat <<EOF_DAILY_CONTEXT
+  pagan_timings_text=""
+  if [ -r "$celestial_timings_script" ]; then
+    if pagan_timings_text=$(sh "$celestial_timings_script" 2>/dev/null); then
+      : # ok
+    else
+      _rc=$?
+      log_warn "celestial timings script failed rc=$_rc; using fallback"
+      pagan_timings_text=""
+    fi
+  else
+    log_warn "celestial timings script not found: $celestial_timings_script"
+  fi
+  if [ -z "${pagan_timings_text:-}" ]; then
+    pagan_timings_text="### 🌌 Celestial Timings
+_Celestial timings unavailable._"
+  fi
+
+  daily_context_callout=$(cat <<EOF_DAILY_CONTEXT
 > [!info]+ 🌅 Daily Context
 > ### Sleep
 > ![[Sleep Data/${today} Sleep Summary#Sleep Advice]]
@@ -405,7 +321,7 @@ $(printf '%s\n' "$pagan_timings_text" | sed 's/^/> /')
 EOF_DAILY_CONTEXT
 )
 
-direction_callout=$(cat <<EOF_DIRECTION
+  direction_callout=$(cat <<EOF_DIRECTION
 > [!tip]+ 🎯 Direction & Intent
 > ### ![[Yearly theme]]
 >
@@ -415,7 +331,7 @@ direction_callout=$(cat <<EOF_DIRECTION
 EOF_DIRECTION
 )
 
-execution_callout=$(cat <<'EOF_EXECUTION'
+  execution_callout=$(cat <<'EOF_EXECUTION'
 > [!todo]+ ✅ Execution
 > ### 🔁 Recurring Today
 > [[Recurring Tasks]]
@@ -435,20 +351,56 @@ execution_callout=$(cat <<'EOF_EXECUTION'
 EOF_EXECUTION
 )
 
-f1_callout=$(cat <<EOF_F1
+  f1_callout=$(cat <<EOF_F1
 > [!info]+ 🏎️ F1 Info
 >
 > ![[Reference/Dashboards/Formula 1]]
 EOF_F1
 )
 
-###############################################################################
-# Write main daily note
-###############################################################################
+  daily_plan_intro_section=""
+  if [ -r "$day_plan_script" ]; then
+    if _day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
+      _intro=$(
+        printf '%s\n' "$_day_plan_output" | awk '
+          /^# Daily Plan - / {in_today=1; next}
+          in_today && /^## Preview of Tomorrow:/ {exit}
+          in_today {
+            if (!day && /^##[[:space:]]+/) {
+              line = $0
+              sub(/^##[[:space:]]+/, "", line)
+              day = line
+              next
+            }
+            if (!focus && /^###[[:space:]]+/) {
+              line = $0
+              sub(/^###[[:space:]]+/, "", line)
+              focus = line
+            }
+          }
+          END {
+            if (day && focus) {
+              printf("## %s (%s)\n", day, focus)
+            } else if (day) {
+              printf("## %s\n", day)
+            } else if (focus) {
+              printf("## %s\n", focus)
+            }
+          }
+        '
+      )
+      if [ -n "${_intro:-}" ]; then
+        daily_plan_intro_section=$(printf '%s\n\n' "$_intro")
+      fi
+    else
+      _rc=$?
+      log_warn "daily plan script failed rc=$_rc; skipping intro"
+    fi
+  else
+    log_warn "daily plan script not found; skipping intro"
+  fi
 
-printf 'INFO %s\n' "Writing daily note content"
-
-write_output "$file_path" <<EOF_NOTE
+  cat <<EOF_NOTE
 ---
 tags:
   - matter/daily-notes
@@ -469,9 +421,161 @@ ${finances_callout}
 
 ${f1_callout}
 EOF_NOTE
+}
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'INFO %s\n' "Dry run: daily note sample written to $dry_run_output_path"
-else
-  printf 'INFO %s\n' "Daily note created at $file_path"
+  if [ -n "$output_path" ]; then
+    log_warn "--dry-run ignores --output: $output_path"
+  fi
+  log_warn "--dry-run emits only the main daily note to stdout (no subnotes/dashboard writes)"
+  generate_main_note
+  exit 0
 fi
+
+###############################################################################
+# Overwrite guards (external boundary: filesystem state)
+###############################################################################
+
+time_block_subnotes_dir="${daily_note_dir%/}/Subnotes"
+f1_dashboard_note="Reference/Dashboards/Formula 1"
+f1_dashboard_path="${artifact_root%/}/${f1_dashboard_note}.md"
+
+# Main note
+if [ -f "$result_ref" ] && [ "$force" -ne 1 ]; then
+  log_error "refusing to overwrite existing file: $result_ref (use --force)"
+  exit 1
+fi
+
+# Subnotes
+for _subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
+  _subnote_path="${time_block_subnotes_dir%/}/${today} - ${_subnote}.md"
+  if [ -f "$_subnote_path" ] && [ "$force" -ne 1 ]; then
+    log_error "refusing to overwrite existing subnote: $_subnote_path (use --force)"
+    exit 1
+  fi
+done
+
+###############################################################################
+# F1 dashboard handling (side-effect artifact; best-effort)
+###############################################################################
+
+if [ -r "$f1_dashboard_helper" ]; then
+  if sh "$f1_dashboard_helper" --dashboard-path "$f1_dashboard_path" --content-script "$f1_script" 2>/dev/null; then
+    log_info "updated F1 dashboard: $f1_dashboard_path"
+  else
+    _rc=$?
+    log_warn "F1 dashboard helper failed rc=$_rc; continuing"
+  fi
+else
+  log_warn "F1 dashboard helper not found: $f1_dashboard_helper"
+fi
+
+populate_block() {
+  block_name=$1
+  if [ ! -r "$day_plan_script" ]; then
+    log_warn "daily plan script not found: $day_plan_script"
+    return 0
+  fi
+
+  if block_output=$(sh "$day_plan_script" --block "$block_name" 2>/dev/null); then
+    printf '%s' "$block_output"
+  else
+    _rc=$?
+    log_warn "daily plan script failed for block='$block_name' rc=$_rc"
+    return 0
+  fi
+}
+
+log_info "preparing time block subnotes: dir=$time_block_subnotes_dir"
+if ! mkdir -p "$time_block_subnotes_dir"; then
+  log_error "failed to create artifact directory: $time_block_subnotes_dir"
+  exit 1
+fi
+
+for subnote in "Wake Up" "Morning" "Afternoon" "Evening" "Night"; do
+  subnote_path="${time_block_subnotes_dir%/}/${today} - ${subnote}.md"
+
+  block_content=$(populate_block "$subnote" || true)
+
+  if [ -n "${block_content:-}" ]; then
+    block_section=$block_content
+  else
+    block_section='_No entries for this block._'
+  fi
+
+  write_atomic_file "$subnote_path" <<EOF_SUBNOTE
+# ${subnote} — ${today}
+
+@-- autogenerated: filled from Daily Plan.md by generate-daily-note.sh; do not edit here --
+
+## From Daily Plan
+${block_section}
+
+## 🗺️ Navigation
+
+### 🕑 Time Blocks
+
+ [[Periodic Notes/Daily Notes/Subnotes/${today} - Wake Up|Wake Up]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Morning|Morning]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Afternoon|Afternoon]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Evening|Evening]] · [[Periodic Notes/Daily Notes/Subnotes/${today} - Night|Night]]
+
+### 📅 Periodic Notes
+
+[[Periodic Notes/Weekly Notes/${week_tag}|This Week]] · [[Periodic Notes/Monthly Notes/${month_tag}|This Month]] · [[Periodic Notes/Quarterly Notes/${quarter_tag_iso}|This Quarter]] · [[Periodic Notes/Yearly Notes/${year}|This Year]]
+
+### 🔗 Links
+
+[[Weekly Routine]] · [[Consider Johnie]] · [[Daily Note Template]] · [[Daily Plan]] · [[Workout Schedule]]
+
+EOF_SUBNOTE
+
+  register_artifact "$subnote_path"
+  log_info "produced subnote: $subnote_path"
+done
+
+###############################################################################
+# Write main daily note (primary artifact; atomic; contractual)
+###############################################################################
+
+primary_parent=${result_ref%/*}
+if ! mkdir -p "$primary_parent"; then
+  log_error "failed to create artifact directory: $primary_parent"
+  exit 1
+fi
+
+# Write atomically and clean up temp file on failure/interruption.
+tmp="${primary_parent}/${result_ref##*/}.tmp.$$"
+cleanup_tmp() {
+  [ -n "${tmp:-}" ] && [ -f "$tmp" ] && rm -f "$tmp"
+}
+trap cleanup_tmp HUP INT TERM 0
+
+if ! generate_main_note >"$tmp"; then
+  log_error "failed to write temp artifact: $tmp"
+  exit 1
+fi
+if ! mv "$tmp" "$result_ref"; then
+  log_error "failed to finalize artifact (mv): $tmp -> $result_ref"
+  exit 1
+fi
+
+# Success: disarm cleanup for this temp path.
+tmp=""
+trap - HUP INT TERM 0
+
+###############################################################################
+# Commit registration (contractual)
+###############################################################################
+
+# Primary result first.
+register_artifact "$result_ref"
+
+# Additional artifacts (best-effort): include dashboard if it exists.
+if [ -f "$f1_dashboard_path" ]; then
+  register_artifact "$f1_dashboard_path"
+fi
+
+###############################################################################
+# Diagnostics
+###############################################################################
+
+log_info "Produced artifact: $result_ref"
+exit 0
