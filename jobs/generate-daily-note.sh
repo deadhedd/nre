@@ -21,14 +21,36 @@ if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
   JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
 fi
 
-date_helper="$repo_root/utils/core/date-period-helpers.sh"
+lib_dir=$repo_root/lib
+periods_lib=$lib_dir/periods.sh
+datetime_lib=$lib_dir/datetime.sh
 day_plan_script="$elements_dir/generate-day-plan.sh"
 celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
 f1_script="$elements_dir/f1-schedule-and-standings.sh"
 f1_dashboard_helper="$elements_dir/update-f1-dashboard.sh"
 finances_callout_script="$finances_dir/daily-finances-callout.sh"
 
-. "$date_helper"
+# Periods (days / weeks / months / quarters)
+if [ ! -r "$periods_lib" ]; then
+  printf 'ERR  %s\n' "periods lib not found/readable: $periods_lib" >&2
+  exit 127
+fi
+# shellcheck source=/dev/null
+. "$periods_lib" || {
+  printf 'ERR  %s\n' "failed to source periods lib: $periods_lib" >&2
+  exit 127
+}
+
+# Datetime (local-time only)
+if [ ! -r "$datetime_lib" ]; then
+  printf 'ERR  %s\n' "datetime lib not found/readable: $datetime_lib" >&2
+  exit 127
+fi
+# shellcheck source=/dev/null
+. "$datetime_lib" || {
+  printf 'ERR  %s\n' "failed to source datetime lib: $datetime_lib" >&2
+  exit 127
+}
 
 # Ensure common tools are found even under cron (put /usr/local/bin first)
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -126,19 +148,19 @@ if [ ! -d "$daily_note_dir" ]; then
   exit 1
 fi
 
-today=$(get_today)
-current_date_parts=$(get_current_date_parts)
+today=$(pr_today)
+current_date_parts=$(pr_date_parts)
 year=${current_date_parts%% *}
 month_day=${current_date_parts#* }
 month=${month_day%% *}
 day=${month_day#* }
 
-week_tag=$(get_current_week_tag)
-month_tag=$(get_current_month_tag)
-quarter_tag_iso=$(get_quarter_tag_iso)
+week_tag=$(pr_week_tag_current)
+month_tag=$(pr_month_tag_current)
+quarter_tag_iso=$(pr_quarter_tag_iso)
 
-yesterday=$(get_yesterday)
-tomorrow=$(get_tomorrow)
+yesterday=$(pr_yesterday)
+tomorrow=$(pr_tomorrow)
 
 file_path="${daily_note_dir%/}/${today}.md"
 dry_run_primary_path=$file_path
@@ -453,4 +475,3 @@ if [ "$dry_run" -eq 1 ]; then
 else
   printf 'INFO %s\n' "Daily note created at $file_path"
 fi
-
