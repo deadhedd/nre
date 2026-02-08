@@ -125,7 +125,7 @@ fi
 # Engine libs (wrapped path only)
 ###############################################################################
 
-datetime_lib=$repo_root/engine/datetime.sh
+datetime_lib=$repo_root/lib/datetime.sh
 if [ ! -r "$datetime_lib" ]; then
   log_error "datetime lib not found/readable: $datetime_lib"
   exit 127
