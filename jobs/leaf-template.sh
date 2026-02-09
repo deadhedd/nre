@@ -204,10 +204,16 @@ done
 # NOTE: prefer *one line per message*; if you must emit multiline, it will be
 # captured, but boundary emission may summarize it depending on wrapper state.
 
-# Contract:
-# - absolute path
-# - single, obvious artifact
-# - stored in `result_ref`
+###############################################################################
+# Compute anchor artifact path (result_ref)
+###############################################################################
+
+# result_ref (contractual anchor):
+# - Required by contract.
+# - Identifies one concrete artifact produced by this job.
+# - Used by the wrapper for logging, diagnostics, and default commit anchoring.
+# - Does NOT imply primacy, ordering, or exclusivity.
+# - Jobs may legitimately produce multiple artifacts.
 # Artifact root:
 # - Must be provided by wrapper.
 if [ -z "${VAULT_ROOT:-}" ]; then
@@ -267,6 +273,14 @@ if [ "$dry_run" -eq 1 ]; then
   exit 0
 fi
 
+###############################################################################
+# Write anchor artifact (atomic; contractual)
+###############################################################################
+
+# This job may emit additional artifacts before or after this step.
+# The only hard requirement is that result_ref is produced successfully
+# unless the job exits non-zero.
+
 # Avoid an extra process (dirname) by using shell pattern removal.
 primary_parent=${result_ref%/*}
 if ! mkdir -p "$primary_parent"; then
@@ -295,15 +309,24 @@ tmp=""
 trap - HUP INT TERM 0
 
 ###############################################################################
-# Commit registration (contractual)
+# Commit registration (contractual; multi-artifact)
 ###############################################################################
 
+# Artifact registration rules:
+# - Jobs may produce one or many artifacts.
+# - All artifacts that should be committed MUST be registered.
+# - result_ref MUST be registered unless the job exits non-zero.
+#
 # Leaf declares what it produced; wrapper decides whether/how to commit.
 if [ -n "${COMMIT_LIST_FILE:-}" ]; then
   if ! printf '%s\n' "$result_ref" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
     log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
   fi
 fi
+
+# Optional: register additional artifacts here.
+# Example:
+#   printf '%s\n' "$other_path" >>"$COMMIT_LIST_FILE"
 
 ###############################################################################
 # Diagnostics
