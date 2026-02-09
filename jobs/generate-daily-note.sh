@@ -241,15 +241,6 @@ write_atomic_file() {
   }
 }
 
-register_artifact() {
-  _p=$1
-  if [ -n "${COMMIT_LIST_FILE:-}" ]; then
-    if ! printf '%s\n' "$_p" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
-      log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
-    fi
-  fi
-}
-
 build_finances_callout() {
   if [ ! -r "$finances_callout_script" ]; then
     log_warn "finances callout script not found: $finances_callout_script"
@@ -527,7 +518,12 @@ ${block_section}
 
 EOF_SUBNOTE
 
-  register_artifact "$subnote_path"
+  # Commit registration (contractual)
+  if [ -n "${COMMIT_LIST_FILE:-}" ]; then
+    if ! printf '%s\n' "$subnote_path" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
+      log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
+    fi
+  fi
   log_info "produced subnote: $subnote_path"
 done
 
@@ -565,12 +561,19 @@ trap - HUP INT TERM 0
 # Commit registration (contractual)
 ###############################################################################
 
-# Primary result first.
-register_artifact "$result_ref"
+if [ -n "${COMMIT_LIST_FILE:-}" ]; then
+  if ! printf '%s\n' "$result_ref" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
+    log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
+  fi
+fi
 
 # Additional artifacts (best-effort): include dashboard if it exists.
 if [ -f "$f1_dashboard_path" ]; then
-  register_artifact "$f1_dashboard_path"
+  if [ -n "${COMMIT_LIST_FILE:-}" ]; then
+    if ! printf '%s\n' "$f1_dashboard_path" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
+      log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
+    fi
+  fi
 fi
 
 ###############################################################################
