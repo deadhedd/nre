@@ -431,6 +431,12 @@ if [ "$dry_run" -eq 1 ]; then
   if [ -n "$output_path" ]; then
     log_warn "--dry-run ignores --output: $output_path"
   fi
+
+  # Tell the wrapper/commit layer to "dry-run" commit behavior too (no staging/commit),
+  # so it can suppress required-commit warnings and optionally print a preview.
+  # Wrapper/commit scripts must honor COMMIT_DRY_RUN=1.
+  export COMMIT_DRY_RUN=1
+
   log_warn "--dry-run emits only the main daily note to stdout (no subnotes/dashboard writes)"
   generate_main_note
   exit 0
