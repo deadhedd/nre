@@ -139,6 +139,7 @@ esac
 repo_root=$REPO_ROOT
 
 datetime_lib=$repo_root/lib/datetime.sh
+periods_lib=$repo_root/lib/periods.sh
 if [ ! -r "$datetime_lib" ]; then
   log_error "datetime lib not found/readable: $datetime_lib"
   exit 127
@@ -147,6 +148,18 @@ fi
 # shellcheck source=/dev/null
 . "$datetime_lib" || {
   log_error "failed to source datetime lib: $datetime_lib"
+  exit 127
+}
+
+# Period helpers (days / weeks / months / quarters)
+if [ ! -r "$periods_lib" ]; then
+  log_error "periods lib not found/readable: $periods_lib"
+  exit 127
+fi
+
+# shellcheck source=/dev/null
+. "$periods_lib" || {
+  log_error "failed to source periods lib: $periods_lib"
   exit 127
 }
 
