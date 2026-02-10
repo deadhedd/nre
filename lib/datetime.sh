@@ -6,7 +6,7 @@
 #
 # Purpose:
 # - Provide deterministic local-first date/time helpers
-# - Select a supported date(1) backend once (BSD vs GNU)
+# - Provide date-space arithmetic via POSIX awk (no date(1) backend detection)
 # - Library-only: MUST be sourced (never executed)
 #
 # Integration rule:
@@ -28,9 +28,7 @@ dt_die() { printf '%s\n' "Error: $*" >&2; return 10; }
 dt_need() { [ -n "${2-}" ] || dt_die "$1 is required"; }
 
 # --------------------------------------------------------------------
-# Date backend selection (one-time, deterministic)
-# 1 = BSD/OpenBSD/macOS date (supports -j -f and -r)
-# 2 = GNU/coreutils date (supports -d and -d @EPOCH)
+# Date tool discovery + shared awk date arithmetic primitives
 # --------------------------------------------------------------------
 
 DT_DATE_BACKEND=0
@@ -70,6 +68,51 @@ dt__detect_date_backend() {
 
 dt__detect_date_backend || { dt_die "no supported date backend (need BSD date or GNU date)"; return 10; }
 
+dt__awk_common='
+function floor(x) {
+  if (x >= 0) return int(x)
+  return int(x) - (x == int(x) ? 0 : 1)
+}
+function mod(a, b) {
+  if (b == 0) return 0
+  return a - b * floor(a / b)
+}
+function days_from_civil(y, m, d, era, yoe, doy, doe) {
+  y -= (m <= 2) ? 1 : 0
+  era = y >= 0 ? floor(y / 400) : floor((y - 399) / 400)
+  yoe = y - era * 400
+  m = (m + 9) % 12
+  doy = floor((153 * m + 2) / 5) + d - 1
+  doe = yoe * 365 + floor(yoe / 4) - floor(yoe / 100) + doy
+  return era * 146097 + doe - 719468
+}
+function civil_from_days(z, res, era, doe, yoe, doy, mp, y, m, d) {
+  z += 719468
+  era = z >= 0 ? floor(z / 146097) : floor((z - 146096) / 146097)
+  doe = z - era * 146097
+  yoe = floor((doe - floor(doe / 1460) + floor(doe / 36524) - floor(doe / 146096)) / 365)
+  y = yoe + era * 400
+  doy = doe - (365 * yoe + floor(yoe / 4) - floor(yoe / 100))
+  mp = floor((5 * doy + 2) / 153)
+  d = doy - floor((153 * mp + 2) / 5) + 1
+  m = mp + 3
+  if (m > 12) { m -= 12; y += 1 }
+  res["y"] = y; res["m"] = m; res["d"] = d
+}
+function verify_ymd(y, m, d, tmp) {
+  if (m < 1 || m > 12 || d < 1 || d > 31) return 0
+  civil_from_days(days_from_civil(y, m, d), tmp)
+  return (tmp["y"] == y && tmp["m"] == m && tmp["d"] == d)
+}
+'
+
+dt__run_awk() {
+  script=$1
+  shift
+  # POSIX: feed program on stdin, use -f -
+  printf '%s\n%s\n' "$dt__awk_common" "$script" | awk "$@" -f -
+}
+
 # ------------------
 # Date parsing/validation (local)
 # ------------------
@@ -86,18 +129,16 @@ dt_check_ymd() {
   d=$1
   dt_is_ymd "$d" || { dt_die "invalid date format (expected YYYY-MM-DD): $d"; return 10; }
 
-  case "$DT_DATE_BACKEND" in
-    1)
-      "$DT_DATE_BIN" -j -f '%Y-%m-%d' "$d" '+%Y-%m-%d' >/dev/null 2>&1 \
-        || { dt_die "invalid date: $d"; return 10; }
-      ;;
-    2)
-      "$DT_DATE_BIN" -d "$d" '+%Y-%m-%d' >/dev/null 2>&1 \
-        || { dt_die "invalid date: $d"; return 10; }
-      ;;
-    *)
-      dt_die "internal: date backend not set"; return 10 ;;
-  esac
+  y=${d%%-*}
+  rest=${d#*-}
+  m=${rest%%-*}
+  day=${rest#*-}
+
+  dt__run_awk 'BEGIN {
+    y = year + 0; m = month + 0; d = day + 0
+    if (!verify_ymd(y, m, d, tmp)) exit 1
+  }' -v year="$y" -v month="$m" -v day="$day" >/dev/null 2>&1 \
+    || { dt_die "invalid date: $d"; return 10; }
 }
 
 dt_date_parts() {
@@ -152,21 +193,24 @@ dt_date_shift_days() {
   off=$2
   dt_check_ymd "$base" || return $?
 
-  case "$DT_DATE_BACKEND" in
-    1)
-      # BSD: -v supports relative adjustments in local time.
-      # Use -j (no set system clock) and -f (parse).
-      "$DT_DATE_BIN" -j -f '%Y-%m-%d' "$base" -v"${off}"d '+%Y-%m-%d' 2>/dev/null \
-        || { dt_die "failed to shift date by days: base=$base off=$off"; return 10; }
-      ;;
-    2)
-      # GNU: date -d understands "YYYY-MM-DD +N day" in local time.
-      "$DT_DATE_BIN" -d "$base ${off} day" '+%Y-%m-%d' 2>/dev/null \
-        || { dt_die "failed to shift date by days: base=$base off=$off"; return 10; }
-      ;;
-    *)
-      dt_die "internal: date backend not set"; return 10 ;;
+  case "$off" in
+    +[0-9]*|-[0-9]*|[0-9]*) : ;;
+    *) dt_die "failed to shift date by days: base=$base off=$off"; return 10 ;;
   esac
+
+  y=${base%%-*}
+  rest=${base#*-}
+  m=${rest%%-*}
+  d=${rest#*-}
+
+  dt__run_awk 'BEGIN {
+    y = year + 0; m = month + 0; d = day + 0; off = delta + 0
+    if (!verify_ymd(y, m, d, tmp)) exit 1
+    z = days_from_civil(y, m, d) + off
+    civil_from_days(z, out)
+    printf "%04d-%02d-%02d\n", out["y"], out["m"], out["d"]
+  }' -v year="$y" -v month="$m" -v day="$d" -v delta="$off" \
+    || { dt_die "failed to shift date by days: base=$base off=$off"; return 10; }
 }
 
 dt_yesterday_local() { dt_date_shift_days "$(dt_today_local)" -1; }
