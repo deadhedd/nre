@@ -571,7 +571,6 @@ else
   fi
   _leaf_rc=$?
 fi
-_wrap_debug "leaf: rc=$_leaf_rc"
 
 ###############################################################################
 # Capture forwarding
@@ -585,12 +584,13 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
       rm -f "$_lc_err" 2>/dev/null || :
       : >"$_lc_err" 2>/dev/null || _lc_err=""
     fi
-    _wrap_debug "capture-forward: tmp_has_data=1 lc_err=${_lc_err:-<unset>}"
+    _wrap_debug "capture-forward: BEGIN tmp_has_data=1 lc_err=${_lc_err:-<unset>}"
     if [ -n "${_lc_err:-}" ]; then
       log_capture UNDEF <"$_tmp" >/dev/null 2>"$_lc_err"
     else
       log_capture UNDEF <"$_tmp" >/dev/null 2>/dev/null
     fi
+    _wrap_debug "capture-forward: END"
     _lc_rc=$?
 
     if [ "$_lc_rc" -ne 0 ]; then
@@ -617,6 +617,8 @@ fi
 if [ "$CAPTURE_MODE" = "file" ] && [ -n "${_tmp:-}" ] && [ ! -s "$_tmp" ]; then
   _wrap_debug "capture-forward: tmp_has_data=0"
 fi
+
+_wrap_debug "leaf: rc=$_leaf_rc"
 
 ###############################################################################
 # Optional commit orchestration
