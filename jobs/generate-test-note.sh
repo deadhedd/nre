@@ -96,6 +96,8 @@ if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
     log_error "leaf wrap: wrapper not found/executable: $wrap"
     exit 127
   fi
+  : "${JOB_WRAP_DEBUG:=1}"
+  export JOB_WRAP_DEBUG
   log_info "leaf wrap: exec wrapper: $wrap"
   exec "$wrap" "$script_path" ${1+"$@"}
 else
