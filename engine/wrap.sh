@@ -173,6 +173,22 @@ REPO_ROOT=$(CDPATH= cd "$WRAP_DIR/.." 2>/dev/null && pwd) || {
   exit "$WRAP_E_INIT"
 }
 
+# C1 contract: wrapper exports REPO_ROOT (absolute) for wrapped leaf execution.
+case "$REPO_ROOT" in
+  /*) : ;;
+  *)
+    _wrap_error "REPO_ROOT not absolute: $REPO_ROOT"
+    exit "$WRAP_E_INIT"
+    ;;
+esac
+
+if [ ! -x "$REPO_ROOT/engine/wrap.sh" ]; then
+  _wrap_error "invalid REPO_ROOT (missing engine/wrap.sh): $REPO_ROOT"
+  exit "$WRAP_E_INIT"
+fi
+
+export REPO_ROOT
+
 # Default LOG_ROOT: sibling of repo at ../logs (i.e., parent-of-repo-root/logs).
 # Respect an explicit LOG_ROOT if provided by caller.
 if [ -z "${LOG_ROOT+x}" ] || [ -z "${LOG_ROOT:-}" ]; then
