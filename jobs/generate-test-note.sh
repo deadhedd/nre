@@ -135,6 +135,8 @@ esac
 repo_root=$REPO_ROOT
 
 datetime_lib=$repo_root/lib/datetime.sh
+periods_lib=$repo_root/lib/periods.sh
+
 if [ ! -r "$datetime_lib" ]; then
   log_error "datetime lib not found/readable: $datetime_lib"
   exit 127
@@ -143,6 +145,18 @@ fi
 # shellcheck source=/dev/null
 . "$datetime_lib" || {
   log_error "failed to source datetime lib: $datetime_lib"
+  exit 127
+}
+
+# Period helpers (days / weeks / months / quarters)
+if [ ! -r "$periods_lib" ]; then
+  log_error "periods lib not found/readable: $periods_lib"
+  exit 127
+fi
+
+# shellcheck source=/dev/null
+. "$periods_lib" || {
+  log_error "failed to source periods lib: $periods_lib"
   exit 127
 }
 
@@ -247,10 +261,23 @@ case "$result_ref" in
 esac
 
 generate_content() {
+  today=$(pr_today 2>/dev/null || printf '%s' "")
+  if [ -z "$today" ]; then
+    log_error "periods unavailable: pr_today failed"
+    exit 127
+  fi
+  week_tag=$(pr_week_tag_current 2>/dev/null || printf '%s' "")
+  if [ -z "$week_tag" ]; then
+    log_error "periods unavailable: pr_week_tag_current failed"
+    exit 127
+  fi
+
   cat <<EOF_CONTENT
 Leaf template test note
 
 Generated at (local): $(dt_now_local_iso 2>/dev/null || printf '%s' "<unknown>")
+Today (periods): ${today}
+Week tag (periods): ${week_tag}
 Job: ${JOB_NAME:-<unset>}
 EOF_CONTENT
 }
