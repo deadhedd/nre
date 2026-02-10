@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/core/commit.sh — stage + commit explicit files into a central bare repo (wrapper-managed)
+# lib/commit.sh — stage + commit explicit files into a central bare repo (wrapper-managed)
 # Author: deadhedd
 # License: MIT
 # shellcheck shell=sh
