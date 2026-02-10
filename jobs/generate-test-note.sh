@@ -79,9 +79,11 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 ###############################################################################
 
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
-repo_root=$(CDPATH= cd "$script_dir/.." && pwd)
 
-wrap="$repo_root/engine/wrap.sh"
+# C1 bootstrap rule: wrapper location is assumed stable *relative to this file*
+# for the initial self-wrap hop only. Once wrapped, REPO_ROOT (exported by the
+# wrapper) becomes the source of truth for repo-relative paths.
+wrap="$script_dir/../engine/wrap.sh"
 
 # Prefer passing an absolute script path to the wrapper for sturdiness.
 case "$0" in
@@ -120,6 +122,17 @@ fi
 ###############################################################################
 # Engine libs (wrapped path only)
 ###############################################################################
+
+# Wrapper contract: REPO_ROOT is provided (absolute) once wrapped.
+if [ -z "${REPO_ROOT:-}" ]; then
+  log_error "REPO_ROOT not set (wrapper required)"
+  exit 127
+fi
+case "$REPO_ROOT" in
+  /*) : ;;
+  *) log_error "REPO_ROOT not absolute: $REPO_ROOT"; exit 127 ;;
+esac
+repo_root=$REPO_ROOT
 
 datetime_lib=$repo_root/lib/datetime.sh
 if [ ! -r "$datetime_lib" ]; then
