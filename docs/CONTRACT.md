@@ -1041,6 +1041,14 @@ Standard pattern:
 * Determine `repo_root` relative to that
 * Reference helpers using absolute paths derived from `repo_root`
 
+Wrapper-provided repo root (preferred when wrapped):
+
+* When execution is under `job-wrap.sh` (`JOB_WRAP_ACTIVE=1`), the wrapper **MUST** export `REPO_ROOT`
+  as an absolute path to the tools repository root.
+* Leaf scripts **MAY** rely on `REPO_ROOT` **only after** wrapper-managed execution is active.
+* Pre-wrap (before re-exec), leaf scripts still **MUST** be able to locate `job-wrap.sh` in a repo-stable way
+  using script-relative resolution (they cannot assume `REPO_ROOT` exists yet).
+
 Scripts MUST NOT:
 
 * Assume they are invoked from repo root
@@ -1090,6 +1098,7 @@ Core engine components enforce the following environment variable requirements:
 * `JOB_WRAP_ACTIVE` **MUST** be set to `1` inside job-wrap-managed execution, and the wrapper **MUST** exit if the value is missing or invalid before invoking leaf scripts.
   * `log.sh` additionally asserts wrapper-context before initializing the logging subsystem.
 * `JOB_NAME` **MUST** be present, non-empty, and **valid** when the logging sink initializes.
+* `REPO_ROOT` **MUST** be present, non-empty, and an absolute path when `JOB_WRAP_ACTIVE=1`.
   * When sourced, logger helpers (including the sink) **MUST NOT** call `exit` for missing/invalid required façade-provided context.
   * Missing/invalid `JOB_NAME` is **logger helper misuse**: the helper **MUST** emit one diagnostic line to stderr and **MUST return `11`**.
   * Escalation (soft degrade vs wrapper failure) remains owned by `log.sh` / `job-wrap.sh`.
@@ -1406,6 +1415,12 @@ This wrapper defines the canonical execution environment for all jobs and is the
 #### 3.1.1 Mandatory Re-exec via job-wrap
 
 All leaf scripts **MUST** execute under `job-wrap.sh`.
+
+Wrapper-provided repo root:
+
+* `job-wrap.sh` **MUST** export `REPO_ROOT` as an absolute path to the tools repository root before invoking the leaf.
+* Leaf scripts **MAY** use `REPO_ROOT` (and should prefer it) for locating repo-local helpers once wrapped.
+* Leaf scripts **MUST NOT** assume `REPO_ROOT` exists prior to re-exec (before `JOB_WRAP_ACTIVE=1`).
 
 A script that is invoked directly (e.g. from cron, manually, or by another script) **MUST** re-exec itself through `job-wrap.sh` unless execution is already active.
 
