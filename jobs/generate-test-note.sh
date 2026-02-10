@@ -1,54 +1,38 @@
 #!/bin/sh
-# Leaf job template (wrapper required)
+# Leaf template conformance test (wrapper required)
 #
-# Version: 1.0
-# Status: frozen (contract-stable)
+# Purpose:
+#   This script is a *test leaf job* used to validate the leaf-template
+#   contract and core engine libraries (e.g. datetime.sh, periods.sh).
+#
+#   It intentionally:
+#     - Uses the frozen template scaffold
+#     - Sources all core engine libs
+#     - Produces a simple, single artifact
+#     - Declares that artifact via COMMIT_LIST_FILE
+#
+#   If this script fails, the template or engine contract is broken.
+#
+# Version: 1.1
+# Status: test (contract validation)
 #
 # ---------------------------------------------------------------------------
-# How to use this template
+# How this file differs from the template
 #
-# This file is a *reference leaf job*. It is not meant to be executed directly
-# in production or modified in-place.
+# - This file IS meant to be executed (via the wrapper) as part of tests.
+# - This file MUST be updated when the template contract changes.
+# - This file SHOULD exercise new core engine capabilities added to the template.
 #
-# To create a new leaf job:
-#   1. Copy this file to a new job-specific path/name.
-#   2. Modify ONLY the sections marked "Argument parsing" and "Job logic".
-#   3. Preserve the wrapper logic, path resolution, logging helpers,
-#      artifact/result declaration, and commit registration exactly as-is.
+# It is NOT a reference for creating new leaf jobs.
 #
-# Design intent:
-# - One leaf = one job = one result set.
-# - A result set may contain one or many artifacts.
-# - Leaf code assumes a healthy wrapper unless explicitly degraded.
-# - Leaf emits structured stderr logs; it never initializes logging.
-# - Leaf declares outputs; wrapper decides whether/how to commit.
-#
-# Result declaration rules:
-# - All produced artifacts MUST be declared via COMMIT_LIST_FILE (if provided).
-# - Leaf scripts producing multiple artifacts:
-#   - MUST declare the full result set via COMMIT_LIST_FILE
-#   - MUST append one absolute artifact path per line
-#   - MUST do so only after each artifact is fully finalized (e.g., after
-#     atomic mv)
-#
-#   Notes:
-#   - A separate manifest file is OPTIONAL.
-#   - If a manifest is produced, it is treated as a normal artifact and MUST be
-#     declared via COMMIT_LIST_FILE like any other output.
-#
-# This template is contract-stable.
-# If it needs to change, the engine or wrapper contract probably does first.
 # ---------------------------------------------------------------------------
 #
-# Responsibilities:
-# - Perform one job
-# - Produce one result set (one or more artifacts)
-# - Declare all produced artifacts via COMMIT_LIST_FILE (if provided)
-#
-# Non-responsibilities:
-# - Logging setup
-# - Commit orchestration
-# - Wrapper recursion control
+# Contract intent (validated here):
+# - Wrapper provides REPO_ROOT and VAULT_ROOT
+# - Engine libs are sourced only in the Engine libs section
+# - Leaf produces one obvious artifact
+# - Artifact is written atomically
+# - Artifact is declared only after finalization
 #
 # Author: deadhedd
 # License: MIT
