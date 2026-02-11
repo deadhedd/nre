@@ -312,9 +312,24 @@ case "$LEAF_PATH" in
     ;;
 esac
 
-# LOG_LIB_DIR points to the shared helper library directory (engine/lib)
-# used by the wrapper logging façade after sourcing engine/log.sh.
-LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR/lib}
+###############################################################################
+# Library locations (decouple logging stack from commit helper)
+###############################################################################
+#
+# Logging stack files live alongside the wrapper in engine/:
+#   engine/log.sh, engine/log-sink.sh, engine/log-format.sh, engine/log-capture.sh
+#
+# Commit helper (and other non-logging helpers) live in engine/lib/:
+#   engine/lib/commit.sh, engine/lib/datetime.sh, engine/lib/periods.sh, ...
+#
+ENGINE_LOG_DIR=${ENGINE_LOG_DIR:-$WRAP_DIR}
+export ENGINE_LOG_DIR
+
+COMMIT_LIB_DIR=${COMMIT_LIB_DIR:-$WRAP_DIR/lib}
+export COMMIT_LIB_DIR
+
+# Back-compat: LOG_LIB_DIR historically meant "engine/lib".
+LOG_LIB_DIR=${LOG_LIB_DIR:-$COMMIT_LIB_DIR}
 export LOG_LIB_DIR
 
 ###############################################################################
@@ -682,7 +697,7 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
         done <"$_cl2"
 
         _wrap_info "commit requested: mode=$COMMIT_MODE"
-        sh "$LOG_LIB_DIR/commit.sh" "$COMMIT_WORK_TREE" "$COMMIT_MESSAGE" "$@"
+        sh "$COMMIT_LIB_DIR/commit.sh" "$COMMIT_WORK_TREE" "$COMMIT_MESSAGE" "$@"
         _c_rc=$?
         _wrap_debug "commit: helper_rc=$_c_rc"
 
