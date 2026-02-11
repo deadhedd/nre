@@ -312,7 +312,8 @@ case "$LEAF_PATH" in
     ;;
 esac
 
-# Default LOG_LIB_DIR to engine/lib unless caller overrides.
+# LOG_LIB_DIR points to the shared helper library directory (engine/lib)
+# used by the wrapper logging façade after sourcing engine/log.sh.
 LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR/lib}
 export LOG_LIB_DIR
 
@@ -395,18 +396,18 @@ fi
 _wrap_debug "job: JOB_NAME=$JOB_NAME LEAF_PATH=$LEAF_PATH LEAF_USE_SH=${LEAF_USE_SH:-0} WRAP_BOOT_LOG=${WRAP_BOOT_LOG:-<unset>}"
 
 ###############################################################################
-# Source log library and initialize
+# Source wrapper logging library and initialize
 ###############################################################################
 
 # Make init failure deterministic across sh variants: check readability first.
-if [ ! -r "$LOG_LIB_DIR/log.sh" ]; then
-  _wrap_error "cannot source log library: $LOG_LIB_DIR/log.sh"
+if [ ! -r "$WRAP_DIR/log.sh" ]; then
+  _wrap_error "cannot source log library: $WRAP_DIR/log.sh"
   exit "$WRAP_E_INIT"
 fi
 
 # Source log lib (do not silence failures)
-if ! . "$LOG_LIB_DIR/log.sh" 2>/dev/null; then
-  _wrap_error "cannot source log library: $LOG_LIB_DIR/log.sh"
+if ! . "$WRAP_DIR/log.sh" 2>/dev/null; then
+  _wrap_error "cannot source log library: $WRAP_DIR/log.sh"
   exit "$WRAP_E_INIT"
 fi
 
