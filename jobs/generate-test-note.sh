@@ -120,8 +120,8 @@ case "$REPO_ROOT" in
 esac
 repo_root=$REPO_ROOT
 
-datetime_lib=$repo_root/lib/datetime.sh
-periods_lib=$repo_root/lib/periods.sh
+datetime_lib=$repo_root/engine/lib/datetime.sh
+periods_lib=$repo_root/engine/lib/periods.sh
 
 if [ ! -r "$datetime_lib" ]; then
   log_error "datetime lib not found/readable: $datetime_lib"
