@@ -76,7 +76,7 @@ case "$REPO_ROOT" in
 esac
 repo_root=$REPO_ROOT
 
-lib_dir=$repo_root/lib
+lib_dir=$repo_root/engine/lib
 
 periods_lib=$lib_dir/periods.sh
 datetime_lib=$lib_dir/datetime.sh
