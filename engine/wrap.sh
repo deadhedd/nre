@@ -312,8 +312,8 @@ case "$LEAF_PATH" in
     ;;
 esac
 
-# Default LOG_LIB_DIR to wrapper dir unless caller overrides.
-LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR}
+# Default LOG_LIB_DIR to engine/lib unless caller overrides.
+LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR/lib}
 export LOG_LIB_DIR
 
 ###############################################################################
@@ -681,7 +681,7 @@ if [ "$_leaf_rc" -eq 0 ] && [ "$COMMIT_MODE" != "off" ]; then
         done <"$_cl2"
 
         _wrap_info "commit requested: mode=$COMMIT_MODE"
-        "$REPO_ROOT/engine/lib/commit.sh" "$COMMIT_WORK_TREE" "$COMMIT_MESSAGE" "$@"
+        sh "$LOG_LIB_DIR/commit.sh" "$COMMIT_WORK_TREE" "$COMMIT_MESSAGE" "$@"
         _c_rc=$?
         _wrap_debug "commit: helper_rc=$_c_rc"
 
