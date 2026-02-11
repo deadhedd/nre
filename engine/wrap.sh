@@ -440,6 +440,18 @@ else
   _li_rc=$?
 fi
 
+# Preserve log_init stderr in bootstrap when init fails (diagnostics).
+if [ "$_li_rc" -ne 0 ] && [ -n "${_li_err:-}" ] && [ -s "$_li_err" ]; then
+  if [ -n "${WRAP_BOOT_LOG:-}" ]; then
+    {
+      printf 'BOOTSTRAP DEBUG: log_init stderr (rc=%s)\n' "$_li_rc"
+      printf '%s\n' '--- log_init stderr ---'
+      cat "$_li_err" 2>/dev/null || :
+      printf '\n'
+    } >>"$WRAP_BOOT_LOG" 2>/dev/null || :
+  fi
+fi
+
 if [ -n "${_li_out:-}" ] && [ -s "$_li_out" ]; then
   LOG_DEGRADED=1
   _wrap_warn "contract violation contained: log_init wrote to stdout (degrading)"
