@@ -562,6 +562,51 @@ assert_eq "$rc" "0" "log_init rc=10 does not fail the job"
 assert_eq "$(cat "$out" 2>/dev/null || :)" "STDOUT: ok" "log_init rc=10 does not pollute stdout"
 assert_nonempty_file "$err" "log_init rc=10 produces boundary warning (degraded)"
 
+# --------------------------------------------------------------------------
+# ADDED TEST 10b: log_init stderr is preserved in bootstrap on init failure
+# --------------------------------------------------------------------------
+mv "$_sandbox_lib/log.sh" "$_sandbox_lib/log.real.10b.sh" || exit 2
+
+cat >"$_sandbox_lib/log.sh" <<'LOG10B'
+#!/bin/sh
+# log.sh (test double): log_init fails and emits stderr diagnostics
+
+(return 0 2>/dev/null) || { echo "ERROR: log.sh must be sourced" >&2; exit 2; }
+
+log_init() {
+  echo "init-check: bad log sink" >&2
+  return 10
+}
+log_capture() { cat >/dev/null; return 0; }
+log_debug() { :; }
+log_info()  { :; }
+log_warn()  { :; }
+log_error() { :; }
+LOG10B
+
+_leaf=$(make_leaf leaf_log10b '
+echo "STDOUT: ok"
+exit 0
+')
+
+run_wrap "$_leaf"
+rc=$WRAP_RC; out=$WRAP_OUT; err=$WRAP_ERR
+
+assert_eq "$rc" "0" "log_init stderr capture test does not fail the job"
+assert_eq "$(cat "$out" 2>/dev/null || :)" "STDOUT: ok" "log_init stderr capture test preserves stdout"
+assert_nonempty_file "$err" "log_init stderr capture test emits degraded warning"
+
+_boot_dir="$_sandbox_logs/_bootstrap"
+_boot_hit=$(rg -n "BOOTSTRAP DEBUG: log_init stderr \(rc=10\)|init-check: bad log sink" "$_boot_dir" 2>/dev/null || true)
+if [ -n "$_boot_hit" ]; then
+  ok "bootstrap log preserves log_init stderr diagnostics on init failure"
+else
+  not_ok "bootstrap log preserves log_init stderr diagnostics on init failure"
+fi
+
+rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
+mv "$_sandbox_lib/log.real.10b.sh" "$_sandbox_lib/log.sh" || exit 2
+
 rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
 mv "$_sandbox_lib/log.real.sh" "$_sandbox_lib/log.sh" || exit 2
 
