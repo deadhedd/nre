@@ -322,15 +322,17 @@ esac
 # Commit helper (and other non-logging helpers) live in engine/lib/:
 #   engine/lib/commit.sh, engine/lib/datetime.sh, engine/lib/periods.sh, ...
 #
-ENGINE_LOG_DIR=${ENGINE_LOG_DIR:-$WRAP_DIR}
-export ENGINE_LOG_DIR
+# Library roots:
+# - LOG_LIB_DIR: general repo libraries (datetime, periods, commit, etc.)
+# - ENGINE_LIB_DIR: engine-local logger modules (log-format, log-sink,
+#   log-capture, log)
+LOG_LIB_DIR=${LOG_LIB_DIR:-$WRAP_DIR/lib}
+ENGINE_LIB_DIR=${ENGINE_LIB_DIR:-$WRAP_DIR}
+export LOG_LIB_DIR ENGINE_LIB_DIR
 
-COMMIT_LIB_DIR=${COMMIT_LIB_DIR:-$WRAP_DIR/lib}
+# Commit helper libraries remain rooted in engine/lib by default.
+COMMIT_LIB_DIR=${COMMIT_LIB_DIR:-$LOG_LIB_DIR}
 export COMMIT_LIB_DIR
-
-# Back-compat: LOG_LIB_DIR historically meant "engine/lib".
-LOG_LIB_DIR=${LOG_LIB_DIR:-$COMMIT_LIB_DIR}
-export LOG_LIB_DIR
 
 ###############################################################################
 # Temp/capture feasibility (TMPDIR contract)
@@ -363,7 +365,7 @@ if [ "${LOG_MIN_LEVEL:-INFO}" = "DEBUG" ]; then
   printf '%s\n' "DEBUG: WRAP: bootstrap diagnostics" >&2
 fi
 
-_wrap_debug "bootstrap diagnostics: WRAP_DIR=$WRAP_DIR REPO_ROOT=$REPO_ROOT LOG_ROOT=$LOG_ROOT LOG_LIB_DIR=$LOG_LIB_DIR"
+_wrap_debug "bootstrap diagnostics: WRAP_DIR=$WRAP_DIR REPO_ROOT=$REPO_ROOT LOG_ROOT=$LOG_ROOT LOG_LIB_DIR=$LOG_LIB_DIR ENGINE_LIB_DIR=$ENGINE_LIB_DIR"
 
 ###############################################################################
 # Temp capture file selection (CAPTURE_MODE)
