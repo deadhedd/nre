@@ -138,28 +138,29 @@ case "$REPO_ROOT" in
 esac
 repo_root=$REPO_ROOT
 
-datetime_lib=$repo_root/engine/lib/datetime.sh
-periods_lib=$repo_root/engine/lib/periods.sh
-if [ ! -r "$datetime_lib" ]; then
-  log_error "datetime lib not found/readable: $datetime_lib"
-  exit 127
-fi
-
-# shellcheck source=/dev/null
-. "$datetime_lib" || {
-  log_error "failed to source datetime lib: $datetime_lib"
-  exit 127
-}
+lib_dir=$repo_root/engine/lib
+periods_lib=$lib_dir/periods.sh
+datetime_lib=$lib_dir/datetime.sh
 
 # Period helpers (days / weeks / months / quarters)
 if [ ! -r "$periods_lib" ]; then
   log_error "periods lib not found/readable: $periods_lib"
   exit 127
 fi
-
 # shellcheck source=/dev/null
 . "$periods_lib" || {
   log_error "failed to source periods lib: $periods_lib"
+  exit 127
+}
+
+# Datetime helpers (local-time only)
+if [ ! -r "$datetime_lib" ]; then
+  log_error "datetime lib not found/readable: $datetime_lib"
+  exit 127
+fi
+# shellcheck source=/dev/null
+. "$datetime_lib" || {
+  log_error "failed to source datetime lib: $datetime_lib"
   exit 127
 }
 
@@ -175,17 +176,19 @@ fi
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: leaf-template.sh [--output <path>] [--dry-run]
+Usage: leaf-template.sh [--output <path>] [--dry-run] [--force]
 
 Options:
   --output <path>   Output file path.
   --dry-run         Emit content to stdout instead of writing a file.
+  --force           Overwrite existing files if present.
   --help            Show this message.
 EOF_USAGE
 }
 
 output_path=""
 dry_run=0
+force=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -193,6 +196,10 @@ while [ $# -gt 0 ]; do
       [ $# -ge 2 ] || { printf 'ERROR: missing value for --output\n' >&2; usage >&2; exit 2; }
       output_path=$2
       shift 2
+      ;;
+    --force)
+      force=1
+      shift
       ;;
     --dry-run)
       dry_run=1
@@ -249,6 +256,14 @@ fi
 artifact_root=$VAULT_ROOT
 
 if [ -z "$output_path" ]; then
+  # Anchor computation patterns:
+  # - Period-based outputs (daily/weekly/monthly/etc) SHOULD use periods.sh helpers
+  #   (e.g., today=$(pr_today); result_ref="$artifact_root/.../${today}.md").
+  # - Timestamp/scratch outputs MAY use datetime.sh helpers.
+  #
+  # This template keeps a datetime-based example by default to avoid imposing
+  # a specific vault layout. Jobs generating periodic notes should replace this
+  # block with a period-based result_ref computation.
   ts_local=$(dt_now_local_compact 2>/dev/null || printf '%s' "")
   if [ -z "$ts_local" ]; then
     log_error "datetime unavailable: dt_now_local_compact failed (refusing unsafe filename)"
@@ -282,6 +297,52 @@ case "$result_ref" in
   */) log_error "internal: result_ref ends with '/': $result_ref"; exit 2 ;;
 esac
 
+###############################################################################
+# Helpers (template-standard; optional use by jobs)
+###############################################################################
+
+# Atomic write helper for additional artifacts (and usable for result_ref if desired).
+# Usage:
+#   write_atomic_file "/absolute/path/to/file" <<'EOF'
+#   content...
+#   EOF
+write_atomic_file() {
+  _dest=$1
+  _tmp_dir=${_dest%/*}
+  _tmp="${_tmp_dir}/${_dest##*/}.tmp.$$"
+
+  if ! mkdir -p "$_tmp_dir"; then
+    log_error "failed to create artifact directory: $_tmp_dir"
+    exit 1
+  fi
+
+  # Contain trap scope to a subshell so we don't stomp outer traps.
+  (
+    trap 'rm -f "$_tmp"' HUP INT TERM 0
+    if ! cat >"$_tmp"; then
+      exit 1
+    fi
+    if ! mv "$_tmp" "$_dest"; then
+      exit 1
+    fi
+    trap - HUP INT TERM 0
+    exit 0
+  ) || {
+    log_error "failed atomic write: $_dest"
+    rm -f "$_tmp" 2>/dev/null || true
+    exit 1
+  }
+}
+
+###############################################################################
+# Overwrite guards (external boundary: filesystem state)
+###############################################################################
+
+if [ -f "$result_ref" ] && [ "$force" -ne 1 ]; then
+  log_error "refusing to overwrite existing file: $result_ref (use --force)"
+  exit 1
+fi
+
 generate_content() {
   cat <<EOF_CONTENT
 Example leaf output
@@ -294,6 +355,9 @@ EOF_CONTENT
 if [ "$dry_run" -eq 1 ]; then
   if [ -n "$output_path" ]; then
     log_warn "--dry-run ignores --output: $output_path"
+  fi
+  if [ "$force" -eq 1 ]; then
+    log_warn "--dry-run ignores --force"
   fi
   generate_content
   exit 0
