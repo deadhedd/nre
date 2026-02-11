@@ -121,20 +121,50 @@ _log_resolve_lib_dir() {
   return 0
 }
 
+_log_resolve_engine_lib_dir() {
+  # Resolve wrapper-provided engine logger module directory.
+  #
+  # Accepted vars (first match wins):
+  #   ENGINE_LIB_DIR  (preferred)
+  #   engine_lib_dir  (compat / transitional)
+  #   LOG_LIB_DIR     (fallback for tests/legacy layouts)
+  #   log_lib_dir     (fallback for tests/legacy layouts)
+  _log_engine_dir=${ENGINE_LIB_DIR:-${engine_lib_dir:-${LOG_LIB_DIR:-${log_lib_dir:-}}}}
+
+  if [ -z "${_log_engine_dir:-}" ]; then
+    _log_err "misuse: ENGINE_LIB_DIR (or LOG_LIB_DIR fallback) is required to source logger children"
+    return 11
+  fi
+
+  if [ ! -d "${_log_engine_dir}" ]; then
+    _log_err "misuse: ENGINE_LIB_DIR is not a directory: ${_log_engine_dir}"
+    return 11
+  fi
+
+  _log_engine_dir=$(cd "${_log_engine_dir}" && pwd -P) || {
+    _log_err "operational failure: cannot resolve ENGINE_LIB_DIR: ${_log_engine_dir}"
+    return 10
+  }
+
+  return 0
+}
+
 _log_source_children() {
-  # Source helpers relative to wrapper-provided LOG_LIB_DIR (repo-stable).
+  # Source datetime helper from LOG_LIB_DIR and logger helpers from
+  # ENGINE_LIB_DIR (with LOG_LIB_DIR fallback for legacy/test layouts).
   _log_resolve_lib_dir || return $?
+  _log_resolve_engine_lib_dir || return $?
 
   # Redirect any accidental stdout during sourcing to stderr to preserve
   # "stdout is sacred" while retaining visibility.
   # shellcheck disable=SC1090
-  . "${_log_lib_dir}/datetime.sh"    1>&2 || return 10
+  . "${_log_lib_dir}/datetime.sh"       1>&2 || return 10
   # shellcheck disable=SC1090
-  . "${_log_lib_dir}/log-format.sh"  1>&2 || return 10
+  . "${_log_engine_dir}/log-format.sh"  1>&2 || return 10
   # shellcheck disable=SC1090
-  . "${_log_lib_dir}/log-sink.sh"    1>&2 || return 10
+  . "${_log_engine_dir}/log-sink.sh"    1>&2 || return 10
   # shellcheck disable=SC1090
-  . "${_log_lib_dir}/log-capture.sh" 1>&2 || return 10
+  . "${_log_engine_dir}/log-capture.sh" 1>&2 || return 10
 
   return 0
 }
