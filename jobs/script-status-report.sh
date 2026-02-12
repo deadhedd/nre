@@ -29,6 +29,7 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 wrap="$script_dir/../engine/wrap.sh"
+sync_latest_logs_job="$script_dir/sync-latest-logs-to-vault.sh"
 
 case "$0" in
   /*) script_path=$0 ;;
@@ -216,6 +217,26 @@ write_atomic_file() {
   }
 }
 
+run_sync_latest_logs_to_vault() {
+  # Best-effort: refresh Obsidian "Latest Logs" markdown mirrors before we
+  # emit a report that links to them.
+  if [ ! -x "$sync_latest_logs_job" ]; then
+    log_warn "sync job not found/executable: $sync_latest_logs_job (skipping)"
+    return 0
+  fi
+
+  log_info "Refreshing vault latest-log mirrors"
+  log_debug "sync job: $sync_latest_logs_job"
+
+  "$sync_latest_logs_job" || {
+    rc=$?
+    log_warn "sync-latest-logs-to-vault failed (rc=$rc); continuing"
+    return 0
+  }
+
+  return 0
+}
+
 ###############################################################################
 # Reporter implementation
 ###############################################################################
@@ -395,6 +416,12 @@ if [ "$dry_run" -eq 1 ]; then
   }
   exit 0
 fi
+
+###############################################################################
+# Ensure vault mirrors exist (so report links resolve)
+###############################################################################
+
+run_sync_latest_logs_to_vault
 
 ###############################################################################
 # Write anchor artifact (atomic; contractual)
