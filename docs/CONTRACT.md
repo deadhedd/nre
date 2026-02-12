@@ -1048,6 +1048,32 @@ The goal is:
 
 ---
 
+#### 2.5.1.X Locale Normalization (Engine ASCII-First, Normative)
+
+The engine’s diagnostics and raw logs are intentionally **ASCII-only** (see §2.2.7).
+To make that deterministic on the supported platform (BSD/OpenBSD), the execution wrapper
+**MUST** normalize locale early.
+
+**Normative requirements**
+
+* `job-wrap.sh` **MUST** set the following globally for the job process **before** initializing
+  logging or executing leaf logic:
+  * `LC_ALL=C`
+  * `LANG=C`
+* The wrapper **MUST** export these values so that all engine components (logger, sink, capture,
+  reporter) run under a predictable C locale.
+* Engine components (including reporter helpers) **MUST** assume C-locale semantics and **MUST NOT**
+  attempt locale probing or conditional fallback behavior.
+
+**Leaf script allowance**
+
+* Leaf scripts **MAY** use UTF-8/Unicode when generating **human-facing Markdown artifacts**.
+* If a leaf script requires a non-C locale (e.g., `en_US.UTF-8`) for note content, it **MUST**
+  scope that change narrowly to the note-generation logic and **MUST NOT** allow non-ASCII bytes
+  to enter engine diagnostics/log streams.
+
+---
+
 #### 2.5.2 Stable Repo-Relative Resolution
 
 Scripts MUST locate other repo components by resolving paths relative to the script’s own location, not the current working directory.
