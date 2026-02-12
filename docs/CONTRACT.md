@@ -2398,6 +2398,25 @@ The core engine has been implemented to remain correct when they are unset.
 * **Default:** Repo-defined path (e.g. `/home/obsidian/vaults/Main`)
 * **Validation:** Downstream existence checks only
 
+Normative note:
+* The wrapper MUST export `VAULT_ROOT` as the canonical, resolved absolute vault root path for leaf scripts.
+* Leaf scripts MUST consume `VAULT_ROOT` (not `VAULT_PATH`) for output location and correctness decisions.
+
+#### COMMIT_MODE
+
+* **Owner:** Wrapper
+* **Purpose:** Control whether commit orchestration is invoked
+* **Allowed values:** `off`, `best-effort`, `required`
+* **Default:** `required`
+* **Validation:** Wrapper MUST reject invalid values as wrapper misuse
+
+#### COMMIT_LIST_FILE
+
+* **Owner:** Wrapper
+* **Purpose:** Optional artifact declaration file path for leaf scripts to append finalized artifact paths
+* **Default:** Unset (commit orchestration may be disabled or may not require leaf declarations)
+* **Validation:** If set, MUST be a writable path; leaf scripts MUST treat inability to append as non-fatal and log a WARN
+
 #### LOG_ROOT
 
 * **Owner:** Wrapper / Log sink
@@ -2451,6 +2470,7 @@ The following variables are **internal implementation details**.
 They are documented here for auditability only and are **not part of the public contract surface**:
 
 * `LOG_SINK_LOADED` — prevents double initialization of logging sink
+* `COMMIT_DRY_RUN` — if set to `1`, wrapper/commit orchestration MUST suppress staging/commit side effects
 * Wrapper debug and tracing flags (`JOB_WRAP_DEBUG`, `JOB_WRAP_XTRACE`, etc.)
 * Logging verbosity / formatting controls (`LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY`, etc.)
 
