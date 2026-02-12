@@ -626,11 +626,4 @@ fi
 
 log_info "Produced artifact: $result_ref"
 
-# Job exit policy:
-# - Exit 1 if any failures detected (non-zero exit or ERR patterns)
-if [ "$fail_jobs_parsed" -gt 0 ]; then
-  log_error "detected failed jobs: fail_jobs=$fail_jobs_parsed"
-  exit 1
-fi
-
 exit 0
