@@ -320,6 +320,23 @@ Shared helpers (e.g. `log.sh`) are designed to:
 
 Leaf scripts **MUST NOT** implement ad-hoc `echo`-based logging that risks stdout pollution.
 
+Clarification (Normative): Leaf logging is *formatting*, not a logging system.
+
+* Leaf scripts MUST emit diagnostics to `stderr` only.
+* Any diagnostic line emitted by a leaf MUST follow the Leaf Level Prefix Protocol (§2.2.2.X):
+  `DEBUG:`, `INFO:`, `WARN:`, or `ERROR:` (optionally followed by a single space).
+  This is required so the centralized logger can perform deterministic policy gating.
+* Leaf scripts MUST NOT create or manage log files, timestamps, retention, or “latest” pointers
+  (those remain owned exclusively by the logger subsystem).
+* Leaf scripts MUST NOT source `log.sh` or any logger child helpers.
+
+Recommended practice:
+* Leaf scripts SHOULD use the four tiny `log_*` formatting helpers (`log_debug`, `log_info`,
+  `log_warn`, `log_error`) provided by the Leaf Job Template (wrapper required).
+* These helpers exist specifically to make it trivial to comply with the prefix protocol and to
+  ensure all diagnostics remain on `stderr`.
+* New leaf jobs SHOULD copy these helper function definitions verbatim from the template file.
+
 ---
 
 #### 2.1.7 Design Intent Summary
