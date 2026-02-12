@@ -272,6 +272,121 @@ count_matches_ci_ere() {
   grep -i -E "$ere" "$file" 2>/dev/null | wc -l | tr -d ' '
 }
 
+extract_cadence() {
+  log_file=$1
+  # Contract: leaf MUST declare cadence. We accept tokens in the form:
+  #   cadence=<value>
+  # appearing anywhere in the log, and take the last occurrence.
+  sed -n 's/.*[[:space:]]cadence=\([A-Za-z0-9_+-][A-Za-z0-9_+.-]*\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
+}
+
+extract_run_ts_local() {
+  log_file=$1
+  # Extract the first timestamp in the canonical log line prefix:
+  #   "YYYY-MM-DD HH:MM:SS ..."
+  # We capture only the "YYYY-MM-DD HH:MM:SS" portion (local time).
+  sed -n 's/^\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}[[:space:]][0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}\).*/\1/p' "$log_file" 2>/dev/null | head -n 1
+}
+
+ts_local_to_epoch() {
+  # Convert "YYYY-MM-DD HH:MM:SS" (local time) to epoch seconds using the
+  # already-detected date backend from engine/lib/datetime.sh.
+  _ts=${1-}
+  [ -n "$_ts" ] || return 1
+
+  case "${DT_DATE_BACKEND:-0}" in
+    1)
+      # BSD date
+      "$DT_DATE_BIN" -j -f '%Y-%m-%d %H:%M:%S' "$_ts" '+%s' 2>/dev/null
+      ;;
+    2)
+      # GNU date
+      "$DT_DATE_BIN" -d "$_ts" '+%s' 2>/dev/null
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+cadence_allowed_age_sec() {
+  # Map cadence tokens -> allowed age in seconds before "stale".
+  #
+  # Semantics:
+  # - Zero grace period.
+  # - Stale means the job did not run within exactly one cadence interval.
+  # - ad-hoc is not evaluated (prints empty).
+  _c=${1-}
+  case "$_c" in
+    ad-hoc)    printf '%s' '' ;;
+    hourly)    printf '%s' 3600 ;;
+    daily)     printf '%s' 86400 ;;
+    weekly)    printf '%s' 604800 ;;
+    monthly)   printf '%s' 2592000 ;;
+    quarterly) printf '%s' 7776000 ;;
+    yearly)    printf '%s' 31536000 ;;
+    *)
+      # Unrecognized cadence token: indeterminate (prints "?" so caller can flag)
+      printf '%s' '?'
+      ;;
+  esac
+}
+
+compute_freshness() {
+  # Inputs:
+  #   $1 log_file
+  #
+  # Outputs (space-separated):
+  #   cadence freshness age_sec_or_? allowed_sec_or_?/blank
+  #
+  # freshness:
+  #   fresh | stale | n/a | indeterminate
+  _log=$1
+
+  _cad=$(extract_cadence "$_log")
+  if [ -z "$_cad" ]; then
+    printf '%s\n' "? indeterminate ? ?"
+    return 0
+  fi
+
+  _allowed=$(cadence_allowed_age_sec "$_cad")
+  if [ "$_allowed" = "?" ]; then
+    printf '%s\n' "$_cad indeterminate ? ?"
+    return 0
+  fi
+  if [ -z "$_allowed" ]; then
+    # ad-hoc (or explicitly non-evaluable)
+    printf '%s\n' "$_cad n/a 0"
+    return 0
+  fi
+
+  _ts=$(extract_run_ts_local "$_log")
+  _run_epoch=$(ts_local_to_epoch "$_ts" || true)
+  if [ -z "$_run_epoch" ]; then
+    printf '%s\n' "$_cad indeterminate ? $_allowed"
+    return 0
+  fi
+
+  _now=$(dt_now_epoch 2>/dev/null || true)
+  if [ -z "$_now" ]; then
+    printf '%s\n' "$_cad indeterminate ? $_allowed"
+    return 0
+  fi
+
+  _age=$((_now - _run_epoch))
+  if [ "$_age" -lt 0 ] 2>/dev/null; then
+    # Clock skew; treat as indeterminate rather than "fresh".
+    printf '%s\n' "$_cad indeterminate ? $_allowed"
+    return 0
+  fi
+
+  if [ "$_age" -gt "$_allowed" ] 2>/dev/null; then
+    printf '%s\n' "$_cad stale $_age $_allowed"
+  else
+    printf '%s\n' "$_cad fresh $_age $_allowed"
+  fi
+}
+
 # Double-status ("INFO INFO:") is not required for detection; treat anything after
 # the first level token as message content. However, modern logs use a space
 # timestamp (not ISO T), so match the first level token after the timestamp+zone.
@@ -302,8 +417,8 @@ generate_report() {
   printf 'This report summarizes the latest known status for each script, based on its `*-latest.log` log file.\n\n'
   printf 'LOG_ROOT: `%s`\n\n' "$LOG_ROOT"
   printf '## Status Table\n\n'
-  printf '| Script | Status | Exit Code | Warns | Errs | Log |\n'
-  printf '|--------|--------|-----------|-------|------|-----|\n'
+  printf '| Script | Status | Exit Code | Warns | Errs | Cadence | Fresh | Log |\n'
+  printf '|--------|--------|-----------|-------|------|---------|-------|-----|\n'
 
   while IFS= read -r link; do
     [ -n "$link" ] || continue
@@ -325,6 +440,15 @@ generate_report() {
     exit_code=$(extract_exit_code "$link")
     warn_count=$(count_matches_ci_ere "$link" "$WARN_ERE")
     err_count=$(count_matches_ci_ere "$link" "$ERR_ERE")
+
+    # Cadence/freshness (contract-mandated)
+    freshness_line=$(compute_freshness "$link")
+    cadence=$(printf '%s\n' "$freshness_line" | awk '{print $1}')
+    fresh_state=$(printf '%s\n' "$freshness_line" | awk '{print $2}')
+    # age_sec and allowed_sec currently unused for display; kept for potential future debug
+    # age_sec=$(printf '%s\n' "$freshness_line" | awk '{print $3}')
+    # allowed_sec=$(printf '%s\n' "$freshness_line" | awk '{print $4}')
+    fresh_display=$fresh_state
 
     if [ -z "$exit_code" ]; then
       status="unknown"
@@ -355,14 +479,42 @@ generate_report() {
       fi
     fi
 
+    # Cadence / freshness precedence:
+    # - Missing/unparseable cadence => unhealthy (contract: cadence missing is error)
+    # - Stale => unhealthy (orthogonal to success/failure)
+    #
+    # These conditions contribute to fail_jobs (reporter marker).
+    if [ "$cadence" = "?" ]; then
+      if [ "$status" = "OK" ]; then ok_jobs=$((ok_jobs - 1)); fi
+      if [ "$status" = "WARN" ]; then warn_jobs=$((warn_jobs - 1)); fi
+      if [ "$status" = "unknown" ]; then unknown_jobs=$((unknown_jobs - 1)); fi
+      status="NO-CAD"
+      fail_jobs=$((fail_jobs + 1))
+      fresh_display="indeterminate"
+    elif [ "$fresh_state" = "stale" ]; then
+      if [ "$status" = "OK" ]; then ok_jobs=$((ok_jobs - 1)); fi
+      if [ "$status" = "WARN" ]; then warn_jobs=$((warn_jobs - 1)); fi
+      status="STALE"
+      fail_jobs=$((fail_jobs + 1))
+      fresh_display="stale"
+    elif [ "$fresh_state" = "indeterminate" ]; then
+      if [ "$status" = "OK" ]; then ok_jobs=$((ok_jobs - 1)); fi
+      if [ "$status" = "WARN" ]; then warn_jobs=$((warn_jobs - 1)); fi
+      if [ "$status" = "unknown" ]; then unknown_jobs=$((unknown_jobs - 1)); fi
+      status="FRESH?"
+      fail_jobs=$((fail_jobs + 1))
+    fi
+
     total_jobs=$((total_jobs + 1))
 
-    printf '| %s | %s | %s | %s | %s | %s |\n' \
+    printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
       "$(printf '%s' "$job" | escape_md)" \
       "$(printf '%s' "$status" | escape_md)" \
       "$(printf '%s' "$exit_display" | escape_md)" \
       "$(printf '%s' "$warn_count" | escape_md)" \
       "$(printf '%s' "$err_count" | escape_md)" \
+      "$(printf '%s' "$cadence" | escape_md)" \
+      "$(printf '%s' "$fresh_display" | escape_md)" \
       "$(printf '[[%s-latest]]' "$job" | escape_md)"
   done <"$list_file"
 
