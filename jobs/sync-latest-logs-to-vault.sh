@@ -1,9 +1,8 @@
 #!/bin/sh
-# jobs/sync-latest-logs-to-vault.sh — Copy *-latest.log files into the Obsidian vault
+# jobs/sync-latest-logs-to-vault.sh — Mirror *-latest.log as Markdown notes in the Obsidian vault
 #
 # Leaf job (wrapper required).
-# Multi-artifact job: copies latest-log snapshots into the vault and writes
-# a per-run summary manifest.
+# Multi-artifact job: writes one .md file per *-latest.log, plus a per-run manifest.
 #
 # Author: deadhedd
 # License: MIT
@@ -171,19 +170,21 @@ fi
 # Enumerate logs
 ###############################################################################
 found=0
-copied=0
+written=0
 failed=0
 skipped_missing=0
 skipped_unreadable=0
 
 list_file=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.XXXXXX")
-copied_file=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs-copied.XXXXXX")
-trap 'rm -f "$list_file" "$copied_file"' EXIT INT TERM HUP
+written_file=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs-written.XXXXXX")
+trap 'rm -f "$list_file" "$written_file"' EXIT INT TERM HUP
 
 find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file" || true
 
+run_iso=$(dt_now_local_iso)
+
 ###############################################################################
-# Copy loop
+# Write loop (.md per log)
 ###############################################################################
 while IFS= read -r link || [ -n "$link" ]; do
   [ -n "$link" ] || continue
@@ -200,7 +201,12 @@ while IFS= read -r link || [ -n "$link" ]; do
   fi
 
   rel=${link#${LOG_ROOT%/}/}
-  dest="${VAULT_LOG_DIR%/}/$rel"
+  case "$rel" in
+    *.log) md_rel=${rel%".log"}.md ;;
+    *)     md_rel=$rel.md ;;
+  esac
+
+  dest="${VAULT_LOG_DIR%/}/$md_rel"
 
   if [ "$dry_run" -eq 1 ]; then
     printf '%s -> %s\n' "$link" "$dest"
@@ -209,9 +215,19 @@ while IFS= read -r link || [ -n "$link" ]; do
 
   mkdir -p "${dest%/*}" || { failed=$((failed + 1)); continue; }
 
-  if cp -L "$link" "$dest"; then
-    copied=$((copied + 1))
-    printf '%s\n' "$dest" >>"$copied_file"
+  if write_atomic_file "$dest" <<EOF
+# Latest Log: ${rel##*/}
+
+- Source: $link
+- Captured: $run_iso
+
+\`\`\`
+$(cat "$link" 2>/dev/null || true)
+\`\`\`
+EOF
+  then
+    written=$((written + 1))
+    printf '%s\n' "$dest" >>"$written_file"
   else
     failed=$((failed + 1))
   fi
@@ -229,13 +245,13 @@ LOG_ROOT=$LOG_ROOT
 VAULT_LOG_DIR=$VAULT_LOG_DIR
 
 summary_found=$found
-summary_copied=$copied
+summary_written=$written
 summary_failed=$failed
 summary_skipped_missing=$skipped_missing
 summary_skipped_unreadable=$skipped_unreadable
 
-copied_files:
-$(cat "$copied_file")
+written_files:
+$(cat "$written_file")
 EOF
 
 ###############################################################################
@@ -243,14 +259,14 @@ EOF
 ###############################################################################
 if [ -n "${COMMIT_LIST_FILE:-}" ]; then
   printf '%s\n' "$result_ref" >>"$COMMIT_LIST_FILE" || true
-  cat "$copied_file" >>"$COMMIT_LIST_FILE" || true
+  cat "$written_file" >>"$COMMIT_LIST_FILE" || true
 fi
 
 ###############################################################################
 # Exit
 ###############################################################################
 log_info "Produced artifact: $result_ref"
-log_info "Summary: found=$found copied=$copied failed=$failed skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
+log_info "Summary: found=$found written=$written failed=$failed skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
 
 [ "$failed" -eq 0 ] || exit 1
 exit 0
