@@ -228,7 +228,11 @@ now_local() { dt_now_local_iso_no_tz; }
 
 extract_exit_code() {
   log_file=$1
-  sed -n 's/.*exit=\([0-9][0-9]*\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
+  # New wrapper format: leaf rc is emitted explicitly as:
+  #   "... WRAP: leaf: rc=0"
+  #
+  # We intentionally ignore other rc= tokens (log-init, helper_rc, etc).
+  sed -n 's/.*WRAP: leaf: rc=\([0-9][0-9]*\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
 }
 
 escape_md() {
@@ -247,8 +251,11 @@ count_matches_ci_ere() {
   grep -i -E "$ere" "$file" 2>/dev/null | wc -l | tr -d ' '
 }
 
-WARN_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(WARN|WARNING)([[:space:]:]|$)'
-ERR_ERE='^([0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+[[:space:]]+)?(ERR|ERROR|FATAL)([[:space:]:]|$)'
+# Double-status ("INFO INFO:") is not required for detection; treat anything after
+# the first level token as message content. However, modern logs use a space
+# timestamp (not ISO T), so match the first level token after the timestamp+zone.
+WARN_ERE='^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}[[:space:]]+\[[^]]*\][[:space:]]+(WARN|WARNING)([[:space:]]|$)'
+ERR_ERE='^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}[[:space:]]+\[[^]]*\][[:space:]]+(ERR|ERROR|FATAL)([[:space:]]|$)'
 
 generate_report() {
   # Generates markdown to stdout.
