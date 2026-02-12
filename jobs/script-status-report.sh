@@ -336,13 +336,13 @@ generate_report() {
 
     total_jobs=$((total_jobs + 1))
 
-    printf '| %s | %s | %s | %s | %s | `%s` |\n' \
+    printf '| %s | %s | %s | %s | %s | %s |\n' \
       "$(printf '%s' "$job" | escape_md)" \
       "$(printf '%s' "$status" | escape_md)" \
       "$(printf '%s' "$exit_display" | escape_md)" \
       "$(printf '%s' "$warn_count" | escape_md)" \
       "$(printf '%s' "$err_count" | escape_md)" \
-      "$(printf '%s' "$link" | escape_md)"
+      "$(printf '[[%s-latest]]' "$job" | escape_md)"
   done <"$list_file"
 
   if [ "$total_jobs" -eq 0 ]; then
