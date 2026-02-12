@@ -1043,10 +1043,10 @@ Standard pattern:
 
 Wrapper-provided repo root (preferred when wrapped):
 
-* When execution is under `job-wrap.sh` (`JOB_WRAP_ACTIVE=1`), the wrapper **MUST** export `REPO_ROOT`
+* When execution is under `wrap.sh` (`JOB_WRAP_ACTIVE=1`), the wrapper **MUST** export `REPO_ROOT`
   as an absolute path to the tools repository root.
 * Leaf scripts **MAY** rely on `REPO_ROOT` **only after** wrapper-managed execution is active.
-* Pre-wrap (before re-exec), leaf scripts still **MUST** be able to locate `job-wrap.sh` in a repo-stable way
+* Pre-wrap (before re-exec), leaf scripts still **MUST** be able to locate `wrap.sh` in a repo-stable way
   using script-relative resolution (they cannot assume `REPO_ROOT` exists yet).
 
 Scripts MUST NOT:
@@ -1058,11 +1058,11 @@ Scripts MUST NOT:
 
 ---
 
-#### 2.5.3 job-wrap Discovery
+#### 2.5.3 wrap Discovery
 
-Leaf scripts MUST locate `job-wrap.sh` in a repo-stable way and re-exec through it as defined in the Execution Contract.
+Leaf scripts MUST locate `wrap.sh` in a repo-stable way and re-exec through it as defined in the Execution Contract.
 
-If `job-wrap.sh` cannot be found or is not executable, scripts MUST fail fast and loud rather than silently running “unwrapped”.
+If `wrap.sh` cannot be found or is not executable, scripts MUST fail fast and loud rather than silently running “unwrapped”.
 
 ---
 
@@ -1405,10 +1405,10 @@ If an internal dependency breaks, the system should stop, not guess.
 
 ## 3. Component Contracts
 
-### 3.1 Execution Contract (job-wrap)
+### 3.1 Execution Contract (wrap)
 
 All scripts in `obsidian-note-tools` execute under a **single, mandatory wrapper**:
-`utils/core/job-wrap.sh`.
+`engine/wrap.sh`.
 
 This wrapper defines the canonical execution environment for all jobs and is the *only* component permitted to manage logging, lifecycle metadata, and optional auto-commit behavior.
 
