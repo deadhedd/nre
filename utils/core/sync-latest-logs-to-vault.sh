@@ -1,6 +1,8 @@
 #!/bin/sh
-# sync-latest-logs-to-vault.sh — Copy *-latest.log files into the Obsidian vault
+# sync-latest-logs-to-vault.sh — Mirror *-latest.log as Markdown notes in the Obsidian vault
 # Author: deadhedd
+#
+# Multi-artifact job: writes one .md file per *-latest.log.
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
@@ -19,6 +21,23 @@ now_local() {
 
 log_msg() {
   printf '%s %s\n' "$(now_local)" "$*" >&2
+}
+
+write_atomic_file() {
+  target=$1
+  tmp=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs-write.XXXXXX") || return 1
+
+  if ! cat >"$tmp"; then
+    rm -f -- "$tmp" 2>/dev/null || true
+    return 1
+  fi
+
+  if ! mv -- "$tmp" "$target" 2>/dev/null; then
+    rm -f -- "$tmp" 2>/dev/null || true
+    return 1
+  fi
+
+  return 0
 }
 
 LOG_ROOT=${LOG_ROOT:-/home/obsidian/logs}
@@ -40,7 +59,7 @@ if ! mkdir -p -- "$VAULT_LOG_DIR" 2>/dev/null; then
 fi
 
 found=0
-copied=0
+written=0
 failed=0
 skipped_missing=0
 skipped_unreadable=0
@@ -75,7 +94,12 @@ while IFS= read -r link || [ -n "$link" ]; do
       ;;
   esac
 
-  dest="$VAULT_LOG_DIR/$rel"
+  case "$rel" in
+    *.log) md_rel=${rel%".log"}.md ;;
+    *) md_rel=$rel.md ;;
+  esac
+
+  dest="$VAULT_LOG_DIR/$md_rel"
   dest_dir=${dest%/*}
 
   if [ ! -d "$dest_dir" ] && ! mkdir -p -- "$dest_dir" 2>/dev/null; then
@@ -84,18 +108,28 @@ while IFS= read -r link || [ -n "$link" ]; do
     continue
   fi
 
-  # Follow symlinks so the vault gets real log content (portable across devices).
-  if cp -L -- "$link" "$dest" 2>/dev/null; then
-    copied=$((copied + 1))
-    log_msg "Copied $link -> $dest"
+  run_iso=$(now_local)
+  if write_atomic_file "$dest" <<EOF
+# Latest Log: ${rel##*/}
+
+- Source: $link
+- Captured: $run_iso
+
+\`\`\`
+$(cat "$link" 2>/dev/null || true)
+\`\`\`
+EOF
+  then
+    written=$((written + 1))
+    log_msg "Wrote $link -> $dest"
   else
     failed=$((failed + 1))
-    log_msg "Copy failed: $link -> $dest"
+    log_msg "Write failed: $link -> $dest"
   fi
 
 done <"$list_file"
 
-log_msg "Summary: found=$found copied=$copied failed=$failed skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
+log_msg "Summary: found=$found written=$written failed=$failed skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
 
 [ "$failed" -eq 0 ] || exit 1
 exit 0
