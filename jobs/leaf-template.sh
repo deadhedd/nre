@@ -124,6 +124,22 @@ else
 fi
 
 ###############################################################################
+# Cadence declaration (contract-required)
+###############################################################################
+#
+# Contract:
+# - Every leaf MUST declare a cadence token in stderr so status reporting can
+#   evaluate freshness from the captured job log.
+# - This must run in the wrapped execution path so it lands in the real log.
+#
+# Allowed tokens:
+#   hourly | daily | weekly | monthly | quarterly | yearly | ad-hoc
+#
+# Jobs created from this template should set JOB_CADENCE to the correct value.
+JOB_CADENCE=${JOB_CADENCE:-ad-hoc}
+log_info "cadence=$JOB_CADENCE"
+
+###############################################################################
 # Engine libs (wrapped path only)
 ###############################################################################
 
