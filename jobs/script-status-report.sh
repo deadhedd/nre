@@ -104,20 +104,18 @@ fi
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: script-status-report.sh [--output <path>] [--dry-run] [--force]
+Usage: script-status-report.sh [--output <path>] [--dry-run]
 
 Options:
   --output <path>   Output file path (absolute).
                     Default: <VAULT_ROOT>/Server Logs/Script Status Report.md
   --dry-run         Emit report to stdout instead of writing a file.
-  --force           Overwrite existing files if present.
   --help            Show this message.
 EOF_USAGE
 }
 
 output_path=""
 dry_run=0
-force=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -125,10 +123,6 @@ while [ $# -gt 0 ]; do
       [ $# -ge 2 ] || { printf 'ERROR: missing value for --output\n' >&2; usage >&2; exit 2; }
       output_path=$2
       shift 2
-      ;;
-    --force)
-      force=1
-      shift
       ;;
     --dry-run)
       dry_run=1
@@ -543,24 +537,12 @@ generate_report() {
 }
 
 ###############################################################################
-# Overwrite guards
-###############################################################################
-
-if [ -f "$result_ref" ] && [ "$force" -ne 1 ] && [ "$dry_run" -ne 1 ]; then
-  log_error "refusing to overwrite existing file: $result_ref (use --force)"
-  exit 1
-fi
-
-###############################################################################
 # Dry-run
 ###############################################################################
 
 if [ "$dry_run" -eq 1 ]; then
   if [ -n "$output_path" ]; then
     log_warn "--dry-run ignores --output: $output_path"
-  fi
-  if [ "$force" -eq 1 ]; then
-    log_warn "--dry-run ignores --force"
   fi
   generate_report || {
     log_error "failed to generate report"
