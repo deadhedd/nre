@@ -1,15 +1,15 @@
 #!/bin/sh
-# jobs/helpers/generate-day-plan.sh — Extract day/blocks from "Daily Plan.md"
+# utils/elements/generate-day-plan.sh — Extract day/blocks from "Daily Plan.md"
 #
 # Helper executable (NOT a leaf job):
-# - Invoked by generate-daily-note.sh (which is the wrapped leaf).
+# - Invoked by generate-daily-note.sh (the wrapped leaf job).
 # - stdout: content only (markdown text).
 # - stderr: diagnostics only (never leak INFO lines into note content).
 # - No wrapper, no cadence, no commit registration.
 #
 # Modes:
 #   - No --block         -> print today's section + tomorrow preview (legacy mode)
-#   - --block <BlockName>-> print only that block for resolved day/date (for subnotes)
+#   - --block <BlockName>-> print only that block for the resolved day/date (for subnotes)
 #
 # Options:
 #   --date YYYY-MM-DD    (optional; derives weekday)
@@ -38,18 +38,36 @@ die() { log_error "$*"; exit 1; }
 ###############################################################################
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
-# Default vault root: prefer VAULT_ROOT (new system), then VAULT_PATH (legacy), then default.
+# Repo root (repo-local helper; do not require wrapper env)
+repo_root=$(
+  CDPATH= cd "$script_dir/../.." 2>/dev/null && pwd
+) || die "failed to resolve repo root from script location"
+
+lib_dir=$repo_root/engine/lib
+datetime_lib=$lib_dir/datetime.sh
+periods_lib=$lib_dir/periods.sh
+
+# Engine libs (local-first): datetime then periods (periods depends on datetime)
+if [ ! -r "$datetime_lib" ]; then
+  die "datetime lib not found/readable: $datetime_lib"
+fi
+# shellcheck source=/dev/null
+. "$datetime_lib" || die "failed to source datetime lib: $datetime_lib"
+
+if [ ! -r "$periods_lib" ]; then
+  die "periods lib not found/readable: $periods_lib"
+fi
+# shellcheck source=/dev/null
+. "$periods_lib" || die "failed to source periods lib: $periods_lib"
+
+###############################################################################
+# Default Daily Plan path
+###############################################################################
+# Prefer VAULT_ROOT (new system), then VAULT_PATH (legacy), then default.
 vault_base="${VAULT_ROOT:-${VAULT_PATH:-/home/obsidian/vaults/Main}}"
 vault_base="${vault_base%/}"
-
-# Default Daily Plan path (vault-relative)
 relative_path='000 - General Knowledge, Information Science, and Computing/005 - Computer Programming, Information, and Security/005.7 - Data/Templates/Daily Plan.md'
-default_file="${vault_base}/${relative_path}"
-
-# Legacy helper library (weekday/date math)
-# Keep existing dependency for now; this pass is organization/compliance.
-core_dir=$(CDPATH= cd "$script_dir/../core" 2>/dev/null && pwd) || core_dir=""
-date_helpers="${core_dir%/}/date-period-helpers.sh"
+file="${vault_base}/${relative_path}"
 
 ###############################################################################
 # Usage
@@ -64,7 +82,7 @@ Modes:
   - With --block   -> prints only that block for the resolved day/date (for subnotes)
 
 Notes:
-  - If --date is provided, weekday is derived from that date.
+  - If --date is provided, weekday is derived from that date (local-first).
   - If --day is provided, it overrides the derived weekday.
   - Recognized blocks are headings under "#### <BlockName>" or "##### <BlockName>" in Daily Plan.md.
   - stdout is content only; diagnostics go to stderr.
@@ -77,7 +95,6 @@ EOT
 DAY_NAME=""
 DATE_IN=""
 BLOCK=""
-file="$default_file"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -112,15 +129,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-###############################################################################
-# Preconditions
-###############################################################################
-if [ -z "$core_dir" ] || [ ! -r "$date_helpers" ]; then
-  die "required helper lib not found/readable: $date_helpers"
-fi
-# shellcheck source=/dev/null
-. "$date_helpers" || die "failed to source helper lib: $date_helpers"
-
 if [ ! -f "$file" ]; then
   die "missing Daily Plan file: $file"
 fi
@@ -128,25 +136,27 @@ fi
 log_debug "using day plan file: $file"
 
 ###############################################################################
-# Day resolution
+# Day resolution (local-first via datetime+periods)
 ###############################################################################
-# NOTE: these functions come from date-period-helpers.sh (legacy core helpers)
-today_date=$(get_today)
-today_index=$(weekday_for_utc_date "$today_date") || die "unable to resolve today's weekday"
-today_name=$(weekday_name_for_index "$today_index") || die "unable to resolve today's weekday name"
+today_date=$(pr_today) || die "unable to resolve today's date"
+today_index=$(pr_weekday_index_for_date "$today_date") || die "unable to resolve today's weekday index"
+today_name=$(pr_weekday_name_for_index "$today_index") || die "unable to resolve today's weekday name"
 
-tomorrow_date=$(shift_utc_date_by_days "$today_date" 1) || die "unable to resolve tomorrow's date"
-tomorrow_index=$(weekday_for_utc_date "$tomorrow_date") || die "unable to resolve tomorrow's weekday"
-tomorrow_name=$(weekday_name_for_index "$tomorrow_index") || die "unable to resolve tomorrow's weekday name"
+tomorrow_date=$(pr_tomorrow) || die "unable to resolve tomorrow's date"
+tomorrow_index=$(pr_weekday_index_for_date "$tomorrow_date") || die "unable to resolve tomorrow's weekday index"
+tomorrow_name=$(pr_weekday_name_for_index "$tomorrow_index") || die "unable to resolve tomorrow's weekday name"
 
 dow_from_date() {
-  _d=$1
-  _idx=$(weekday_for_utc_date "$_d") || die "cannot derive weekday from --date on this host; omit --date or provide --day"
-  weekday_name_for_index "$_idx"
+  _d=${1:-}
+  [ -n "$_d" ] || die "internal: dow_from_date missing date"
+  _idx=$(pr_weekday_index_for_date "$_d") || die "cannot derive weekday from --date $_d"
+  pr_weekday_name_for_index "$_idx" || die "cannot map weekday index to name (idx=$_idx)"
 }
 
 day_resolved=""
 if [ -n "$DATE_IN" ]; then
+  # Validate format early for clearer errors.
+  dt_check_ymd "$DATE_IN" || die "invalid --date (expected YYYY-MM-DD): $DATE_IN"
   day_resolved=$(dow_from_date "$DATE_IN")
   log_debug "resolved weekday from --date $DATE_IN: $day_resolved"
 else
@@ -162,20 +172,25 @@ fi
 # Extraction helpers (stdout is content)
 ###############################################################################
 extract_day_section() {
-  _day=$1
+  day=$1
   # Allow emojis and extra text after the day header (e.g., "## 💕 Monday (Deep Work)").
-  awk -v day="$_day" '
+  awk -v day="$day" '
     BEGIN { in_day = 0 }
 
+    # Any H2 header: "## ...".
     /^##[[:space:]]/ {
       header = $0
+      # Strip anything that is not a letter or space: removes "##", emojis, punctuation.
       gsub(/[^[:alpha:][:space:]]/, "", header)
+      # Pad with spaces to make word-boundary detection easy.
       header = " " header " "
       if (index(header, " " day " ") > 0) {
         in_day = 1
+        # IMPORTANT: print the original header so emoji survive
         print $0
         next
       } else if (in_day) {
+        # We hit the next day header; stop this section.
         exit
       } else {
         in_day = 0
@@ -188,57 +203,76 @@ extract_day_section() {
 }
 
 extract_block_for_day() {
-  _day=$1
-  _block=$2
+  day=$1
+  block=$2
+  # Accept 4+ hash headers so the plan can use either #### or ##### levels.
+  awk -v day="$day" -v block="$block" '
+    BEGIN {
+      in_day  = 0
+      in_blk  = 0
+    }
 
-  awk -v day="$_day" -v block="$_block" '
-    BEGIN { in_day=0; in_blk=0 }
-
+    # Day headers like:
+    #   "## 😓 Sunday"
+    #   "## 💕 Saturday"
+    #   "## Wednesday (Stuff)"
     /^##[[:space:]]/ {
       header = $0
       gsub(/[^[:alpha:][:space:]]/, "", header)
       header = " " header " "
-      if (index(header, " " day " ") > 0) in_day=1; else in_day=0
-      in_blk=0
+      if (index(header, " " day " ") > 0) {
+        in_day = 1
+      } else {
+        in_day = 0
+      }
+      in_blk = 0
       next
     }
 
+    # Within the day, find block headers:
+    #   "##### Morning"
+    #   "##### Wake Up"
     in_day && /^####+/ {
       header = $0
-      sub(/^#+[[:space:]]*/, "", header)
+      sub(/^#+[[:space:]]*/, "", header)  # strip leading #s and spaces
       if (header == block) {
-        in_blk=1
+        in_blk = 1
       } else {
-        if (in_blk) exit
-        in_blk=0
+        # If we were already in a block and see a different block, stop.
+        if (in_blk) {
+          exit
+        }
+        in_blk = 0
       }
       next
     }
 
+    # If we’re in a block and hit the next day, stop.
     in_day && in_blk && /^##[[:space:]]/ { exit }
 
-    in_day && in_blk { print }
+    # Lines that belong to the chosen block for the chosen day.
+    in_day && in_blk {
+      print
+    }
   ' "$file" | awk '
-    { lines[++n]=$0 }
-    END {
-      s=1; while (s<=n && lines[s] ~ /^[[:space:]]*$/) s++
-      e=n; while (e>=s && lines[e] ~ /^[[:space:]]*$/) e--
-      for (i=s; i<=e; i++) print lines[i]
+    {lines[++n]=$0}
+    END{
+      s=1; while(s<=n && lines[s] ~ /^[[:space:]]*$/) s++
+      e=n; while(e>=s && lines[e] ~ /^[[:space:]]*$/) e--
+      for(i=s;i<=e;i++) print lines[i]
     }
   '
 }
 
 print_block() {
-  _d=$1
-  _b=$2
-
-  _out=$(extract_block_for_day "$_d" "$_b" || true)
-  if [ -n "${_out:-}" ]; then
-    printf '%s\n' "$_out"
+  d=$1
+  b=$2
+  out=$(extract_block_for_day "$d" "$b" || true)
+  if [ -n "${out:-}" ]; then
+    printf '%s\n' "$out"
     return 0
   fi
-
-  log_warn "block not found: day='$_d' block='$_b'"
+  log_warn "block not found: day='$d' block='$b'"
   return 0
 }
 
