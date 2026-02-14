@@ -1,138 +1,134 @@
 #!/bin/sh
+# jobs/generate-monthly-note.sh
 # Generate a monthly note markdown file equivalent to the legacy Node script.
-# The script accepts optional CLI arguments to control the vault location,
-# output directory, target month, locale, and overwrite behavior.
+#
+# Leaf job (wrapper required).
+#
+# Version: 1.0
+# Status: contract-aligned (leaf template)
+#
+# Author: deadhedd
+# License: MIT
+# shellcheck shell=sh
 
 set -eu
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
-utils_dir="$repo_root/utils"
-date_helper="$utils_dir/core/date-period-helpers.sh"
-job_wrap="$utils_dir/core/job-wrap.sh"
-script_path="$script_dir/$(basename "$0")"
+###############################################################################
+# Logging (leaf responsibility: emit correctly-formatted messages to stderr)
+###############################################################################
+log_debug() { printf '%s\n' "DEBUG: $*" >&2; }
+log_info()  { printf '%s\n' "INFO: $*"  >&2; }
+log_warn()  { printf '%s\n' "WARN: $*"  >&2; }
+log_error() { printf '%s\n' "ERROR: $*" >&2; }
 
+###############################################################################
+# Resolve paths
+###############################################################################
+script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
-if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ] && [ -x "$job_wrap" ]; then
-  JOB_WRAP_ACTIVE=1 exec /bin/sh "$job_wrap" "$script_path" "$@"
+# C1 bootstrap rule: wrapper location is assumed stable *relative to this file*
+# for the initial self-wrap hop only. Once wrapped, REPO_ROOT (exported by the
+# wrapper) becomes the source of truth for repo-relative paths.
+wrap="$script_dir/../engine/wrap.sh"
+
+# Prefer passing an absolute script path to the wrapper for sturdiness.
+case "$0" in
+  /*) script_path=$0 ;;
+  *)  script_path=$script_dir/${0##*/} ;;
+esac
+
+# Canonicalize the final script path to avoid surprises (symlinks/cwd oddities).
+script_path=$(
+  CDPATH= cd "$(dirname "$script_path")" && \
+  d=$(pwd) && \
+  printf '%s/%s\n' "$d" "${script_path##*/}"
+) || {
+  log_error "failed to canonicalize script path: $script_path"
+  exit 127
+}
+
+###############################################################################
+# Self-wrap (minimal, dumb, contract-aligned)
+###############################################################################
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
+  if [ ! -x "$wrap" ]; then
+    log_error "leaf wrap: wrapper not found/executable: $wrap"
+    exit 127
+  fi
+  log_info "leaf wrap: exec wrapper: $wrap"
+  exec "$wrap" "$script_path" ${1+"$@"}
+else
+  log_debug "leaf wrap: wrapper active; executing leaf"
 fi
 
-. "$date_helper"
+###############################################################################
+# Cadence declaration (contract-required)
+###############################################################################
+JOB_CADENCE=monthly
+log_info "cadence=$JOB_CADENCE"
 
+###############################################################################
+# Engine libs (wrapped path only)
+###############################################################################
+if [ -z "${REPO_ROOT:-}" ]; then
+  log_error "REPO_ROOT not set (wrapper required)"
+  exit 127
+fi
+case "$REPO_ROOT" in
+  /*) : ;;
+  *) log_error "REPO_ROOT not absolute: $REPO_ROOT"; exit 127 ;;
+esac
+repo_root=$REPO_ROOT
+
+lib_dir=$repo_root/engine/lib
+periods_lib=$lib_dir/periods.sh
+datetime_lib=$lib_dir/datetime.sh
+
+if [ ! -r "$periods_lib" ]; then
+  log_error "periods lib not found/readable: $periods_lib"
+  exit 127
+fi
+# shellcheck source=/dev/null
+. "$periods_lib" || {
+  log_error "failed to source periods lib: $periods_lib"
+  exit 127
+}
+
+if [ ! -r "$datetime_lib" ]; then
+  log_error "datetime lib not found/readable: $datetime_lib"
+  exit 127
+fi
+# shellcheck source=/dev/null
+. "$datetime_lib" || {
+  log_error "failed to source datetime lib: $datetime_lib"
+  exit 127
+}
+
+###############################################################################
+# Argument parsing (template baseline; customize minimally)
+###############################################################################
 usage() {
   cat <<'EOF_USAGE'
-Usage: generate-monthly-note.sh [--vault <path>] [--outdir <name>] [--date YYYY-MM] [--locale <locale>] [--force] [--dry-run]
+Usage: generate-monthly-note.sh [--output <path>] [--dry-run] [--force]
 
 Options:
-  --vault <path>    Vault root where the note should be created. Defaults to $VAULT_PATH or /home/obsidian/vaults/Main.
-  --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Monthly Notes".
-  --date YYYY-MM    Month to generate. Defaults to the current UTC month.
-  --locale <locale> Locale for the month name (e.g., en-US). Defaults to en_US.UTF-8.
-  --force           Overwrite the note if it already exists.
-  --dry-run         Output the note contents to stdout without writing files.
+  --output <path>   Output file path (absolute). If omitted, defaults to:
+                    $VAULT_ROOT/Periodic Notes/Monthly Notes/YYYY-MM.md
+  --dry-run         Emit content to stdout instead of writing a file.
+  --force           Overwrite existing files if present.
   --help            Show this message.
 EOF_USAGE
 }
 
-normalize_locale() {
-  input=$1
-  if [ -z "$input" ]; then
-    printf 'en_US.UTF-8'
-    return
-  fi
-  converted=$(printf '%s' "$input" | tr '-' '_')
-  case "$converted" in
-    C|POSIX) printf '%s' "$converted" ;;
-    *.*) printf '%s' "$converted" ;;
-    *) printf '%s.UTF-8' "$converted" ;;
-  esac
-}
-
-get_month_name() {
-  locale_value=$1
-  target=$2
-
-  if ! epoch=$(epoch_for_utc_date "$target"); then
-    printf 'ERR  %s\n' "Failed to compute epoch for $target" >&2
-    return 1
-  fi
-
-  # Offset into the middle of the month to prevent timezone rollbacks into the previous month.
-  shifted_epoch=$((epoch + (12 * 60 * 60)))
-
-  if month=$(LC_TIME="$locale_value" format_epoch_local "$shifted_epoch" '%B' 2>/dev/null); then
-    printf '%s' "$month"
-    return 0
-  fi
-
-  if fallback=$(LC_TIME=C format_epoch_local "$shifted_epoch" '%B' 2>/dev/null); then
-    printf '%s' "$fallback"
-    return 0
-  fi
-
-  printf 'ERR  %s\n' "Failed to format month name for $target" >&2
-  return 1
-}
-
-vault_path=${VAULT_PATH:-/home/obsidian/vaults/Main}
-outdir="Periodic Notes/Monthly Notes"
-date_arg=""
-locale="en_US.UTF-8"
-force=0
+output_path=""
 dry_run=0
-
-write_output() {
-  dest=$1
-  if [ "$dry_run" -eq 1 ]; then
-    if [ -n "${dry_run_primary_path:-}" ] && [ -n "${dry_run_output_path:-}" ] && [ "$dest" = "$dry_run_primary_path" ]; then
-      printf 'INFO %s\n' "DRY RUN start: $dest -> $dry_run_output_path"
-      cat | tee "$dry_run_output_path"
-    else
-      printf 'INFO %s\n' "DRY RUN start: $dest"
-      cat
-    fi
-    printf 'INFO %s\n' "DRY RUN end: $dest"
-  else
-    cat >"$dest"
-  fi
-}
+force=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --vault)
-      if [ $# -lt 2 ]; then
-        printf 'ERR  %s\n' "Missing value for --vault" >&2
-        usage
-        exit 2
-      fi
-      vault_path=$2
-      shift 2
-      ;;
-    --outdir)
-      if [ $# -lt 2 ]; then
-        printf 'ERR  %s\n' "Missing value for --outdir" >&2
-        usage
-        exit 2
-      fi
-      outdir=$2
-      shift 2
-      ;;
-    --date)
-      if [ $# -lt 2 ]; then
-        printf 'ERR  %s\n' "Missing value for --date" >&2
-        usage
-        exit 2
-      fi
-      date_arg=$2
-      shift 2
-      ;;
-    --locale)
-      if [ $# -lt 2 ]; then
-        printf 'ERR  %s\n' "Missing value for --locale" >&2
-        usage
-        exit 2
-      fi
-      locale=$(normalize_locale "$2")
+    --output)
+      [ $# -ge 2 ] || { printf 'ERROR: missing value for --output\n' >&2; usage >&2; exit 2; }
+      output_path=$2
       shift 2
       ;;
     --force)
@@ -148,93 +144,78 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      printf 'ERR  %s\n' "Unknown option: $1" >&2
-      usage
+      printf 'ERROR: unknown option: %s\n' "$1" >&2
+      usage >&2
       exit 2
       ;;
   esac
 done
 
-if [ -z "$date_arg" ]; then
-  date_arg=$(date -u +%Y-%m)
+###############################################################################
+# Job logic
+###############################################################################
+
+# Contract: artifact root must be provided by wrapper.
+if [ -z "${VAULT_ROOT:-}" ]; then
+  log_error "VAULT_ROOT not set (wrapper required)"
+  exit 127
 fi
+artifact_root=$VAULT_ROOT
 
-case "$date_arg" in
-  [0-9][0-9][0-9][0-9]-[0-9][0-9])
-    :
-    ;;
-  *)
-    printf 'ERR  %s\n' "--date must be in YYYY-MM format" >&2
-    exit 2
-    ;;
-esac
+# Compute current/prev/next month tags via periods.sh
+month_tag=$(pr_month_tag_current) || { log_error "failed to compute current month tag"; exit 1; }
+prev_tag=$(pr_month_tag_prev) || { log_error "failed to compute prev month tag"; exit 1; }
+next_tag=$(pr_month_tag_next) || { log_error "failed to compute next month tag"; exit 1; }
 
-year=${date_arg%%-*}
-month_part=${date_arg#*-}
-month_number=${month_part#0}
-if [ -z "$month_number" ]; then
-  month_number=0
-fi
-if [ "$month_number" -lt 1 ] || [ "$month_number" -gt 12 ]; then
-  printf 'ERR  %s\n' "Invalid month supplied: $month_part" >&2
-  exit 2
-fi
+# Derive year + month number (for title)
+today=$(dt_today_local) || { log_error "failed to compute dt_today_local"; exit 1; }
+set -- $(dt_date_parts "$today") || { log_error "failed to compute dt_date_parts: $today"; exit 1; }
+year=$1
+month=$2
 
-month=$(printf '%02d' "$month_number")
-month_tag="${year}-${month}"
-quarter=$(( (month_number + 2) / 3 ))
-quarter_tag="${year}-Q${quarter}"
+month_name_en() {
+  case "$1" in
+    01) printf 'January' ;;
+    02) printf 'February' ;;
+    03) printf 'March' ;;
+    04) printf 'April' ;;
+    05) printf 'May' ;;
+    06) printf 'June' ;;
+    07) printf 'July' ;;
+    08) printf 'August' ;;
+    09) printf 'September' ;;
+    10) printf 'October' ;;
+    11) printf 'November' ;;
+    12) printf 'December' ;;
+    *)  printf '%s' "$1" ;;
+  esac
+}
 
-if ! set -- $(add_months "$year" "$month" -1); then
-  printf 'ERR  %s\n' "Failed to compute previous month for $year-$month" >&2
-  exit 1
-fi
-prev_tag=$(printf '%04d-%02d' "$1" "$2")
+month_name=$(month_name_en "$month")
 
-if ! set -- $(add_months "$year" "$month" 1); then
-  printf 'ERR  %s\n' "Failed to compute next month for $year-$month" >&2
-  exit 1
-fi
-next_tag=$(printf '%04d-%02d' "$1" "$2")
-
-if ! month_name=$(get_month_name "$locale" "${year}-${month}-01"); then
-  printf 'ERR  %s\n' "Failed to determine localized month name" >&2
-  exit 1
-fi
-
-vault_root="${vault_path%/}"
-
-trimmed_outdir=$outdir
-while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do
-  trimmed_outdir=${trimmed_outdir#/}
-done
-while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do
-  trimmed_outdir=${trimmed_outdir%/}
-done
-
-if [ -n "$trimmed_outdir" ]; then
-  note_dir="$vault_root/$trimmed_outdir"
+# Compute result_ref
+if [ -z "$output_path" ]; then
+  result_ref="$artifact_root/Periodic Notes/Monthly Notes/${month_tag}.md"
 else
-  note_dir="$vault_root"
+  case "$output_path" in
+    */)
+      log_error "internal: --output ends with '/': $output_path"
+      exit 2
+      ;;
+  esac
+  case "$output_path" in
+    /*) result_ref="$output_path" ;;
+    *)  log_error "--output must be an absolute path: $output_path"; exit 2 ;;
+  esac
 fi
 
-note_path="${note_dir%/}/${month_tag}.md"
-dry_run_primary_path=$note_path
-dry_run_output_path="${repo_root%/}/Monthly Note Sample.md"
-
-if [ "$dry_run" -eq 1 ]; then
-  printf 'INFO %s\n' "Dry run: would ensure directory exists: $note_dir"
-else
-  mkdir -p "$note_dir"
-fi
-
-if [ -f "$note_path" ] && [ "$force" -ne 1 ]; then
-  printf 'ERR  %s\n' "Refusing to overwrite existing file: $note_path" >&2
-  printf 'ERR  %s\n' "Re-run with --force to overwrite." >&2
+if [ -f "$result_ref" ] && [ "$force" -ne 1 ]; then
+  log_error "refusing to overwrite existing file: $result_ref (use --force)"
   exit 1
 fi
 
-write_output "$note_path" <<EOF_NOTE
+generate_content() {
+  cat <<EOF_NOTE
 # ${month_name} ${year}
 
 - [[Periodic Notes/Monthly Notes/${prev_tag}|${prev_tag}]]
@@ -242,10 +223,10 @@ write_output "$note_path" <<EOF_NOTE
 
 ## Cascading Tasks
 
-```tasks
+\`\`\`tasks
 not done
 tag includes due/${month_tag}
-```
+\`\`\`
 
 ## Monthly Checklist
 
@@ -298,8 +279,50 @@ tag includes due/${month_tag}
 
 ## Notes
 EOF_NOTE
+}
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'INFO %s\n' "Dry run: monthly note sample written to $dry_run_output_path"
+  if [ -n "$output_path" ]; then
+    log_warn "--dry-run ignores --output: $output_path"
+  fi
+  if [ "$force" -eq 1 ]; then
+    log_warn "--dry-run ignores --force"
+  fi
+  generate_content
+  exit 0
 fi
 
+# Write anchor artifact atomically (template pattern)
+primary_parent=${result_ref%/*}
+if ! mkdir -p "$primary_parent"; then
+  log_error "failed to create artifact directory: $primary_parent"
+  exit 1
+fi
+
+tmp="${primary_parent}/${result_ref##*/}.tmp.$$"
+cleanup_tmp() {
+  [ -n "${tmp:-}" ] && [ -f "$tmp" ] && rm -f "$tmp"
+}
+trap cleanup_tmp HUP INT TERM 0
+
+if ! generate_content >"$tmp"; then
+  log_error "failed to write temp artifact: $tmp"
+  exit 1
+fi
+if ! mv "$tmp" "$result_ref"; then
+  log_error "failed to finalize artifact (mv): $tmp -> $result_ref"
+  exit 1
+fi
+
+tmp=""
+trap - HUP INT TERM 0
+
+# Commit registration (contractual)
+if [ -n "${COMMIT_LIST_FILE:-}" ]; then
+  if ! printf '%s\n' "$result_ref" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
+    log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
+  fi
+fi
+
+log_info "Produced artifact: $result_ref"
+exit 0
