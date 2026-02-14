@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/elements/generate-day-plan.sh — Extract day/blocks from "Daily Plan.md"
+# jobs/helpers/generate-day-plan.sh — Extract day/blocks from "Daily Plan.md"
 #
 # Helper executable (NOT a leaf job):
 # - Invoked by generate-daily-note.sh (which is the wrapped leaf).
