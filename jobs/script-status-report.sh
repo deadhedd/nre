@@ -214,20 +214,49 @@ write_atomic_file() {
 run_sync_latest_logs_to_vault() {
   # Best-effort: refresh Obsidian "Latest Logs" markdown mirrors before we
   # emit a report that links to them.
+  #
+  # IMPORTANT:
+  # This is a helper executable (not a leaf job). It MUST NOT self-wrap, and
+  # it MUST NOT register commits itself. Instead, this wrapped leaf job
+  # optionally registers the helper outputs in COMMIT_LIST_FILE.
   if [ ! -x "$sync_latest_logs_job" ]; then
-    log_warn "sync job not found/executable: $sync_latest_logs_job (skipping)"
+    log_warn "sync helper not found/executable: $sync_latest_logs_job (skipping)"
     return 0
   fi
 
   log_info "Refreshing vault latest-log mirrors"
-  log_debug "sync job: $sync_latest_logs_job"
+  log_debug "sync helper: $sync_latest_logs_job"
 
-  "$sync_latest_logs_job" || {
-    rc=$?
-    log_warn "sync-latest-logs-to-vault failed (rc=$rc); continuing"
+  tmp_written=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.written.XXXXXX") || {
+    log_warn "mktemp failed; running sync without commit registration"
+    "$sync_latest_logs_job" || {
+      rc=$?
+      log_warn "sync-latest-logs helper failed (rc=$rc); continuing"
+      return 0
+    }
     return 0
   }
 
+  cleanup_written() { rm -f "$tmp_written" 2>/dev/null || true; }
+  trap 'cleanup_written' HUP INT TERM 0
+
+  if ! "$sync_latest_logs_job" --emit-written-list >"$tmp_written"; then
+    rc=$?
+    log_warn "sync-latest-logs helper failed (rc=$rc); continuing"
+    trap - HUP INT TERM 0
+    cleanup_written
+    return 0
+  fi
+
+  # Parent leaf registers the helper's outputs for commit.
+  if [ -n "${COMMIT_LIST_FILE:-}" ]; then
+    if ! cat "$tmp_written" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
+      log_warn "failed to append sync outputs to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
+    fi
+  fi
+
+  trap - HUP INT TERM 0
+  cleanup_written
   return 0
 }
 
