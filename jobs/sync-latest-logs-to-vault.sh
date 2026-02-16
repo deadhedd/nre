@@ -118,19 +118,25 @@ case "$vault_log_dir" in
 esac
 
 ###############################################################################
-# Atomic write helper (safe tmp)
+# Atomic write helper (temp-in-destination-dir; matches daily generator style)
 ###############################################################################
 write_atomic_file() {
   _dest=$1
   _dir=${_dest%/*}
+  _tmp="${_dir}/.${_dest##*/}.tmp.$$"
 
-  mkdir -p "$_dir" || return 1
+  if ! mkdir -p "$_dir"; then
+    return 1
+  fi
 
-  _tmp=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.tmp.XXXXXX") || return 1
   (
     trap 'rm -f "$_tmp"' HUP INT TERM 0
-    if ! cat >"$_tmp"; then exit 1; fi
-    if ! mv "$_tmp" "$_dest"; then exit 1; fi
+    if ! cat >"$_tmp"; then
+      exit 1
+    fi
+    if ! mv "$_tmp" "$_dest"; then
+      exit 1
+    fi
     trap - HUP INT TERM 0
     exit 0
   ) || {
