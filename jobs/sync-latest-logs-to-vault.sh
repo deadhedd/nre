@@ -1,17 +1,21 @@
 #!/bin/sh
-# jobs/sync-latest-logs-to-vault.sh — Mirror *-latest.log as Markdown notes in the Obsidian vault
+# (helper) sync-latest-logs-to-vault.sh — Mirror *-latest.log as Markdown notes in the Obsidian vault
 #
-# Leaf job (wrapper required).
-# Multi-artifact job: writes one .md file per *-latest.log, plus a per-run manifest.
+# Helper executable (NOT a leaf job):
+# - Invoked by script-status-report.sh (wrapped leaf) or other wrapped jobs.
+# - stdout: empty by default; optionally emits list of written files.
+# - stderr: diagnostics only.
+# - No wrapper, no cadence, no commit registration, no anchor artifact.
 #
 # Author: deadhedd
 # License: MIT
+# shellcheck shell=sh
 
 set -eu
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 ###############################################################################
-# Logging (leaf responsibility: emit correctly-formatted messages to stderr)
+# Logging (stderr only)
 ###############################################################################
 log_debug() { printf '%s\n' "DEBUG: $*" >&2; }
 log_info()  { printf '%s\n' "INFO: $*"  >&2; }
@@ -19,88 +23,70 @@ log_warn()  { printf '%s\n' "WARN: $*"  >&2; }
 log_error() { printf '%s\n' "ERROR: $*" >&2; }
 
 ###############################################################################
-# Resolve paths
+# Helpers
+###############################################################################
+die() { log_error "$*"; exit 1; }
+
+###############################################################################
+# Resolve paths (repo-local helper; do not require wrapper env)
 ###############################################################################
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
-wrap="$script_dir/../engine/wrap.sh"
-
-case "$0" in
-  /*) script_path=$0 ;;
-  *)  script_path=$script_dir/${0##*/} ;;
-esac
-
-script_path=$(
-  CDPATH= cd "$(dirname "$script_path")" && \
-  d=$(pwd) && \
-  printf '%s/%s\n' "$d" "${script_path##*/}"
-) || {
-  log_error "failed to canonicalize script path"
-  exit 127
-}
-
 ###############################################################################
-# Self-wrap (contractual)
+# Engine libs (repo-relative)
 ###############################################################################
-if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
-  if [ ! -x "$wrap" ]; then
-    log_error "leaf wrap: wrapper not found/executable: $wrap"
-    exit 127
-  fi
-  log_info "leaf wrap: exec wrapper: $wrap"
-  exec "$wrap" "$script_path" ${1+"$@"}
-else
-  log_debug "leaf wrap: wrapper active; executing leaf"
-fi
+repo_root=$(
+  CDPATH= cd "$script_dir/.." 2>/dev/null && pwd
+) || die "failed to resolve repo root from script location"
 
-###############################################################################
-# Engine libs (wrapper-provided REPO_ROOT)
-###############################################################################
-if [ -z "${REPO_ROOT:-}" ]; then
-  log_error "REPO_ROOT not set (wrapper required)"
-  exit 127
-fi
-
-repo_root=$REPO_ROOT
 lib_dir=$repo_root/engine/lib
-
-periods_lib=$lib_dir/periods.sh
 datetime_lib=$lib_dir/datetime.sh
+periods_lib=$lib_dir/periods.sh
 
-[ -r "$periods_lib" ] || { log_error "missing periods lib: $periods_lib"; exit 127; }
+[ -r "$datetime_lib" ] || die "datetime lib not found/readable: $datetime_lib"
 # shellcheck source=/dev/null
-. "$periods_lib"
+. "$datetime_lib" || die "failed to source datetime lib: $datetime_lib"
 
-[ -r "$datetime_lib" ] || { log_error "missing datetime lib: $datetime_lib"; exit 127; }
+[ -r "$periods_lib" ] || die "periods lib not found/readable: $periods_lib"
 # shellcheck source=/dev/null
-. "$datetime_lib"
+. "$periods_lib" || die "failed to source periods lib: $periods_lib"
 
 ###############################################################################
 # Argument parsing
 ###############################################################################
 usage() {
   cat <<'EOF'
-Usage: sync-latest-logs-to-vault.sh [--output <path>] [--dry-run]
+Usage: sync-latest-logs-to-vault.sh [--log-root <path>] [--vault-log-dir <path>] [--emit-written-list]
 
 Options:
-  --output <path>   Absolute path for the per-run summary manifest
-  --dry-run         Print planned copies and exit
-  --help            Show this help
+  --log-root <path>       Log root directory containing *-latest.log
+                          Default: ${LOG_ROOT:-/home/obsidian/logs}
+  --vault-log-dir <path>  Destination root for markdown mirrors inside the vault
+                          Default: <VAULT_ROOT>/Server Logs/Latest Logs
+  --emit-written-list     Emit one destination path per written .md file to stdout
+                          (stdout is otherwise empty)
+  --help                  Show this help
 EOF
 }
 
-output_path=""
-dry_run=0
+emit_written=0
+log_root="${LOG_ROOT:-/home/obsidian/logs}"
+vault_log_dir=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --output)
-      [ $# -ge 2 ] || { log_error "missing value for --output"; usage >&2; exit 2; }
-      output_path=$2
+    --log-root)
+      [ $# -ge 2 ] || { usage >&2; die "missing value for --log-root"; }
+      log_root=$2
       shift 2
       ;;
-    --dry-run)
-      dry_run=1
+    --vault-log-dir)
+      [ $# -ge 2 ] || { usage >&2; die "missing value for --vault-log-dir"; }
+      vault_log_dir=$2
+      shift 2
+      ;;
+    --emit-written-list)
+      emit_written=1
       shift
       ;;
     --help|-h)
@@ -108,61 +94,56 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      log_error "unknown option: $1"
       usage >&2
-      exit 2
+      die "unknown argument: $1"
       ;;
   esac
 done
 
 ###############################################################################
-# Job configuration
+# Defaults that depend on VAULT_ROOT
 ###############################################################################
-[ -n "${VAULT_ROOT:-}" ] || { log_error "VAULT_ROOT not set"; exit 127; }
-
-LOG_ROOT=${LOG_ROOT:-/home/obsidian/logs}
-VAULT_LOG_DIR=${VAULT_LOG_DIR:-"${VAULT_ROOT%/}/Server Logs/Latest Logs"}
-
-###############################################################################
-# Determine anchor artifact (result_ref)
-###############################################################################
-if [ -n "$output_path" ]; then
-  case "$output_path" in
-    /*) result_ref=$output_path ;;
-    *) log_error "--output must be an absolute path"; exit 2 ;;
-  esac
-else
-  ts=$(dt_now_local_compact)
-  result_ref="${VAULT_LOG_DIR%/}/sync-latest-logs-summary-${ts}.txt"
+if [ -z "$vault_log_dir" ]; then
+  [ -n "${VAULT_ROOT:-}" ] || die "VAULT_ROOT not set (required unless --vault-log-dir is provided)"
+  vault_log_dir="${VAULT_ROOT%/}/Server Logs/Latest Logs"
 fi
 
+case "$log_root" in
+  /*) : ;;
+  *) die "--log-root must be an absolute path: $log_root" ;;
+esac
+case "$vault_log_dir" in
+  /*) : ;;
+  *) die "--vault-log-dir must be an absolute path: $vault_log_dir" ;;
+esac
+
 ###############################################################################
-# Atomic write helper
+# Atomic write helper (safe tmp)
 ###############################################################################
 write_atomic_file() {
-  dest=$1
-  dir=${dest%/*}
-  tmp="$dir/.tmp.$$"
+  _dest=$1
+  _dir=${_dest%/*}
 
-  mkdir -p "$dir"
-  cat >"$tmp"
-  mv "$tmp" "$dest"
+  mkdir -p "$_dir" || return 1
+
+  _tmp=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.tmp.XXXXXX") || return 1
+  (
+    trap 'rm -f "$_tmp"' HUP INT TERM 0
+    if ! cat >"$_tmp"; then exit 1; fi
+    if ! mv "$_tmp" "$_dest"; then exit 1; fi
+    trap - HUP INT TERM 0
+    exit 0
+  ) || {
+    rm -f "$_tmp" 2>/dev/null || true
+    return 1
+  }
 }
 
 ###############################################################################
-# Early exit if no logs
+# Enumerate and mirror
 ###############################################################################
-if [ ! -d "$LOG_ROOT" ]; then
-  log_warn "Log root not found: $LOG_ROOT"
-  write_atomic_file "$result_ref" <<EOF
-sync-latest-logs-to-vault
-run_at_local=$(dt_now_local_iso)
-status=log_root_missing
-LOG_ROOT=$LOG_ROOT
-VAULT_LOG_DIR=$VAULT_LOG_DIR
-EOF
-
-  [ -n "${COMMIT_LIST_FILE:-}" ] && printf '%s\n' "$result_ref" >>"$COMMIT_LIST_FILE" || true
+if [ ! -d "$log_root" ]; then
+  log_warn "Log root not found: $log_root (nothing to sync)"
   exit 0
 fi
 
@@ -175,13 +156,13 @@ failed=0
 skipped_missing=0
 skipped_unreadable=0
 
-list_file=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.XXXXXX")
-written_file=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs-written.XXXXXX")
-trap 'rm -f "$list_file" "$written_file"' EXIT INT TERM HUP
+list_file=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.list.XXXXXX") || die "mktemp failed"
+trap 'rm -f "$list_file"' EXIT INT TERM HUP
 
-find "$LOG_ROOT" -name '*-latest.log' 2>/dev/null >"$list_file" || true
+find "$log_root" -name '*-latest.log' 2>/dev/null >"$list_file" || true
 
-run_iso=$(dt_now_local_iso)
+run_iso=$(dt_now_local_iso 2>/dev/null || true)
+[ -n "$run_iso" ] || run_iso="(unknown)"
 
 ###############################################################################
 # Write loop (.md per log)
@@ -200,18 +181,13 @@ while IFS= read -r link || [ -n "$link" ]; do
     continue
   fi
 
-  rel=${link#${LOG_ROOT%/}/}
+  rel=${link#${log_root%/}/}
   case "$rel" in
     *.log) md_rel=${rel%".log"}.md ;;
     *)     md_rel=$rel.md ;;
   esac
 
-  dest="${VAULT_LOG_DIR%/}/$md_rel"
-
-  if [ "$dry_run" -eq 1 ]; then
-    printf '%s -> %s\n' "$link" "$dest"
-    continue
-  fi
+  dest="${vault_log_dir%/}/$md_rel"
 
   mkdir -p "${dest%/*}" || { failed=$((failed + 1)); continue; }
 
@@ -227,46 +203,18 @@ $(cat "$link" 2>/dev/null || true)
 EOF
   then
     written=$((written + 1))
-    printf '%s\n' "$dest" >>"$written_file"
+    if [ "$emit_written" -eq 1 ]; then
+      printf '%s\n' "$dest"
+    fi
   else
     failed=$((failed + 1))
   fi
 done <"$list_file"
 
-[ "$dry_run" -eq 1 ] && exit 0
-
-###############################################################################
-# Write manifest (anchor artifact)
-###############################################################################
-write_atomic_file "$result_ref" <<EOF
-sync-latest-logs-to-vault
-run_at_local=$(dt_now_local_iso)
-LOG_ROOT=$LOG_ROOT
-VAULT_LOG_DIR=$VAULT_LOG_DIR
-
-summary_found=$found
-summary_written=$written
-summary_failed=$failed
-summary_skipped_missing=$skipped_missing
-summary_skipped_unreadable=$skipped_unreadable
-
-written_files:
-$(cat "$written_file")
-EOF
-
-###############################################################################
-# Commit registration
-###############################################################################
-if [ -n "${COMMIT_LIST_FILE:-}" ]; then
-  printf '%s\n' "$result_ref" >>"$COMMIT_LIST_FILE" || true
-  cat "$written_file" >>"$COMMIT_LIST_FILE" || true
-fi
-
 ###############################################################################
 # Exit
 ###############################################################################
-log_info "Produced artifact: $result_ref"
-log_info "Summary: found=$found written=$written failed=$failed skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
+log_info "sync-latest-logs: found=$found written=$written failed=$failed skipped_missing=$skipped_missing skipped_unreadable=$skipped_unreadable"
 
 [ "$failed" -eq 0 ] || exit 1
 exit 0
