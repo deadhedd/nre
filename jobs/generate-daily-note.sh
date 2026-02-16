@@ -180,15 +180,13 @@ fi
 artifact_root=$VAULT_ROOT
 
 # Internal helper layout (repo-local)
-utils_dir="$repo_root/utils"
-elements_dir="$utils_dir/elements"
-finances_dir="$utils_dir/finances"
+helpers_dir="$repo_root/jobs/helpers"
 
-day_plan_script="$elements_dir/generate-day-plan.sh"
-celestial_timings_script="$elements_dir/generate-celestial-timings.sh"
-f1_script="$elements_dir/f1-schedule-and-standings.sh"
-f1_dashboard_helper="$elements_dir/update-f1-dashboard.sh"
-finances_callout_script="$finances_dir/daily-finances-callout.sh"
+day_plan_script="$helpers_dir/generate-day-plan.sh"
+celestial_timings_script="$helpers_dir/generate-celestial-timings.sh"
+f1_script="$helpers_dir/f1-schedule-and-standings.sh"
+f1_dashboard_helper="$helpers_dir/update-f1-dashboard.sh"
+finances_callout_script="$helpers_dir/daily-finances-callout.sh"
 
 ###############################################################################
 # Compute primary output path (result_ref)
