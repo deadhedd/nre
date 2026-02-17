@@ -5,7 +5,7 @@
 # - Invoked by script-status-report.sh (wrapped leaf) or other wrapped jobs.
 # - stdout: empty by default; optionally emits list of written files.
 # - stderr: diagnostics only.
-# - No wrapper, no cadence, no commit registration, no anchor artifact.
+# - No wrapper, no commit registration, no anchor artifact.
 #
 # Author: deadhedd
 # License: MIT
@@ -26,6 +26,10 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 # Helpers
 ###############################################################################
 die() { log_error "$*"; exit 1; }
+
+# Contract-aligned cadence declaration for freshness/status consumers.
+JOB_CADENCE=${JOB_CADENCE:-daily}
+log_info "cadence=$JOB_CADENCE"
 
 ###############################################################################
 # Resolve paths (repo-local helper; do not require wrapper env)

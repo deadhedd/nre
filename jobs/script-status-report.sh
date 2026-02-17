@@ -60,6 +60,10 @@ else
   log_debug "leaf wrap: wrapper active; executing leaf"
 fi
 
+# Contract: every leaf must declare cadence in stderr for freshness evaluation.
+JOB_CADENCE=${JOB_CADENCE:-daily}
+log_info "cadence=$JOB_CADENCE"
+
 ###############################################################################
 # Engine libs (wrapped path only)
 ###############################################################################
