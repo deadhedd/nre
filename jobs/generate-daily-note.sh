@@ -271,12 +271,14 @@ build_finances_callout() {
     log_warn "finances callout script not found: $finances_callout_script"
     return 0
   fi
-  if _out=$(sh "$finances_callout_script" "$year" "$month" "$day" 2>/dev/null); then
+  _out=$(sh "$finances_callout_script" "$year" "$month" "$day") || {
+    _rc=$?
+    log_warn "finances callout script failed rc=$_rc; skipping finances section"
+    :
+  }
+  if [ -n "${_out:-}" ]; then
     printf '%s' "$_out"
-    return 0
   fi
-  _rc=$?
-  log_warn "finances callout script failed rc=$_rc; skipping finances section"
   return 0
 }
 
@@ -310,13 +312,11 @@ EOF_NAVIGATION
 
   pagan_timings_text=""
   if [ -r "$celestial_timings_script" ]; then
-    if pagan_timings_text=$(sh "$celestial_timings_script" 2>/dev/null); then
-      : # ok
-    else
+    pagan_timings_text=$(sh "$celestial_timings_script") || {
       _rc=$?
       log_warn "celestial timings script failed rc=$_rc; using fallback"
-      pagan_timings_text=""
-    fi
+      :
+    }
   else
     log_warn "celestial timings script not found: $celestial_timings_script"
   fi
@@ -376,7 +376,12 @@ EOF_F1
 
   daily_plan_intro_section=""
   if [ -r "$day_plan_script" ]; then
-    if _day_plan_output=$(sh "$day_plan_script" 2>/dev/null); then
+    _day_plan_output=$(sh "$day_plan_script") || {
+      _rc=$?
+      log_warn "daily plan script failed rc=$_rc; skipping intro"
+      :
+    }
+    if [ -n "${_day_plan_output:-}" ]; then
       _intro=$(
         printf '%s\n' "$_day_plan_output" | awk '
           /^# Daily Plan - / {in_today=1; next}
@@ -408,9 +413,6 @@ EOF_F1
       if [ -n "${_intro:-}" ]; then
         daily_plan_intro_section=$(printf '%s\n\n' "$_intro")
       fi
-    else
-      _rc=$?
-      log_warn "daily plan script failed rc=$_rc; skipping intro"
     fi
   else
     log_warn "daily plan script not found; skipping intro"
@@ -482,7 +484,7 @@ done
 ###############################################################################
 
 if [ -r "$f1_dashboard_helper" ]; then
-  if sh "$f1_dashboard_helper" --dashboard-path "$f1_dashboard_path" --content-script "$f1_script" 2>/dev/null; then
+  if sh "$f1_dashboard_helper" --dashboard-path "$f1_dashboard_path" --content-script "$f1_script"; then
     log_info "updated F1 dashboard: $f1_dashboard_path"
   else
     _rc=$?
@@ -499,13 +501,12 @@ populate_block() {
     return 0
   fi
 
-  if block_output=$(sh "$day_plan_script" --block "$block_name" 2>/dev/null); then
-    printf '%s' "$block_output"
-  else
+  block_output=$(sh "$day_plan_script" --block "$block_name") || {
     _rc=$?
     log_warn "daily plan script failed for block='$block_name' rc=$_rc"
-    return 0
-  fi
+    :
+  }
+  printf '%s' "$block_output"
 }
 
 log_info "preparing time block subnotes: dir=$time_block_subnotes_dir"
