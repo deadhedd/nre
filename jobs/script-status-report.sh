@@ -2,6 +2,7 @@
 # jobs/script-status-report.sh
 # Leaf job (wrapper required)
 #
+#
 # Version: 1.0
 # Status: contract-aligned (leaf template)
 #
@@ -229,11 +230,11 @@ run_sync_latest_logs_to_vault() {
   fi
 
   log_info "Refreshing vault latest-log mirrors"
-  log_debug "sync helper: $sync_latest_logs_job"
+  log_debug "sync helper exec: $sync_latest_logs_job"
 
   tmp_written=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.written.XXXXXX") || {
     log_warn "mktemp failed; running sync without commit registration"
-    "$sync_latest_logs_job" || {
+    "$sync_latest_logs_job" >/dev/null || {
       rc=$?
       log_warn "sync-latest-logs helper failed (rc=$rc); continuing"
       return 0
@@ -244,7 +245,9 @@ run_sync_latest_logs_to_vault() {
   cleanup_written() { rm -f "$tmp_written" 2>/dev/null || true; }
   trap 'cleanup_written' HUP INT TERM 0
 
-  if ! "$sync_latest_logs_job" --emit-written-list >"$tmp_written"; then
+  # Helper logs to stderr (captured by this job's wrapped log).
+  # Helper writes list of written files to stdout; capture it for commit reg.
+  if ! "$sync_latest_logs_job" --emit-written-list >"$tmp_written" 2>/dev/null; then
     rc=$?
     log_warn "sync-latest-logs helper failed (rc=$rc); continuing"
     trap - HUP INT TERM 0

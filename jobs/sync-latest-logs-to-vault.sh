@@ -17,19 +17,15 @@ PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 ###############################################################################
 # Logging (stderr only)
 ###############################################################################
-log_debug() { printf '%s\n' "DEBUG: $*" >&2; }
-log_info()  { printf '%s\n' "INFO: $*"  >&2; }
-log_warn()  { printf '%s\n' "WARN: $*"  >&2; }
-log_error() { printf '%s\n' "ERROR: $*" >&2; }
+log_debug() { printf '%s\n' "DEBUG: sync-latest-logs: $*" >&2; }
+log_info()  { printf '%s\n' "INFO: sync-latest-logs: $*"  >&2; }
+log_warn()  { printf '%s\n' "WARN: sync-latest-logs: $*"  >&2; }
+log_error() { printf '%s\n' "ERROR: sync-latest-logs: $*" >&2; }
 
 ###############################################################################
 # Helpers
 ###############################################################################
 die() { log_error "$*"; exit 1; }
-
-# Contract-aligned cadence declaration for freshness/status consumers.
-JOB_CADENCE=${JOB_CADENCE:-daily}
-log_info "cadence=$JOB_CADENCE"
 
 ###############################################################################
 # Resolve paths (repo-local helper; do not require wrapper env)
