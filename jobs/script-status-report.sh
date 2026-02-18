@@ -362,6 +362,62 @@ cadence_allowed_age_sec() {
   esac
 }
 
+resolve_latest_target_abs() {
+  # Given a *-latest.log path, attempt to resolve its symlink target to an
+  # absolute path. If not a symlink or readlink fails, print nothing.
+  _link=$1
+  _dir=${_link%/*}
+
+  _t=$(readlink "$_link" 2>/dev/null || true)
+  [ -n "$_t" ] || return 0
+
+  case "$_t" in
+    /*) _abs=$_t ;;
+    *)  _abs=$_dir/$_t ;;
+  esac
+
+  _abs=$(
+    CDPATH= cd -- "${_abs%/*}" 2>/dev/null && \
+    _d=$(pwd -P) && \
+    printf '%s/%s\n' "$_d" "${_abs##*/}"
+  ) || return 0
+
+  printf '%s\n' "$_abs"
+}
+
+find_previous_completed_log() {
+  # Best-effort: for a given <job>-latest.log, find the newest log file for
+  # that job in the same directory EXCLUDING the current latest target.
+  # Prints absolute path, or nothing if not found.
+  _latest=$1
+  _job=$2
+
+  _latest_abs=$(resolve_latest_target_abs "$_latest")
+  _search_dir=${_latest_abs%/*}
+  [ -n "$_latest_abs" ] || _search_dir=${_latest%/*}
+
+  # Collect candidates newest-first by mtime.
+  # Exclude:
+  #  - the symlink itself (<job>-latest.log)
+  #  - the resolved latest target (current run)
+  _cand=$(
+    ls -1t "$_search_dir/$_job"*.log 2>/dev/null \
+      | grep -v "/${_latest##*/}\$" \
+      | { if [ -n "$_latest_abs" ]; then grep -v "^$_latest_abs\$"; else cat; fi; } \
+      | head -n 1
+  ) || true
+
+  [ -n "${_cand:-}" ] || return 0
+
+  _abs=$(
+    CDPATH= cd -- "${_cand%/*}" 2>/dev/null && \
+    _d=$(pwd -P) && \
+    printf '%s/%s\n' "$_d" "${_cand##*/}"
+  ) || return 0
+
+  printf '%s\n' "$_abs"
+}
+
 compute_freshness() {
   # Inputs:
   #   $1 log_file
@@ -445,6 +501,7 @@ generate_report() {
   printf '# Script Status Report\n\n'
   printf 'Generated: %s\n\n' "$(now_local)"
   printf 'This report summarizes the latest known status for each script, based on its `*-latest.log` log file.\n\n'
+  printf 'Note: the self row (`script-status-report`) reflects the **previous completed run** (the current run cannot accurately report itself).\n\n'
   printf 'LOG_ROOT: `%s`\n\n' "$LOG_ROOT"
   printf '## Status Table\n\n'
   printf '| Script | Status | Exit Code | Warns | Errs | Cadence | Fresh | Log |\n'
@@ -467,12 +524,26 @@ generate_report() {
     job=${base%-latest.log}
     [ -n "$job" ] || job="(unknown)"
 
-    exit_code=$(extract_exit_code "$link")
-    warn_count=$(count_matches_ci_ere "$link" "$WARN_ERE")
-    err_count=$(count_matches_ci_ere "$link" "$ERR_ERE")
+    # Self-reporting note:
+    # The wrapper repoints <job>-latest.log at run start, so the current run
+    # cannot use its own latest link to assess itself. For the self row only,
+    # evaluate the previous completed physical log file if available.
+    eval_log=$link
+    self_prev=0
+    if [ "$job" = "script-status-report" ]; then
+      prev_log=$(find_previous_completed_log "$link" "$job")
+      if [ -n "${prev_log:-}" ] && [ -r "$prev_log" ]; then
+        eval_log=$prev_log
+        self_prev=1
+      fi
+    fi
+
+    exit_code=$(extract_exit_code "$eval_log")
+    warn_count=$(count_matches_ci_ere "$eval_log" "$WARN_ERE")
+    err_count=$(count_matches_ci_ere "$eval_log" "$ERR_ERE")
 
     # Cadence/freshness (contract-mandated)
-    freshness_line=$(compute_freshness "$link")
+    freshness_line=$(compute_freshness "$eval_log")
     cadence=$(printf '%s\n' "$freshness_line" | awk '{print $1}')
     fresh_state=$(printf '%s\n' "$freshness_line" | awk '{print $2}')
     # age_sec and allowed_sec currently unused for display; kept for potential future debug
@@ -509,6 +580,10 @@ generate_report() {
       fi
     fi
 
+    if [ "$self_prev" -eq 1 ]; then
+      status="${status}(prev)"
+    fi
+
     # Cadence / freshness precedence:
     # - Missing/unparseable cadence => unhealthy (contract: cadence missing is error)
     # - Stale => unhealthy (orthogonal to success/failure)
@@ -537,6 +612,14 @@ generate_report() {
 
     total_jobs=$((total_jobs + 1))
 
+    if [ "$self_prev" -eq 1 ]; then
+      # Link to the current latest mirror (in-progress), but disclose which
+      # physical log file was evaluated for the "prev" status.
+      log_link=$(printf '[[%s-latest|current]]<br>prev: %s' "$job" "${eval_log##*/}")
+    else
+      log_link=$(printf '[[%s-latest]]' "$job")
+    fi
+
     printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
       "$(printf '%s' "$job" | escape_md)" \
       "$(printf '%s' "$status" | escape_md)" \
@@ -545,7 +628,7 @@ generate_report() {
       "$(printf '%s' "$err_count" | escape_md)" \
       "$(printf '%s' "$cadence" | escape_md)" \
       "$(printf '%s' "$fresh_display" | escape_md)" \
-      "$(printf '[[%s-latest]]' "$job" | escape_md)"
+      "$(printf '%s' "$log_link" | escape_md)"
   done <"$list_file"
 
   if [ "$total_jobs" -eq 0 ]; then
