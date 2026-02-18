@@ -310,6 +310,42 @@ extract_cadence() {
   sed -n 's/.*[[:space:]]cadence=\([A-Za-z0-9_+-][A-Za-z0-9_+.-]*\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
 }
 
+extract_grace_token() {
+  log_file=$1
+  # Optional: grace window for freshness. Accept tokens in the form:
+  #   grace=<n><unit>
+  # where unit is one of: s, m, h, d
+  # Take the last occurrence if multiple are present.
+  sed -n 's/.*[[:space:]]grace=\([0-9][0-9]*[smhd]\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
+}
+
+grace_to_seconds() {
+  # Convert "<n><unit>" (e.g. 6h) to seconds. Empty/invalid -> 0.
+  _tok=${1-}
+  [ -n "${_tok:-}" ] || { printf '%s\n' 0; return 0; }
+
+  _n=$(printf '%s' "$_tok" | sed 's/[^0-9].*$//')
+  _u=$(printf '%s' "$_tok" | sed 's/^[0-9][0-9]*//')
+
+  case "${_n:-}" in
+    ''|*[!0-9]*)
+      printf '%s\n' 0
+      return 0
+      ;;
+  esac
+
+  case "$_u" in
+    s) printf '%s\n' "$_n" ;;
+    m) printf '%s\n' $((_n * 60)) ;;
+    h) printf '%s\n' $((_n * 3600)) ;;
+    d) printf '%s\n' $((_n * 86400)) ;;
+    *)
+      # Unknown unit -> ignore (no grace)
+      printf '%s\n' 0
+      ;;
+  esac
+}
+
 extract_run_ts_local() {
   log_file=$1
   # Extract the first timestamp in the canonical log line prefix:
@@ -423,53 +459,63 @@ compute_freshness() {
   #   $1 log_file
   #
   # Outputs (space-separated):
-  #   cadence freshness age_sec_or_? allowed_sec_or_?/blank
+  #   cadence freshness age_sec_or_? allowed_sec_or_?/blank grace_sec
   #
   # freshness:
-  #   fresh | stale | n/a | indeterminate
+  #   fresh | late | stale | n/a | indeterminate
   _log=$1
 
   _cad=$(extract_cadence "$_log")
   if [ -z "$_cad" ]; then
-    printf '%s\n' "? indeterminate ? ?"
+    printf '%s\n' "? indeterminate ? ? 0"
     return 0
   fi
 
-  _allowed=$(cadence_allowed_age_sec "$_cad")
-  if [ "$_allowed" = "?" ]; then
-    printf '%s\n' "$_cad indeterminate ? ?"
+  _allowed_base=$(cadence_allowed_age_sec "$_cad")
+  if [ "$_allowed_base" = "?" ]; then
+    printf '%s\n' "$_cad indeterminate ? ? 0"
     return 0
   fi
-  if [ -z "$_allowed" ]; then
+  if [ -z "$_allowed_base" ]; then
     # ad-hoc (or explicitly non-evaluable)
-    printf '%s\n' "$_cad n/a 0"
+    printf '%s\n' "$_cad n/a 0 0"
     return 0
   fi
 
   _ts=$(extract_run_ts_local "$_log")
   _run_epoch=$(ts_local_to_epoch "$_ts" || true)
   if [ -z "$_run_epoch" ]; then
-    printf '%s\n' "$_cad indeterminate ? $_allowed"
+    printf '%s\n' "$_cad indeterminate ? $_allowed_base 0"
     return 0
   fi
 
   _now=$(dt_now_epoch 2>/dev/null || true)
   if [ -z "$_now" ]; then
-    printf '%s\n' "$_cad indeterminate ? $_allowed"
+    printf '%s\n' "$_cad indeterminate ? $_allowed_base 0"
     return 0
   fi
 
   _age=$((_now - _run_epoch))
   if [ "$_age" -lt 0 ] 2>/dev/null; then
     # Clock skew; treat as indeterminate rather than "fresh".
-    printf '%s\n' "$_cad indeterminate ? $_allowed"
+    printf '%s\n' "$_cad indeterminate ? $_allowed_base 0"
     return 0
   fi
 
-  if [ "$_age" -gt "$_allowed" ] 2>/dev/null; then
-    printf '%s\n' "$_cad stale $_age $_allowed"
+  _grace_tok=$(extract_grace_token "$_log")
+  _grace_sec=$(grace_to_seconds "$_grace_tok")
+  _allowed_total=$((_allowed_base + _grace_sec))
+
+  if [ "$_age" -gt "$_allowed_total" ] 2>/dev/null; then
+    printf '%s\n' "$_cad stale $_age $_allowed_total $_grace_sec"
+    return 0
+  fi
+
+  # Within grace: "late" (expected for wake-triggered jobs like sleep summary).
+  if [ "$_grace_sec" -gt 0 ] 2>/dev/null && [ "$_age" -gt "$_allowed_base" ] 2>/dev/null; then
+    printf '%s\n' "$_cad late $_age $_allowed_total $_grace_sec"
   else
-    printf '%s\n' "$_cad fresh $_age $_allowed"
+    printf '%s\n' "$_cad fresh $_age $_allowed_total $_grace_sec"
   fi
 }
 
@@ -549,6 +595,7 @@ generate_report() {
     # age_sec and allowed_sec currently unused for display; kept for potential future debug
     # age_sec=$(printf '%s\n' "$freshness_line" | awk '{print $3}')
     # allowed_sec=$(printf '%s\n' "$freshness_line" | awk '{print $4}')
+    # grace_sec=$(printf '%s\n' "$freshness_line" | awk '{print $5}')
     fresh_display=$fresh_state
 
     if [ -z "$exit_code" ]; then
@@ -602,6 +649,9 @@ generate_report() {
       status="STALE"
       fail_jobs=$((fail_jobs + 1))
       fresh_display="stale"
+    elif [ "$fresh_state" = "late" ]; then
+      # Late-but-within-grace: keep status as-is; show state for visibility.
+      fresh_display="late"
     elif [ "$fresh_state" = "indeterminate" ]; then
       if [ "$status" = "OK" ]; then ok_jobs=$((ok_jobs - 1)); fi
       if [ "$status" = "WARN" ]; then warn_jobs=$((warn_jobs - 1)); fi
