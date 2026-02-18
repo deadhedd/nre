@@ -36,7 +36,7 @@ script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 # Engine libs (repo-relative)
 ###############################################################################
 repo_root=$(
-  CDPATH= cd "$script_dir/.." 2>/dev/null && pwd
+  CDPATH= cd "$script_dir/../.." 2>/dev/null && pwd
 ) || die "failed to resolve repo root from script location"
 
 lib_dir=$repo_root/engine/lib

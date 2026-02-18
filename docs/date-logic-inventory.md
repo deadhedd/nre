@@ -16,7 +16,7 @@ This report catalogs date and time handling across the repository, including the
 - `utils/core/job-wrap.sh` – `job_wrap__now` formats debug timestamps as `%Y-%m-%dT%H:%M:%S%z`; `job_wrap__runid` builds per-run IDs with `%Y%m%dT%H%M%S`.
 - `utils/core/run-with-debug.sh` – derives UTC run IDs for debug file names via `date -u +%Y%m%dT%H%M%SZ`.
 - `utils/core/script-status-report.sh` – `now_local` returns `%Y-%m-%dT%H:%M:%S` (no timezone) for log and report generation metadata.
-- `utils/core/sync-latest-logs-to-vault.sh` – `now_local` mirrors the `%Y-%m-%dT%H:%M:%S` local timestamp for sync logging.
+- `jobs/helpers/sync-latest-logs-to-vault.sh` – `now_local` mirrors the `%Y-%m-%dT%H:%M:%S` local timestamp for sync logging.
 - `utils/core/daily-note-snapshot.sh` – defaults the target daily note path to today’s date using `date +%Y-%m-%d`.
 
 ## Other utilities with date handling

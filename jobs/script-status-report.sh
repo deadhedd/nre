@@ -30,7 +30,7 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 wrap="$script_dir/../engine/wrap.sh"
-sync_latest_logs_job="$script_dir/sync-latest-logs-to-vault.sh"
+sync_latest_logs_job="$script_dir/helpers/sync-latest-logs-to-vault.sh"
 
 case "$0" in
   /*) script_path=$0 ;;
