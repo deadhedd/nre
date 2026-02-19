@@ -58,11 +58,12 @@ daily_note_dir="${vault_root}/Periodic Notes/Daily Notes"
 ###############################################################################
 LAT=47.7423
 LON=-121.9857
-TEMP_CAP_F=70          # Max acceptable temp for "good" conditions
-EARLY_HOUR_START=0     # Inclusive (local time)
-EARLY_HOUR_END=6       # Inclusive (local time)
+TEMP_CAP_F=70           # "Too hot" at or above this temp
+WORK_START_HOUR=8       # 08:00 local
+PRE_START_HOUR=7        # 07:00 local
+RH_DEW_THRESH=95        # Dew likely if RH >= this at 07:00 or 08:00
 
-API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hourly=temperature_2m,dew_point_2m&temperature_unit=fahrenheit&timezone=America/Los_Angeles"
+API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hourly=temperature_2m,relative_humidity_2m,precipitation_probability&temperature_unit=fahrenheit&timezone=America/Los_Angeles"
 
 ###############################################################################
 # Fetch forecast data
@@ -78,43 +79,103 @@ today=$(date +%Y-%m-%d)
 ###############################################################################
 # Evaluate suitability
 ###############################################################################
-# early_unsuitable: any early-hour where temp < dew point
-if ! early_unsuitable=$(
+# dew_likely: RH >= threshold at 07:00 or 08:00
+if ! dew_likely=$(
   printf '%s' "$data" | jq --arg today "$today" \
-    --argjson hs "$EARLY_HOUR_START" --argjson he "$EARLY_HOUR_END" '
+    --argjson h1 "$PRE_START_HOUR" --argjson h2 "$WORK_START_HOUR" \
+    --argjson thr "$RH_DEW_THRESH" '
       [ range(0; (.hourly.time|length)) as $i
         | .hourly.time[$i] as $ts
-        | ($ts | startswith($today + "T")) as $is_today
-        | ( $is_today
-            and (( $ts[11:13] | tonumber ) >= $hs)
-            and (( $ts[11:13] | tonumber ) <= $he)
-            and (.hourly.temperature_2m[$i] < .hourly.dew_point_2m[$i])
-          )
-      ] | map(select(.)) | length > 0
+        | select($ts | startswith($today + "T"))
+        | ($ts[11:13] | tonumber) as $h
+        | select($h == $h1 or $h == $h2)
+        | (.hourly.relative_humidity_2m[$i] >= $thr)
+      ] | any
     '
 ); then
-  log_error "Failed to parse forecast data for early hours"
+  log_error "Failed to parse forecast data for dew risk"
   exit 1
 fi
 
-# high_temp_unsuitable: any hour today where temp >= cap
-if ! high_temp_unsuitable=$(
-  printf '%s' "$data" | jq --arg today "$today" --argjson cap "$TEMP_CAP_F" '
+# rain_risk: earliest hour today with any ( >0 ) precipitation probability
+if ! rain_risk=$(
+  printf '%s' "$data" | jq --arg today "$today" '
+    def h($ts): ($ts[11:13] | tonumber);
     [ range(0; (.hourly.time|length)) as $i
-      | select(.hourly.time[$i] | startswith($today + "T"))
-      | .hourly.temperature_2m[$i]
-    ] | map(select(. >= $cap)) | length > 0
+      | .hourly.time[$i] as $ts
+      | select($ts | startswith($today + "T"))
+      | .hourly.precipitation_probability[$i] as $p
+      | select($p > 0)
+      | {ts:$ts, hour:h($ts), p:$p}
+    ] | sort_by(.hour) | .[0] // null
   '
 ); then
-  log_error "Failed to parse forecast data for temperature cap"
+  log_error "Failed to parse forecast data for rain risk"
   exit 1
 fi
 
-if [ "$early_unsuitable" = "true" ] || [ "$high_temp_unsuitable" = "true" ]; then
-  message="❌ Not ideal for yard work today."
-else
-  message="✅ Good yard work conditions expected today."
+# heat_time: earliest hour today where temp >= cap
+if ! heat_time=$(
+  printf '%s' "$data" | jq --arg today "$today" --argjson cap "$TEMP_CAP_F" '
+    def h($ts): ($ts[11:13] | tonumber);
+    [ range(0; (.hourly.time|length)) as $i
+      | .hourly.time[$i] as $ts
+      | select($ts | startswith($today + "T"))
+      | .hourly.temperature_2m[$i] as $t
+      | select($t >= $cap)
+      | {ts:$ts, hour:h($ts)}
+    ] | sort_by(.hour) | .[0] // null
+  '
+); then
+  log_error "Failed to parse forecast data for heat cap"
+  exit 1
 fi
+
+dew_label="Dew: unlikely."
+if [ "$dew_likely" = "true" ]; then
+  dew_label="Dew: likely."
+fi
+
+rain_hour=""
+rain_pct=""
+if [ "$rain_risk" != "null" ]; then
+  if ! rain_hour=$(printf '%s' "$rain_risk" | jq -r '.hour'); then
+    log_error "Failed to read rain risk hour"
+    exit 1
+  fi
+  if ! rain_pct=$(printf '%s' "$rain_risk" | jq -r '.p'); then
+    log_error "Failed to read rain risk percent"
+    exit 1
+  fi
+fi
+
+heat_hour=""
+if [ "$heat_time" != "null" ]; then
+  if ! heat_hour=$(printf '%s' "$heat_time" | jq -r '.hour'); then
+    log_error "Failed to read heat cap hour"
+    exit 1
+  fi
+fi
+
+# Determine window end (earliest of rain risk and heat cap, if any)
+window_msg=""
+if [ -n "$rain_hour" ] && [ -n "$heat_hour" ]; then
+  if [ "$rain_hour" -lt "$heat_hour" ]; then
+    window_msg=$(printf '✅ Yard work window open until a %s%% chance of rain at %02d:00. %s' "$rain_pct" "$rain_hour" "$dew_label")
+  elif [ "$heat_hour" -lt "$rain_hour" ]; then
+    window_msg=$(printf '✅ Yard work window open until heat hits %s°F at %02d:00. %s' "$TEMP_CAP_F" "$heat_hour" "$dew_label")
+  else
+    window_msg=$(printf '✅ Yard work window open until %02d:00 (heat %s°F+ and %s%% rain risk). %s' "$heat_hour" "$TEMP_CAP_F" "$rain_pct" "$dew_label")
+  fi
+elif [ -n "$rain_hour" ]; then
+  window_msg=$(printf '✅ Yard work window open until a %s%% chance of rain at %02d:00. %s' "$rain_pct" "$rain_hour" "$dew_label")
+elif [ -n "$heat_hour" ]; then
+  window_msg=$(printf '✅ Yard work window open until heat hits %s°F at %02d:00. %s' "$TEMP_CAP_F" "$heat_hour" "$dew_label")
+else
+  window_msg=$(printf '✅ Yard work window open all day. %s' "$dew_label")
+fi
+
+message=$window_msg
 
 ###############################################################################
 # Update note (marker replacement)
