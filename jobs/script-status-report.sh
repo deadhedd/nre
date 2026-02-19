@@ -523,7 +523,7 @@ compute_freshness() {
 # the first level token as message content. However, modern logs use a space
 # timestamp (not ISO T), so match the first level token after the timestamp+zone.
 WARN_ERE='^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}[[:space:]]+\[[^]]*\][[:space:]]+(WARN|WARNING)([[:space:]]|$)'
-ERR_ERE='^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}[[:space:]]+\[[^]]*\][[:space:]]+(ERR|ERROR|FATAL)([[:space:]]|$)'
+ERR_ERE='^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}[[:space:]]+\[[^]]*\][[:space:]]+(ERR|ERROR|FATAL|UNDEF)([[:space:]]|$)'
 
 generate_report() {
   # Generates markdown to stdout.
