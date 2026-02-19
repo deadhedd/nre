@@ -310,6 +310,14 @@ extract_cadence() {
   sed -n 's/.*[[:space:]]cadence=\([A-Za-z0-9_+-][A-Za-z0-9_+.-]*\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
 }
 
+extract_freshness_mode() {
+  log_file=$1
+  # Optional freshness override mode, e.g.:
+  #   freshness=today
+  # Take the last occurrence if multiple are present.
+  sed -n 's/.*[[:space:]]freshness=\([A-Za-z0-9_+-][A-Za-z0-9_+.-]*\).*/\1/p' "$log_file" 2>/dev/null | tail -n 1
+}
+
 extract_grace_token() {
   log_file=$1
   # Optional: grace window for freshness. Accept tokens in the form:
@@ -468,6 +476,42 @@ compute_freshness() {
   _cad=$(extract_cadence "$_log")
   if [ -z "$_cad" ]; then
     printf '%s\n' "? indeterminate ? ? 0"
+    return 0
+  fi
+
+  # Optional: freshness mode overrides for special jobs.
+  # Mode: "today" (only meaningful for cadence=daily)
+  _mode=$(extract_freshness_mode "$_log")
+  if [ "$_cad" = "daily" ] && [ "${_mode:-}" = "today" ]; then
+    _ts=$(extract_run_ts_local "$_log")
+    if [ -z "$_ts" ]; then
+      printf '%s\n' "$_cad indeterminate ? 86400 0"
+      return 0
+    fi
+
+    _run_day=$(printf '%s\n' "$_ts" | sed 's/[[:space:]].*$//')
+    if [ -z "$_run_day" ]; then
+      printf '%s\n' "$_cad indeterminate ? 86400 0"
+      return 0
+    fi
+
+    _now_local=$(dt_now_local_iso_no_tz 2>/dev/null || true)
+    if [ -z "$_now_local" ]; then
+      printf '%s\n' "$_cad indeterminate ? 86400 0"
+      return 0
+    fi
+
+    _today=$(printf '%s\n' "$_now_local" | sed 's/[[:space:]].*$//')
+    if [ -z "$_today" ]; then
+      printf '%s\n' "$_cad indeterminate ? 86400 0"
+      return 0
+    fi
+
+    if [ "$_run_day" = "$_today" ]; then
+      printf '%s\n' "$_cad fresh 0 86400 0"
+    else
+      printf '%s\n' "$_cad stale ? 86400 0"
+    fi
     return 0
   fi
 
