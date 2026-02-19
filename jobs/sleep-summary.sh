@@ -63,8 +63,7 @@ fi
 # Cadence declaration (contract-required)
 ###############################################################################
 
-JOB_CADENCE=${JOB_CADENCE:-daily}
-log_info "cadence=$JOB_CADENCE"
+log_info "cadence=daily grace=3h"
 
 ###############################################################################
 # Engine libs (wrapped path only)
