@@ -19,10 +19,14 @@ set -eu
 # Logging (leaf responsibility: emit correctly-formatted messages to stderr)
 ###############################################################################
 
+# Self-row counters (so the report can include this job in the same table)
+SELF_WARN=0
+SELF_ERR=0
+
 log_debug() { printf '%s\n' "DEBUG: $*" >&2; }
 log_info()  { printf '%s\n' "INFO: $*"  >&2; }
-log_warn()  { printf '%s\n' "WARN: $*"  >&2; }
-log_error() { printf '%s\n' "ERROR: $*" >&2; }
+log_warn()  { SELF_WARN=$((SELF_WARN + 1)); printf '%s\n' "WARN: $*"  >&2; }
+log_error() { SELF_ERR=$((SELF_ERR + 1)); printf '%s\n' "ERROR: $*" >&2; }
 
 ###############################################################################
 # Resolve paths
@@ -580,6 +584,18 @@ generate_report() {
 
   link_count=$(wc -l <"$list_file" | tr -d ' ')
 
+  # Self row identity (this script)
+  self_job="script-status-report"
+  self_ts=$(now_local)
+  self_cadence=${JOB_CADENCE:-daily}
+  self_fresh="fresh"
+  self_exit="0"
+  self_status="OK"
+  self_warn=$SELF_WARN
+  self_err=$SELF_ERR
+  # Keep the same link format as other rows
+  self_log_link=$(printf '[[%s-latest]]' "$self_job")
+
   total_jobs=0
   ok_jobs=0
   warn_jobs=0
@@ -591,11 +607,36 @@ generate_report() {
   printf '# Script Status Report\n\n'
   printf 'Generated: %s\n\n' "$(now_local)"
   printf 'This report summarizes the latest known status for each script, based on its `*-latest.log` log file.\n\n'
-  printf 'Note: the self row (`script-status-report`) reflects the **previous completed run** (the current run cannot accurately report itself).\n\n'
+  printf 'Note: the self row (`script-status-report`) reflects the **current run** (synthesized), so it can appear in the same table.\n\n'
   printf 'LOG_ROOT: `%s`\n\n' "$LOG_ROOT"
   printf '## Status Table\n\n'
   printf '| Script | Status | Exit Code | Warns | Errs | Cadence | Fresh | Log |\n'
   printf '|--------|--------|-----------|-------|------|---------|-------|-----|\n'
+
+  # Emit the reporter self row first so it always appears (even if LOG_ROOT has issues).
+  # This row is synthesized from current run context rather than reading *-latest.log,
+  # because the wrapper may repoint the latest link at run start.
+  total_jobs=$((total_jobs + 1))
+  ok_jobs=$((ok_jobs + 1))
+  if [ "$self_err" -gt 0 ] 2>/dev/null; then
+    self_status="ERR"
+    fail_jobs=$((fail_jobs + 1))
+    ok_jobs=$((ok_jobs - 1))
+  elif [ "$self_warn" -gt 0 ] 2>/dev/null; then
+    self_status="WARN"
+    warn_jobs=$((warn_jobs + 1))
+    ok_jobs=$((ok_jobs - 1))
+  fi
+
+  printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+    "$(printf '%s' "$self_job" | escape_md)" \
+    "$(printf '%s' "$self_status" | escape_md)" \
+    "$(printf '%s' "$self_exit" | escape_md)" \
+    "$(printf '%s' "$self_warn" | escape_md)" \
+    "$(printf '%s' "$self_err" | escape_md)" \
+    "$(printf '%s' "$self_cadence" | escape_md)" \
+    "$(printf '%s' "$self_fresh" | escape_md)" \
+    "$(printf '%s' "$self_log_link" | escape_md)"
 
   while IFS= read -r link; do
     [ -n "$link" ] || continue
@@ -614,19 +655,12 @@ generate_report() {
     job=${base%-latest.log}
     [ -n "$job" ] || job="(unknown)"
 
-    # Self-reporting note:
-    # The wrapper repoints <job>-latest.log at run start, so the current run
-    # cannot use its own latest link to assess itself. For the self row only,
-    # evaluate the previous completed physical log file if available.
-    eval_log=$link
-    self_prev=0
-    if [ "$job" = "script-status-report" ]; then
-      prev_log=$(find_previous_completed_log "$link" "$job")
-      if [ -n "${prev_log:-}" ] && [ -r "$prev_log" ]; then
-        eval_log=$prev_log
-        self_prev=1
-      fi
+    # Skip self: we emit a synthesized self row above.
+    if [ "$job" = "$self_job" ]; then
+      continue
     fi
+
+    eval_log=$link
 
     exit_code=$(extract_exit_code "$eval_log")
     warn_count=$(count_matches_ci_ere "$eval_log" "$WARN_ERE")
@@ -671,10 +705,6 @@ generate_report() {
       fi
     fi
 
-    if [ "$self_prev" -eq 1 ]; then
-      status="${status}(prev)"
-    fi
-
     # Cadence / freshness precedence:
     # - Missing/unparseable cadence => unhealthy (contract: cadence missing is error)
     # - Stale => unhealthy (orthogonal to success/failure)
@@ -706,13 +736,7 @@ generate_report() {
 
     total_jobs=$((total_jobs + 1))
 
-    if [ "$self_prev" -eq 1 ]; then
-      # Link to the current latest mirror (in-progress), but disclose which
-      # physical log file was evaluated for the "prev" status.
-      log_link=$(printf '[[%s-latest|current]]<br>prev: %s' "$job" "${eval_log##*/}")
-    else
-      log_link=$(printf '[[%s-latest]]' "$job")
-    fi
+    log_link=$(printf '[[%s-latest]]' "$job")
 
     printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
       "$(printf '%s' "$job" | escape_md)" \
