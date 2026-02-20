@@ -129,7 +129,9 @@ if ! cd "$repo_dir"; then
 fi
 
 log_info "running: git pull --ff-only"
-if ! "$git_bin" pull --ff-only; then
+if ! "$git_bin" pull --ff-only 2>&1 | while IFS= read -r line; do
+  log_info "git: $line"
+done; then
   log_error "git pull failed"
   exit 1
 fi
