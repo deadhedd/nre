@@ -648,7 +648,7 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -n "${_tmp:-}" ] && [ ! -s "$_tmp" ]; then
   _wrap_debug "capture-forward: tmp_has_data=0"
 fi
 
-_wrap_debug "leaf: rc=$_leaf_rc"
+_wrap_info "leaf: rc=$_leaf_rc"
 
 ###############################################################################
 # Optional commit orchestration
