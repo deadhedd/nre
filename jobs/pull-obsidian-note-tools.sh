@@ -49,6 +49,8 @@ if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
     exit 127
   fi
   log_info "leaf wrap: exec wrapper: $wrap"
+  COMMIT_MODE=${COMMIT_MODE:-off}
+  export COMMIT_MODE
   exec "$wrap" "$script_path" ${1+"$@"}
 else
   log_debug "leaf wrap: wrapper active; executing leaf"
@@ -129,10 +131,16 @@ if ! cd "$repo_dir"; then
 fi
 
 log_info "running: git pull --ff-only"
-if ! "$git_bin" pull --ff-only 2>&1 | while IFS= read -r line; do
-  log_info "git: $line"
-done; then
-  log_error "git pull failed"
+
+git_output=$("$git_bin" pull --ff-only 2>&1) || git_rc=$?
+git_rc=${git_rc:-0}
+
+printf '%s\n' "$git_output" | while IFS= read -r line; do
+  [ -n "$line" ] && log_info "git: $line"
+done
+
+if [ "$git_rc" -ne 0 ]; then
+  log_error "git pull failed: rc=$git_rc"
   exit 1
 fi
 
