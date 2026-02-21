@@ -63,7 +63,7 @@ fi
 # Cadence declaration (contract-required)
 ###############################################################################
 
-log_info "cadence=daily freshness=today"
+log_info "cadence=daily"
 
 ###############################################################################
 # Engine libs (wrapped path only)
