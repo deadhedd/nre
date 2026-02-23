@@ -57,8 +57,15 @@ _wrap_emit() {
   # mirror wrapper diagnostics into the per-run log via log_capture.
   # This keeps bootstrap logs reserved for bootstrap/degraded logging evidence.
   _emit_runlog=0
-  if [ "${LOG_DEGRADED:-1}" -eq 0 ] && { [ "${JOB_WRAP_DEBUG:-0}" = "1" ] || [ "${LOG_MIN_LEVEL:-INFO}" = "DEBUG" ]; }; then
-    _emit_runlog=1
+  if [ "${LOG_DEGRADED:-1}" -eq 0 ]; then
+    case "$_lvl" in
+      INFO|WARN|ERROR) _emit_runlog=1 ;;
+      DEBUG)
+        if [ "${JOB_WRAP_DEBUG:-0}" = "1" ] || [ "${LOG_MIN_LEVEL:-INFO}" = "DEBUG" ]; then
+          _emit_runlog=1
+        fi
+        ;;
+    esac
   fi
 
   # Default boundary emission rules:
