@@ -53,11 +53,10 @@ _wrap_emit() {
 
   _wrap_level_ok "$_lvl" || return 0
 
-  # When centralized logging is healthy and internal debug is enabled,
-  # mirror wrapper diagnostics into the per-run log via log_capture.
-  # This keeps bootstrap logs reserved for bootstrap/degraded logging evidence.
+  # When centralized logging is healthy, always write wrapper diagnostics into
+  # the per-run log via log_capture. (stderr emission remains policy-driven.)
   _emit_runlog=0
-  if [ "${LOG_DEGRADED:-1}" -eq 0 ] && { [ "${JOB_WRAP_DEBUG:-0}" = "1" ] || [ "${LOG_MIN_LEVEL:-INFO}" = "DEBUG" ]; }; then
+  if [ "${LOG_DEGRADED:-1}" -eq 0 ]; then
     _emit_runlog=1
   fi
 
