@@ -26,7 +26,7 @@ script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 # C1 bootstrap rule: wrapper location is assumed stable *relative to this file*
 # for the initial self-wrap hop only. Once wrapped, REPO_ROOT (exported by the
 # wrapper) becomes the source of truth for repo-relative paths.
-wrap="$script_dir/../engine/wrap.sh"
+wrap="$script_dir/../../engine/wrap.sh"
 
 # Prefer passing an absolute script path to the wrapper for sturdiness.
 case "$0" in
@@ -180,7 +180,7 @@ fi
 artifact_root=$VAULT_ROOT
 
 # Internal helper layout (repo-local)
-helpers_dir="$repo_root/jobs/helpers"
+helpers_dir="$repo_root/jobs/private/helpers"
 
 day_plan_script="$helpers_dir/generate-day-plan.sh"
 celestial_timings_script="$helpers_dir/generate-celestial-timings.sh"
