@@ -1,9 +1,7 @@
 #!/bin/sh
-# jobs/generate-weekly-note.sh — Generate a weekly note (contract-aligned leaf job)
+# Generate a quarterly note markdown file based on the legacy Node implementation.
 #
-# Leaf job (wrapper required)
-# Version: 1.0
-# Status: contract-aligned (leaf template)
+# Leaf job (wrapper required).
 #
 # Author: deadhedd
 # License: MIT
@@ -28,7 +26,7 @@ script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 # C1 bootstrap rule: wrapper location is assumed stable *relative to this file*
 # for the initial self-wrap hop only. Once wrapped, REPO_ROOT (exported by the
 # wrapper) becomes the source of truth for repo-relative paths.
-wrap="$script_dir/../engine/wrap.sh"
+wrap="$script_dir/../../engine/wrap.sh"
 
 # Prefer passing an absolute script path to the wrapper for sturdiness.
 case "$0" in
@@ -67,7 +65,7 @@ fi
 ###############################################################################
 # Cadence declaration (contract-required)
 ###############################################################################
-JOB_CADENCE=${JOB_CADENCE:-weekly}
+JOB_CADENCE=${JOB_CADENCE:-quarterly}
 log_info "cadence=$JOB_CADENCE"
 
 ###############################################################################
@@ -112,16 +110,16 @@ fi
 }
 
 ###############################################################################
-# Argument parsing (customized for weekly note job)
+# Argument parsing (template scaffold; customized for quarterly notes)
 ###############################################################################
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: generate-weekly-note.sh [--output <path>] [--outdir <name>] [--dry-run] [--force]
+Usage: generate-quarterly-note.sh [--output <path>] [--outdir <name>] [--dry-run] [--force]
 
 Options:
-  --output <path>   Output file path (absolute). Overrides --outdir anchoring.
-  --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Weekly Notes".
+  --output <path>   Absolute output file path (overrides --outdir default path).
+  --outdir <name>   Subdirectory inside the vault. Defaults to "Periodic Notes/Quarterly Notes".
   --dry-run         Emit content to stdout instead of writing a file.
   --force           Overwrite existing files if present.
   --help            Show this message.
@@ -132,7 +130,8 @@ output_path=""
 dry_run=0
 force=0
 
-outdir="Periodic Notes/Weekly Notes"
+# Job-specific defaults
+outdir="Periodic Notes/Quarterly Notes"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -174,42 +173,61 @@ done
 # Compute anchor artifact path (result_ref)
 ###############################################################################
 
-# Artifact root:
-# - Must be provided by wrapper.
 if [ -z "${VAULT_ROOT:-}" ]; then
   log_error "VAULT_ROOT not set (wrapper required)"
   exit 127
 fi
 artifact_root=$VAULT_ROOT
 
-# Weekly note is always for "current week" (local), derived from periods lib.
-# No stderr suppression: if libs emit anything, we want it in the log.
-date_arg=$(pr_today)
-
-# Derive week navigation tags (prev/current/next) for "today".
-week_nav=$(pr_week_nav_tags_for_date "$date_arg") || {
-  log_error "failed to compute week navigation tags for date: $date_arg"
-  exit 2
-}
-set -- $week_nav
-prev_week_tag=$1
-iso_week_tag=$2
-next_week_tag=$3
-set --
-
-# Normalize outdir (strip leading/trailing slashes)
+# Normalize outdir (trim leading/trailing slashes)
 trimmed_outdir=$outdir
 while [ "${trimmed_outdir#/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir#/}; done
 while [ "${trimmed_outdir%/}" != "$trimmed_outdir" ]; do trimmed_outdir=${trimmed_outdir%/}; done
 
-# Compute result_ref (period-based unless --output)
+# Determine quarter tag (YYYY-Qn) for *current local quarter*.
+tag=$(pr_quarter_tag_iso 2>/dev/null || printf '%s' "")
+if [ -z "$tag" ]; then
+  log_error "failed to determine current quarter (pr_quarter_tag_iso)"
+  exit 127
+fi
+
+target_year=${tag%%-*}
+target_quarter=${tag#*-Q}
+
+# Basic quarter sanity
+case "$target_quarter" in
+  1|2|3|4) : ;;
+  *) log_error "quarter must be between 1 and 4: Q$target_quarter"; exit 2 ;;
+esac
+
+# Compute prev/next quarter tags (simple quarter arithmetic)
+prev_year=$target_year
+prev_quarter=$((target_quarter - 1))
+if [ "$prev_quarter" -lt 1 ]; then
+  prev_quarter=4
+  prev_year=$((target_year - 1))
+fi
+
+next_year=$target_year
+next_quarter=$((target_quarter + 1))
+if [ "$next_quarter" -gt 4 ]; then
+  next_quarter=1
+  next_year=$((target_year + 1))
+fi
+
+prev_tag="${prev_year}-Q${prev_quarter}"
+next_tag="${next_year}-Q${next_quarter}"
+
+prev_link="Q${prev_quarter} ${prev_year}"
+next_link="Q${next_quarter} ${next_year}"
+
 if [ -z "$output_path" ]; then
+  # Default location inside vault
   if [ -n "$trimmed_outdir" ]; then
-    note_dir="$artifact_root/$trimmed_outdir"
+    result_ref="${artifact_root%/}/$trimmed_outdir/${tag}.md"
   else
-    note_dir="$artifact_root"
+    result_ref="${artifact_root%/}/${tag}.md"
   fi
-  result_ref="${note_dir%/}/${iso_week_tag}.md"
 else
   case "$output_path" in
     */)
@@ -217,15 +235,9 @@ else
       exit 2
       ;;
   esac
-  # Contract: --output must be an absolute path.
   case "$output_path" in
-    /*)
-      result_ref="$output_path"
-      ;;
-    *)
-      log_error "--output must be an absolute path: $output_path"
-      exit 2
-      ;;
+    /*) result_ref="$output_path" ;;
+    *)  log_error "--output must be an absolute path: $output_path"; exit 2 ;;
   esac
 fi
 
@@ -241,6 +253,11 @@ esac
 # Helpers (template-standard; optional use by jobs)
 ###############################################################################
 
+# Atomic write helper for additional artifacts (and usable for result_ref if desired).
+# Usage:
+#   write_atomic_file "/absolute/path/to/file" <<'EOF'
+#   content...
+#   EOF
 write_atomic_file() {
   _dest=$1
   _tmp_dir=${_dest%/*}
@@ -277,54 +294,58 @@ if [ -f "$result_ref" ] && [ "$force" -ne 1 ]; then
   exit 1
 fi
 
-generate_content() {
+# Link targets should be vault-relative paths (no ".md" required in Obsidian)
+if [ -n "$trimmed_outdir" ]; then
   link_prefix=$trimmed_outdir
+else
+  link_prefix=""
+fi
+
+generate_content() {
   if [ -n "$link_prefix" ]; then
-    link_prefix="${link_prefix%/}/"
+    prev_target="${link_prefix%/}/${prev_tag}"
+    next_target="${link_prefix%/}/${next_tag}"
+  else
+    prev_target="${prev_tag}"
+    next_target="${next_tag}"
   fi
 
-  cat <<EOF_CONTENT
-# Week ${iso_week_tag}
+  cat <<EOF_NOTE
+# ${tag}
 
-<<[[${link_prefix}${prev_week_tag}|${prev_week_tag}]] || [[${link_prefix}${next_week_tag}|${next_week_tag}]]>>
+- [[${prev_target}|${prev_link}]]
+- [[${next_target}|${next_link}]]
 
-## 🎯 Weekly Goal
-
-**Goal:**  
-\`weekly_goal:: \`
-
-**Why it matters:**  
-> One or two sentences at most.
-
-**Definition of Done:**  
-- [ ] Clear outcome  
-- [ ] Observable result  
-
----
-
-## 📋 Weekly Checklist
-(These need to be incorporated into the cascading tasks system)
-- [ ] Weekly Review
-- [ ] Plan Weekly Goal
-- [ ] Review Calendar
-- [ ] Prep Meals / Ingredients
-
----
-
-## 🧩 Cascading Tasks
+## Cascading Tasks
 
 \`\`\`tasks
 not done
-tag includes due/${iso_week_tag}
+tag includes due/${tag}
 \`\`\`
 
-## Links
+## Quarterly Checklist
 
-[[Weekly Routine]]
-[[Weekly Goal Queue]]
-[[Weekly Note Template]]
+-  Review yearly goals
+-  Set quarterly priorities
+-  Review financial plan
+-  Plan major home or work projects
+-  Schedule any needed health checkups
+-  Clean out unnecessary files or papers
 
-EOF_CONTENT
+## Major Goals
+
+## Key Projects
+
+## Review
+
+- What went well:
+
+- What didn’t:
+
+- Lessons learned:
+
+## Notes
+EOF_NOTE
 }
 
 if [ "$dry_run" -eq 1 ]; then
@@ -342,29 +363,10 @@ fi
 # Write anchor artifact (atomic; contractual)
 ###############################################################################
 
-primary_parent=${result_ref%/*}
-if ! mkdir -p "$primary_parent"; then
-  log_error "failed to create artifact directory: $primary_parent"
-  exit 1
-fi
-
-tmp="${primary_parent}/${result_ref##*/}.tmp.$$"
-cleanup_tmp() {
-  [ -n "${tmp:-}" ] && [ -f "$tmp" ] && rm -f "$tmp"
-}
-trap cleanup_tmp HUP INT TERM 0
-
-if ! generate_content >"$tmp"; then
-  log_error "failed to write temp artifact: $tmp"
-  exit 1
-fi
-if ! mv "$tmp" "$result_ref"; then
-  log_error "failed to finalize artifact (mv): $tmp -> $result_ref"
-  exit 1
-fi
-
-tmp=""
-trap - HUP INT TERM 0
+# Use the template-standard atomic writer.
+write_atomic_file "$result_ref" <<EOF_NOTE
+$(generate_content)
+EOF_NOTE
 
 ###############################################################################
 # Commit registration (contractual; multi-artifact)

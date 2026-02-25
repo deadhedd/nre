@@ -1,11 +1,12 @@
 #!/bin/sh
-# jobs/generate-monthly-note.sh
-# Generate a monthly note markdown file equivalent to the legacy Node script.
-#
-# Leaf job (wrapper required).
+# jobs/private/generate-yearly-note.sh
+# Leaf job (wrapper required)
 #
 # Version: 1.0
 # Status: contract-aligned (leaf template)
+#
+# Generate a yearly note markdown file inspired by the legacy Node version.
+# Produces one artifact: <VAULT_ROOT>/Periodic Notes/Yearly Notes/<YYYY>.md
 #
 # Author: deadhedd
 # License: MIT
@@ -24,20 +25,17 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 ###############################################################################
 # Resolve paths
 ###############################################################################
+
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
 # C1 bootstrap rule: wrapper location is assumed stable *relative to this file*
-# for the initial self-wrap hop only. Once wrapped, REPO_ROOT (exported by the
-# wrapper) becomes the source of truth for repo-relative paths.
-wrap="$script_dir/../engine/wrap.sh"
+wrap="$script_dir/../../engine/wrap.sh"
 
-# Prefer passing an absolute script path to the wrapper for sturdiness.
 case "$0" in
   /*) script_path=$0 ;;
   *)  script_path=$script_dir/${0##*/} ;;
 esac
 
-# Canonicalize the final script path to avoid surprises (symlinks/cwd oddities).
 script_path=$(
   CDPATH= cd "$(dirname "$script_path")" && \
   d=$(pwd) && \
@@ -50,6 +48,7 @@ script_path=$(
 ###############################################################################
 # Self-wrap (minimal, dumb, contract-aligned)
 ###############################################################################
+
 if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
   if [ ! -x "$wrap" ]; then
     log_error "leaf wrap: wrapper not found/executable: $wrap"
@@ -64,12 +63,14 @@ fi
 ###############################################################################
 # Cadence declaration (contract-required)
 ###############################################################################
-JOB_CADENCE=monthly
+
+JOB_CADENCE=${JOB_CADENCE:-yearly}
 log_info "cadence=$JOB_CADENCE"
 
 ###############################################################################
 # Engine libs (wrapped path only)
 ###############################################################################
+
 if [ -z "${REPO_ROOT:-}" ]; then
   log_error "REPO_ROOT not set (wrapper required)"
   exit 127
@@ -105,16 +106,16 @@ fi
 }
 
 ###############################################################################
-# Argument parsing (template baseline; customize minimally)
+# Argument parsing (template baseline)
 ###############################################################################
+
 usage() {
   cat <<'EOF_USAGE'
-Usage: generate-monthly-note.sh [--output <path>] [--dry-run] [--force]
+Usage: generate-yearly-note.sh [--output <path>] [--dry-run] [--force]
 
 Options:
-  --output <path>   Output file path (absolute). If omitted, defaults to:
-                    $VAULT_ROOT/Periodic Notes/Monthly Notes/YYYY-MM.md
-  --dry-run         Emit content to stdout instead of writing a file.
+  --output <path>   Output file path (absolute). Overrides default vault location.
+  --dry-run         Emit note content to stdout instead of writing a file.
   --force           Overwrite existing files if present.
   --help            Show this message.
 EOF_USAGE
@@ -155,47 +156,37 @@ done
 # Job logic
 ###############################################################################
 
-# Contract: artifact root must be provided by wrapper.
+###############################################################################
+# Compute anchor artifact path (result_ref)
+###############################################################################
+
 if [ -z "${VAULT_ROOT:-}" ]; then
   log_error "VAULT_ROOT not set (wrapper required)"
   exit 127
 fi
 artifact_root=$VAULT_ROOT
 
-# Compute current/prev/next month tags via periods.sh
-month_tag=$(pr_month_tag_current) || { log_error "failed to compute current month tag"; exit 1; }
-prev_tag=$(pr_month_tag_prev) || { log_error "failed to compute prev month tag"; exit 1; }
-next_tag=$(pr_month_tag_next) || { log_error "failed to compute next month tag"; exit 1; }
+# Determine target year using datetime helper (local time)
+iso=$(dt_now_local_iso 2>/dev/null || printf '%s' "")
+if [ -z "$iso" ]; then
+  log_error "failed to determine current local date (dt_now_local_iso)"
+  exit 127
+fi
 
-# Derive year + month number (for title)
-today=$(dt_today_local) || { log_error "failed to compute dt_today_local"; exit 1; }
-set -- $(dt_date_parts "$today") || { log_error "failed to compute dt_date_parts: $today"; exit 1; }
-year=$1
-month=$2
+target_year=${iso%%-*}
+case "$target_year" in
+  [0-9][0-9][0-9][0-9]) : ;;
+  *)
+    log_error "unexpected year format from datetime helper: $target_year"
+    exit 127
+    ;;
+esac
 
-month_name_en() {
-  case "$1" in
-    01) printf 'January' ;;
-    02) printf 'February' ;;
-    03) printf 'March' ;;
-    04) printf 'April' ;;
-    05) printf 'May' ;;
-    06) printf 'June' ;;
-    07) printf 'July' ;;
-    08) printf 'August' ;;
-    09) printf 'September' ;;
-    10) printf 'October' ;;
-    11) printf 'November' ;;
-    12) printf 'December' ;;
-    *)  printf '%s' "$1" ;;
-  esac
-}
+prev_year=$((target_year - 1))
+next_year=$((target_year + 1))
 
-month_name=$(month_name_en "$month")
-
-# Compute result_ref
 if [ -z "$output_path" ]; then
-  result_ref="$artifact_root/Periodic Notes/Monthly Notes/${month_tag}.md"
+  result_ref="$artifact_root/Periodic Notes/Yearly Notes/${target_year}.md"
 else
   case "$output_path" in
     */)
@@ -205,9 +196,20 @@ else
   esac
   case "$output_path" in
     /*) result_ref="$output_path" ;;
-    *)  log_error "--output must be an absolute path: $output_path"; exit 2 ;;
+    *)
+      log_error "--output must be an absolute path: $output_path"
+      exit 2
+      ;;
   esac
 fi
+
+case "$result_ref" in
+  ""|*/) log_error "internal: invalid result_ref: $result_ref"; exit 127 ;;
+esac
+
+###############################################################################
+# Overwrite guards
+###############################################################################
 
 if [ -f "$result_ref" ] && [ "$force" -ne 1 ]; then
   log_error "refusing to overwrite existing file: $result_ref (use --force)"
@@ -216,66 +218,42 @@ fi
 
 generate_content() {
   cat <<EOF_NOTE
-# ${month_name} ${year}
+# ${target_year}
 
-- [[Periodic Notes/Monthly Notes/${prev_tag}|${prev_tag}]]
-- [[Periodic Notes/Monthly Notes/${next_tag}|${next_tag}]]
+- [[Periodic Notes/Yearly Notes/${prev_year}|${prev_year}]]
+- [[Periodic Notes/Yearly Notes/${next_year}|${next_year}]]
 
 ## Cascading Tasks
 
-\`\`\`tasks
-not done
-tag includes due/${month_tag}
+\`\`\`dataview
+task
+from ""
+where contains(tags, "due/${target_year}")
 \`\`\`
 
-## Monthly Checklist
+## Yearly Checklist
 
--  Check home maintenance tasks
--  Plan major goals for next month
-- [ ] Clean out the fridge
-- [ ] Order Johnie's inhaler
-- [ ] Finance review
+-  Reflect on the past year
+-  Set yearly theme or focus
+-  Define major life goals
+-  Create financial plan
+-  Plan vacations / time off
+-  Assess personal habits and routines
+-  Declutter home, digital spaces, and commitments
 
-## budget
+## Annual Theme / Focus
 
-### Regular expenses:
-##### Essentials:
-- Garbage: 70 (Feb, May, Aug, Nov)
-- Internet: 45 (Monthly)
-- Electricity: 120-300 (Monthly)
-- Car Payment: 616 (monthly)
-- Car insurance 1750 (Jul, Nov)
-**Total**: 781-2781
-##### Non-essentials:
-- Chatgpt: 22 (Monthly)
-- YT Premium: 25 (Monthly)
-- Audible 18 (Bi-monthly (odd))
-- Patreon: 4 (Monthly)
-- Apple Music: 11 (Monthly)
-- Fitbod: 80 (Yearly (Oct))
-- itunes match: 25 (Yearly (Jun))
-- F1TV: 85 (Jul)
-**Total**: 62-227
-
-##### **Total Regular Expenses:
-- 843-3008
-##### Income:
-(~1400 expected)
-- (###)
-##### Expenses:
-- (###)
-##### Net:
-- (###)
-
-## Goals
+## Major Goals
 
 ## Review
 
-- What went well:
+- Highlights of the year:
 
-- What didn’t:
+- Challenges faced:
 
 - Lessons learned:
+
+- Changes for next year:
 
 ## Notes
 EOF_NOTE
@@ -292,7 +270,10 @@ if [ "$dry_run" -eq 1 ]; then
   exit 0
 fi
 
-# Write anchor artifact atomically (template pattern)
+###############################################################################
+# Write anchor artifact (atomic)
+###############################################################################
+
 primary_parent=${result_ref%/*}
 if ! mkdir -p "$primary_parent"; then
   log_error "failed to create artifact directory: $primary_parent"
@@ -317,12 +298,20 @@ fi
 tmp=""
 trap - HUP INT TERM 0
 
+###############################################################################
 # Commit registration (contractual)
+###############################################################################
+
 if [ -n "${COMMIT_LIST_FILE:-}" ]; then
   if ! printf '%s\n' "$result_ref" >>"$COMMIT_LIST_FILE" 2>/dev/null; then
     log_warn "failed to append to COMMIT_LIST_FILE: $COMMIT_LIST_FILE"
   fi
 fi
 
+###############################################################################
+# Diagnostics
+###############################################################################
+
 log_info "Produced artifact: $result_ref"
+
 exit 0
