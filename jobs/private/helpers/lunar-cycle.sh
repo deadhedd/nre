@@ -23,7 +23,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 ###############################################################################
 # Domain helpers (UTC parsing, curl, fmt_eta, etc.)
 ###############################################################################
-# shellcheck source=jobs/lib/celestial-timings-common.sh
+# shellcheck source=jobs/private/lib/celestial-timings-common.sh
 . "$SCRIPT_DIR/../lib/celestial-timings-common.sh"
 
 moon_icon() {
