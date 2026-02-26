@@ -167,10 +167,14 @@ WRAP_DIR=$(CDPATH= cd "$(dirname "$0")" 2>/dev/null && pwd) || {
   exit "$WRAP_E_INIT"
 }
 
-REPO_ROOT=$(CDPATH= cd "$WRAP_DIR/.." 2>/dev/null && pwd) || {
-  _wrap_error "cannot resolve repo root from engine layout"
-  exit "$WRAP_E_INIT"
-}
+if [ -n "${REPO_ROOT:-}" ]; then
+  _wrap_debug "using pre-set REPO_ROOT from environment"
+else
+  REPO_ROOT=$(CDPATH= cd "$WRAP_DIR/.." 2>/dev/null && pwd) || {
+    _wrap_error "cannot resolve repo root from engine layout"
+    exit "$WRAP_E_INIT"
+  }
+fi
 
 # C1 contract: wrapper exports REPO_ROOT (absolute) for wrapped leaf execution.
 case "$REPO_ROOT" in
