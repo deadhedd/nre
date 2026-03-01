@@ -61,9 +61,9 @@ LON=-121.9857
 TEMP_CAP_F=70           # "Too hot" at or above this temp
 WORK_START_HOUR=8       # 08:00 local
 PRE_START_HOUR=7        # 07:00 local
-RH_DEW_THRESH=95        # Dew likely if RH >= this at 07:00 or 08:00
+DEW_SPREAD_F=2          # Dew likely if (temp - dew point) <= this at 07:00 or 08:00
 
-API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hourly=temperature_2m,relative_humidity_2m,precipitation_probability&temperature_unit=fahrenheit&timezone=America/Los_Angeles"
+API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hourly=temperature_2m,dew_point_2m,precipitation_probability&temperature_unit=fahrenheit&timezone=America/Los_Angeles"
 
 ###############################################################################
 # Fetch forecast data
@@ -79,17 +79,19 @@ today=$(date +%Y-%m-%d)
 ###############################################################################
 # Evaluate suitability
 ###############################################################################
-# dew_likely: RH >= threshold at 07:00 or 08:00
+# dew_likely: (temp - dew_point) <= threshold at 07:00 or 08:00
 if ! dew_likely=$(
   printf '%s' "$data" | jq --arg today "$today" \
     --argjson h1 "$PRE_START_HOUR" --argjson h2 "$WORK_START_HOUR" \
-    --argjson thr "$RH_DEW_THRESH" '
+    --argjson thr "$DEW_SPREAD_F" '
       [ range(0; (.hourly.time|length)) as $i
         | .hourly.time[$i] as $ts
         | select($ts | startswith($today + "T"))
         | ($ts[11:13] | tonumber) as $h
         | select($h == $h1 or $h == $h2)
-        | (.hourly.relative_humidity_2m[$i] >= $thr)
+        | (.hourly.temperature_2m[$i] as $t
+          | .hourly.dew_point_2m[$i] as $d
+          | ($t - $d) <= $thr)
       ] | any
     '
 ); then
