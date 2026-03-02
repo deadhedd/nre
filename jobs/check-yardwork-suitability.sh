@@ -77,6 +77,28 @@ fi
 today=$(date +%Y-%m-%d)
 
 ###############################################################################
+# Log raw decision inputs (for dew/rain/heat tuning visibility)
+###############################################################################
+log_info "Decision inputs for $today (hours $PRE_START_HOUR and $WORK_START_HOUR):"
+
+printf '%s' "$data" | jq -r \
+  --arg today "$today" \
+  --argjson h1 "$PRE_START_HOUR" \
+  --argjson h2 "$WORK_START_HOUR" '
+    range(0; (.hourly.time|length)) as $i
+    | .hourly.time[$i] as $ts
+    | select($ts | startswith($today + "T"))
+    | ($ts[11:13] | tonumber) as $h
+    | select($h == $h1 or $h == $h2)
+    | .hourly.temperature_2m[$i] as $t
+    | .hourly.dew_point_2m[$i] as $d
+    | .hourly.precipitation_probability[$i] as $p
+    | "Hour \($h): temp=\($t)F dew=\($d)F spread=\($t - $d)F precip=\($p)%"
+  ' 2>/dev/null | while IFS= read -r line; do
+    log_info "$line"
+  done
+
+###############################################################################
 # Evaluate suitability
 ###############################################################################
 # dew_likely: (temp - dew_point) <= threshold at 07:00 or 08:00
