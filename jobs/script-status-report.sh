@@ -708,9 +708,27 @@ generate_report() {
   if [ "$total_jobs" -eq 0 ]; then
     printf '\n_No jobs found under `%s`._\n' "$LOG_ROOT"
   else
-    printf '\n---\n\n'
-    printf 'Summary: %d job(s) total — %d OK, %d WARN, %d FAIL/ERR, %d unknown.\n' \
-      "$total_jobs" "$ok_jobs" "$warn_jobs" "$fail_jobs" "$unknown_jobs"
+    printf '\n\n## Summary\n\n'
+
+    # Overall rollup (simple, deterministic)
+    overall="OK"
+    if [ "$fail_jobs" -gt 0 ] 2>/dev/null; then
+      overall="FAIL"
+    elif [ "$unknown_jobs" -gt 0 ] 2>/dev/null; then
+      overall="UNKNOWN"
+    elif [ "$warn_jobs" -gt 0 ] 2>/dev/null; then
+      overall="WARN"
+    fi
+
+    printf -- '- Overall: **%s**\n' "$overall"
+    printf -- '- Total jobs: **%d**\n' "$total_jobs"
+    printf -- '- OK: **%d**\n' "$ok_jobs"
+    printf -- '- WARN: **%d**\n' "$warn_jobs"
+    printf -- '- FAIL/ERR/STALE/NO-CAD/FRESH?: **%d**\n' "$fail_jobs"
+    printf -- '- Unknown: **%d**\n' "$unknown_jobs"
+
+    # Stable transclusion target (block ref)
+    printf '\n^script-status-summary\n'
   fi
 
   if [ "$skipped_missing" -gt 0 ] || [ "$skipped_unreadable" -gt 0 ]; then
