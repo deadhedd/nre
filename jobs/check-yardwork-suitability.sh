@@ -81,22 +81,42 @@ today=$(date +%Y-%m-%d)
 ###############################################################################
 log_info "Decision inputs for $today (hours $PRE_START_HOUR and $WORK_START_HOUR):"
 
-printf '%s' "$data" | jq -r \
-  --arg today "$today" \
-  --argjson h1 "$PRE_START_HOUR" \
-  --argjson h2 "$WORK_START_HOUR" '
-    range(0; (.hourly.time|length)) as $i
-    | .hourly.time[$i] as $ts
-    | select($ts | startswith($today + "T"))
-    | ($ts[11:13] | tonumber) as $h
-    | select($h == $h1 or $h == $h2)
-    | .hourly.temperature_2m[$i] as $t
-    | .hourly.dew_point_2m[$i] as $d
-    | .hourly.precipitation_probability[$i] as $p
-    | "Hour \($h): temp=\($t)F dew=\($d)F spread=\($t - $d)F precip=\($p)%"
-  ' 2>/dev/null | while IFS= read -r line; do
-    log_info "$line"
-  done
+inputs_err="${TMPDIR:-/tmp}/yardwork.inputs.$$.err"
+inputs_out=""
+if ! inputs_out=$(
+  printf '%s' "$data" | jq -r \
+    --arg today "$today" \
+    --argjson h1 "$PRE_START_HOUR" \
+    --argjson h2 "$WORK_START_HOUR" '
+      def r1(x): ((x * 10 | round) / 10);
+      range(0; (.hourly.time|length)) as $i
+      | .hourly.time[$i] as $ts
+      | select($ts | startswith($today + "T"))
+      | ($ts[11:13] | tonumber) as $h
+      | select($h == $h1 or $h == $h2)
+      | .hourly.temperature_2m[$i] as $t
+      | .hourly.dew_point_2m[$i] as $d
+      | .hourly.precipitation_probability[$i] as $p
+      | (r1($t) as $tr
+        | r1($d) as $dr
+        | r1($t - $d) as $sr
+        | "Hour \($h): temp=\($tr)F dew=\($dr)F spread=\($sr)F precip=\($p)%")
+    ' 2>"$inputs_err"
+); then
+  # If jq fails, emit the captured error for observability.
+  err_msg=$(tr '\n' ' ' <"$inputs_err" 2>/dev/null || true)
+  log_warn "Decision inputs jq failed: $err_msg"
+  rm -f "$inputs_err" 2>/dev/null || true
+else
+  rm -f "$inputs_err" 2>/dev/null || true
+  if [ -z "$inputs_out" ]; then
+    log_warn "Decision inputs: no matching hourly rows found for $today at hours $PRE_START_HOUR/$WORK_START_HOUR"
+  else
+    printf '%s\n' "$inputs_out" | while IFS= read -r line; do
+      [ -n "$line" ] && log_info "$line"
+    done
+  fi
+fi
 
 ###############################################################################
 # Evaluate suitability
@@ -233,9 +253,16 @@ tmp="${TMPDIR:-/tmp}/yardwork.$$.tmp"
 cleanup() { rm -f "$tmp" 2>/dev/null || true; }
 trap cleanup EXIT INT HUP TERM
 
+# Escape replacement text for sed "s///" (avoid &, /, and \ surprises).
+# Message is expected to be single-line.
+sed_repl=$(
+  printf '%s' "$message" \
+    | sed -e 's/\\/\\\\/g' -e 's/[\/&]/\\&/g'
+)
+
 # Replace the marker once; keep the rest intact.
 # (If the marker isn't present, the file will be unchanged.)
-sed "s/<!-- yard-work-check -->/$message/" "$note_path" >"$tmp"
+sed "s/<!-- yard-work-check -->/$sed_repl/" "$note_path" >"$tmp"
 
 if cmp -s "$note_path" "$tmp"; then
   log_info "No update applied (marker missing or already up to date)"
