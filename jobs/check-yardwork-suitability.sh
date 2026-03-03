@@ -181,6 +181,24 @@ if [ "$heat_time" != "null" ]; then
   fi
 fi
 
+# ---------------------------------------------------------------------------
+# Decision audit logging
+# ---------------------------------------------------------------------------
+log_info "Thresholds: TEMP_CAP_F=$TEMP_CAP_F DEW_SPREAD_F=$DEW_SPREAD_F WORK_START_HOUR=$WORK_START_HOUR PRE_START_HOUR=$PRE_START_HOUR"
+log_info "Computed dew_likely=$dew_likely"
+
+if [ "$rain_risk" != "null" ]; then
+  log_info "Computed rain_risk: hour=$rain_hour precip=${rain_pct}%"
+else
+  log_info "Computed rain_risk: none"
+fi
+
+if [ "$heat_time" != "null" ]; then
+  log_info "Computed heat_time: hour=$heat_hour (>=${TEMP_CAP_F}F)"
+else
+  log_info "Computed heat_time: none"
+fi
+
 # Determine window end (earliest of rain risk and heat cap, if any)
 window_msg=""
 if [ -n "$rain_hour" ] && [ -n "$heat_hour" ]; then
