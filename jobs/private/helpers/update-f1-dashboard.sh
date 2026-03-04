@@ -24,8 +24,18 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 ###############################################################################
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd -P)
 
+if [ -z "${REPO_ROOT:-}" ]; then
+  log_error "REPO_ROOT not set (expected wrapped invocation)"
+  exit 2
+fi
+case "$REPO_ROOT" in
+  /*) : ;;
+  *)
+    log_error "REPO_ROOT not absolute: $REPO_ROOT"
+    exit 2
+    ;;
+esac
 # Cron-safe PATH
 PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 

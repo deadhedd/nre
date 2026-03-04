@@ -14,16 +14,28 @@ log_info "Starting lunar cycle lookup"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 
+if [ -z "${REPO_ROOT:-}" ]; then
+  log_error "REPO_ROOT not set (expected wrapped invocation)"
+  exit 1
+fi
+case "$REPO_ROOT" in
+  /*) : ;;
+  *)
+    log_error "REPO_ROOT not absolute: $REPO_ROOT"
+    exit 1
+    ;;
+esac
+
 ###############################################################################
 # Engine datetime (epoch source of truth)
 ###############################################################################
 # shellcheck source=engine/lib/datetime.sh
-. "$SCRIPT_DIR/../../engine/lib/datetime.sh"
+. "$REPO_ROOT/engine/lib/datetime.sh"
 
 ###############################################################################
 # Domain helpers (UTC parsing, curl, fmt_eta, etc.)
 ###############################################################################
-# shellcheck source=jobs/lib/celestial-timings-common.sh
+# shellcheck source=jobs/private/lib/celestial-timings-common.sh
 . "$SCRIPT_DIR/../lib/celestial-timings-common.sh"
 
 moon_icon() {

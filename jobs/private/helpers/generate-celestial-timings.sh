@@ -80,6 +80,7 @@ fi
 
 cat <<EOF_OUT
 $celestial_header
+
 <table class="moon-table">
   <thead>
     <tr>

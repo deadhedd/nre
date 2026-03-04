@@ -151,6 +151,26 @@ dt_date_parts() {
   printf '%s %s %s\n' "$y" "$m" "$d"
 }
 
+dt_month_name_en() {
+  # dt_month_name_en <MM>
+  # Prints English month name for 01..12. Unknown input is printed verbatim.
+  case "${1-}" in
+    01) printf 'January' ;;
+    02) printf 'February' ;;
+    03) printf 'March' ;;
+    04) printf 'April' ;;
+    05) printf 'May' ;;
+    06) printf 'June' ;;
+    07) printf 'July' ;;
+    08) printf 'August' ;;
+    09) printf 'September' ;;
+    10) printf 'October' ;;
+    11) printf 'November' ;;
+    12) printf 'December' ;;
+    *)  printf '%s' "${1-}" ;;
+  esac
+}
+
 dt_time_parts_hhmm() {
   dt_need "time" "${1-}" || return $?
   t=$1

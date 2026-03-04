@@ -1,5 +1,5 @@
 #!/bin/sh
-# jobs/generate-yearly-note.sh
+# jobs/private/generate-yearly-note.sh
 # Leaf job (wrapper required)
 #
 # Version: 1.0
@@ -29,7 +29,7 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
 # C1 bootstrap rule: wrapper location is assumed stable *relative to this file*
-wrap="$script_dir/../engine/wrap.sh"
+wrap="$script_dir/../../engine/wrap.sh"
 
 case "$0" in
   /*) script_path=$0 ;;

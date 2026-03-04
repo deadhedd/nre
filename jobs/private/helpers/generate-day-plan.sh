@@ -38,10 +38,14 @@ die() { log_error "$*"; exit 1; }
 ###############################################################################
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
-# Repo root (repo-local helper; do not require wrapper env)
-repo_root=$(
-  CDPATH= cd "$script_dir/../.." 2>/dev/null && pwd
-) || die "failed to resolve repo root from script location"
+if [ -z "${REPO_ROOT:-}" ]; then
+  die "REPO_ROOT not set (expected wrapped invocation)"
+fi
+case "$REPO_ROOT" in
+  /*) : ;;
+  *) die "REPO_ROOT not absolute: $REPO_ROOT" ;;
+esac
+repo_root=$REPO_ROOT
 
 lib_dir=$repo_root/engine/lib
 datetime_lib=$lib_dir/datetime.sh

@@ -24,9 +24,14 @@ log_error() { printf '%s\n' "ERROR: $*" >&2; }
 ###############################################################################
 # Engine datetime integration (use engine dt_now_epoch instead of a local UTC-now)
 ###############################################################################
-# Expect caller to source this file from a directory it knows (commonly SCRIPT_DIR).
-# Default ENGINE_LIB_DIR relative to utils/celestial -> ../../engine/lib
-: "${ENGINE_LIB_DIR:=${SCRIPT_DIR:-.}/../../engine/lib}"
+# Prefer wrapper-provided REPO_ROOT for stable path resolution.
+if [ -z "${ENGINE_LIB_DIR:-}" ]; then
+  if [ -n "${REPO_ROOT:-}" ]; then
+    ENGINE_LIB_DIR="$REPO_ROOT/engine/lib"
+  else
+    ENGINE_LIB_DIR="${SCRIPT_DIR:-.}/../../engine/lib"
+  fi
+fi
 
 if ! command -v dt_now_epoch >/dev/null 2>&1; then
   # shellcheck source=/dev/null

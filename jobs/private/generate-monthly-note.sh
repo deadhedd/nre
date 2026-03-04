@@ -1,5 +1,5 @@
 #!/bin/sh
-# jobs/generate-monthly-note.sh
+# jobs/private/generate-monthly-note.sh
 # Generate a monthly note markdown file equivalent to the legacy Node script.
 #
 # Leaf job (wrapper required).
@@ -29,7 +29,7 @@ script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 # C1 bootstrap rule: wrapper location is assumed stable *relative to this file*
 # for the initial self-wrap hop only. Once wrapped, REPO_ROOT (exported by the
 # wrapper) becomes the source of truth for repo-relative paths.
-wrap="$script_dir/../engine/wrap.sh"
+wrap="$script_dir/../../engine/wrap.sh"
 
 # Prefer passing an absolute script path to the wrapper for sturdiness.
 case "$0" in
@@ -167,31 +167,11 @@ month_tag=$(pr_month_tag_current) || { log_error "failed to compute current mont
 prev_tag=$(pr_month_tag_prev) || { log_error "failed to compute prev month tag"; exit 1; }
 next_tag=$(pr_month_tag_next) || { log_error "failed to compute next month tag"; exit 1; }
 
-# Derive year + month number (for title)
-today=$(dt_today_local) || { log_error "failed to compute dt_today_local"; exit 1; }
-set -- $(dt_date_parts "$today") || { log_error "failed to compute dt_date_parts: $today"; exit 1; }
+# Derive year + month number (for title) from the computed month tag.
+set -- $(pr_month_tag_parts "$month_tag") || { log_error "failed to split month tag: $month_tag"; exit 1; }
 year=$1
 month=$2
-
-month_name_en() {
-  case "$1" in
-    01) printf 'January' ;;
-    02) printf 'February' ;;
-    03) printf 'March' ;;
-    04) printf 'April' ;;
-    05) printf 'May' ;;
-    06) printf 'June' ;;
-    07) printf 'July' ;;
-    08) printf 'August' ;;
-    09) printf 'September' ;;
-    10) printf 'October' ;;
-    11) printf 'November' ;;
-    12) printf 'December' ;;
-    *)  printf '%s' "$1" ;;
-  esac
-}
-
-month_name=$(month_name_en "$month")
+month_name=$(dt_month_name_en "$month")
 
 # Compute result_ref
 if [ -z "$output_path" ]; then
