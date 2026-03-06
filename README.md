@@ -1,108 +1,321 @@
-# Obsidian Note Tools
+# nre — Note Runtime Engine
 
-This repository contains shell scripts that help automate common tasks in an
-[Obsidian](https://obsidian.md/) vault. All periodic note generators live in the
-`generators/` directory to keep the repository root tidy.
+A small runtime for automated note generation using cron and POSIX shell scripts.
 
-## Cron wrapper (`utils/core/job-wrap.sh`)
+**Run automated note-generation jobs with deterministic logs, clean output, and built-in health reporting.**
 
-`utils/core/job-wrap.sh` records structured logs for cron jobs and now resolves script
-names automatically. Provide the script or command name; the wrapper searches
-the repository root and `utils/` directory before falling back to the system
-`PATH`. The log-friendly job label defaults to the command basename without the
-file extension; override it by setting `JOB_WRAP_JOB_NAME`.
+nre is a small POSIX shell runtime for cron-driven Markdown workflows.
+
+It standardizes how jobs run, how they log, how results are committed, and how job health is reported — all without requiring plugins, background services, or proprietary tooling.
+
+Originally built for Obsidian vault automation, but usable for any Markdown-based workflow.
+
+---
+
+# What nre Gives You
+
+Many note automation workflows rely on editor plugins, templates, or small scripts. nre provides the infrastructure needed to run note-generation jobs reliably outside the editor using cron and POSIX shell scripts.
+
+### Deterministic job logging
+
+Every run produces a structured log file and updates a `<job>-latest.log` pointer.
+
+You always know:
+
+* when the job ran
+* what it did
+* whether it succeeded
+
+---
+
+### Clean stdout (no log pollution)
+
+Leaf scripts follow a simple rule:
+
+```
+stdout = data
+stderr = diagnostics
+```
+
+This allows scripts to safely participate in pipelines or redirection without log messages contaminating the output.
+
+---
+
+### A single execution wrapper
+
+Every job runs through the same wrapper:
+
+```
+cron
+  ↓
+engine/wrap.sh
+  ↓
+job script
+```
+
+The wrapper takes care of:
+
+* environment normalization
+* structured logging
+* stderr capture
+* exit code propagation
+* optional commit orchestration
+
+This lets job scripts stay small and focused.
+
+---
+
+### Automatic Markdown status dashboard
+
+nre includes a reporting job that reads logs and generates a Markdown dashboard.
+
+The report shows:
+
+* last run time
+* success or failure
+* warning counts
+* freshness relative to declared cadence
+
+The dashboard can be embedded directly inside your notes.
+
+The report can be generated periodically via cron, or invoked at the end of jobs for more-or-less real-time updates.
+
+---
+
+### Optional Git auto-commit
+
+Jobs can declare which artifacts should be committed.
+
+After a job finishes, the wrapper runs the commit helper automatically.
+
+This means you get:
+
+* consistent commits
+* no Git logic inside job scripts
+* explicit artifact staging
+
+---
+
+### Included leaf job template
+
+nre includes a ready-to-use template for creating new jobs that already follows the runtime contract.
+
+---
+
+# Quick Start (60 seconds)
+
+Create a new job from the template:
 
 ```sh
-/bin/sh utils/core/job-wrap.sh generate-daily-note.sh --dry-run
+cp jobs/leaf-template.sh jobs/my-job.sh
+chmod +x jobs/my-job.sh
 ```
 
-Set `JOB_WRAP_SEARCH_PATH` to a colon-delimited list to customize the search
-order when running from other directories.
-
-## Logging pipeline
-
-### When run through `utils/core/job-wrap.sh`
-
-* Resolves the requested command name by checking `JOB_WRAP_SEARCH_PATH`, then searching the repository for executables, and finally falling back to `PATH`; unknown commands abort with exit 127.
-* Sanitizes the derived job label (or `JOB_WRAP_JOB_NAME`, when set) to pick the log bucket (daily/weekly/long-cycle/other), falling back to `${HOME:-/home/obsidian}/logs/other` when no match is found. Each run creates `<job>-<UTC timestamp>Z.log` and updates a `<job>-latest.log` symlink.
-* Uses the structured logger from `utils/core/log.sh` to write header metadata (start/end times, cwd, user, PATH, requested/resolved command, argv, and log path) plus footer lines for exit code and end time.
-* Captures only the wrapped command's stderr as `OUT` log lines so leaf stdout stays untouched for pipelines. Log verbosity, ASCII sanitization, and rotation are controlled by `LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY`, and `LOG_KEEP_COUNT` (default 10).
-
-### When a generator runs directly
-
-* Scripts such as `generators/generate-daily-note.sh` print status messages with `printf`, sending informational output to stdout and errors to stderr.
-* The daily note script pins `PATH` to `/usr/local/bin:/usr/bin:/bin:${PATH:-}` before doing any work and logs high-level milestones like vault path selection or missing folder warnings.
-* When invoked through `job-wrap.sh`, only stderr lines are mirrored into the run log; stdout remains attached to the caller.
-
-### Simple inline log helpers
-
-Generators and utilities rely on inline `printf` prefixes (e.g., `INFO`, `WARN`, `ERR`) for human-readable status without sourcing shared logging helpers. Under `job-wrap.sh`, only stderr-prefixed output is copied into the structured log alongside the wrapper's header/footer metadata.
-
-## `generators/generate-daily-note.sh`
-
-`generators/generate-daily-note.sh` creates a Markdown file for today's date in your vault.
-The script is provided as a template—edit the vault paths and note sections to
-match your own workflow.
-
-### Usage
+Add it to cron:
 
 ```sh
-export VAULT_PATH=/path/to/your/obsidian/vault
-./generators/generate-daily-note.sh
+0 5 * * * /bin/sh /path/to/repo/jobs/my-job.sh
 ```
 
-By default the note is placed inside `/Periodic Notes/Daily Notes/` within the
-specified vault. Optional helper scripts in the `utils/` directory will be used
-if present to populate sections such as a day plan. The weekly goal is pulled
-in via an Obsidian embed of the current weekly note rather than a helper
-script; generated notes include an embed similar to:
+That’s it.
+
+The runtime will automatically:
+
+* create structured logs
+* update `<job>-latest.log`
+* optionally commit artifacts
+* include the job in the status dashboard
+
+---
+
+# Writing New Jobs
+
+nre includes a template for creating new jobs:
 
 ```
-![[Periodic Notes/Weekly Notes/2025-W06#🎯 Weekly Goal]]
+jobs/leaf-template.sh
 ```
 
+The template demonstrates the standard job structure, including:
 
-## `generators/generate-monthly-note.sh`
+* wrapper re-execution
+* structured diagnostic logging
+* cadence declaration
+* correct stdout/stderr discipline
+* artifact declaration for commits
 
-`generators/generate-monthly-note.sh` mirrors the original Node-based generator but in POSIX shell.
-It accepts the same core options (`--vault`, `--outdir`, `--date`, and `--locale`) while
-respecting the `VAULT_PATH` environment variable when present.
-
-### Usage
+To create a new job:
 
 ```sh
-./generators/generate-monthly-note.sh --vault "$VAULT_PATH" --date 2024-09
+cp jobs/leaf-template.sh jobs/my-new-job.sh
 ```
 
-Passing `--force` allows overwriting an existing note. The script creates missing
-folders as needed and falls back to the `C` locale if the requested locale is
-unavailable.
+Then implement your job logic inside the template.
 
-## `generators/generate-quarterly-note.sh`
+The wrapper handles logging, environment setup, and commit orchestration automatically.
 
-`generators/generate-quarterly-note.sh` produces quarterly notes in the same format that the
-legacy script emitted. It defaults to the current quarter in UTC and accepts
-`--vault`, `--outdir`, `--date`, and `--force` flags.
+---
 
-### Usage
+# Example
+
+Minimal job:
 
 ```sh
-./generators/generate-quarterly-note.sh --outdir "Periodic Notes/Quarterly Notes" --date 2024-Q4
+#!/bin/sh
+set -eu
+
+# re-exec via wrapper
+if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
+  exec /path/to/engine/wrap.sh "$0" "$@"
+fi
+
+printf '%s\n' "INFO: cadence=daily" >&2
+
+printf '# Daily Note\n'
 ```
 
-## `generators/generate-yearly-note.sh`
+Cron:
 
-`generators/generate-yearly-note.sh` writes yearly notes with cascading task blocks and
-checklists. Provide `--year` to generate a specific year or rely on the default of
-`date -u +%Y`.
+```
+0 5 * * * /bin/sh jobs/generate-daily-note.sh
+```
 
-### Usage
+Result:
+
+* structured log written
+* `<job>-latest.log` updated
+
+If the job registers artifacts for commit, the wrapper can also run the commit helper automatically (depending on `COMMIT_MODE`).
+
+---
+
+# Core Concepts
+
+### Jobs
+
+A **job** is a shell script that generates or updates notes.
+
+Jobs:
+
+* emit diagnostics to stderr
+* optionally emit data to stdout
+* declare cadence for freshness evaluation
+
+---
+
+### Wrapper
+
+`engine/wrap.sh` is responsible for executing jobs and managing runtime behavior.
+
+It:
+
+* initializes logging
+* captures job stderr
+* preserves stdout
+* runs commit orchestration
+* writes structured run metadata
+
+---
+
+### Logs
+
+Each run produces:
+
+```
+logs/<bucket>/<job>-<timestamp>.log
+```
+
+and updates:
+
+```
+<job>-latest.log
+```
+
+Logs use plain ASCII and include timestamps for every entry.
+
+---
+
+### Reporting
+
+`script-status-report.sh` scans the latest logs and produces a Markdown report.
+
+You can keep the dashboard up to date in two ways:
+
+• schedule `jobs/script-status-report.sh` in cron
+• run it at the end of other jobs for near real-time updates
+
+Example invocation:
 
 ```sh
-./generators/generate-yearly-note.sh --vault "$VAULT_PATH" --year 2025
+/bin/sh "$repo_root/jobs/script-status-report.sh"
 ```
 
-Monthly, quarterly, and yearly notes default to `/Periodic Notes/Monthly Notes/`,
-`/Periodic Notes/Quarterly Notes/`, and `/Periodic Notes/Yearly Notes/`
-respectively. All three periodic note scripts overwrite existing files only when
-`--force` is supplied, matching the behavior of their legacy Node counterparts.
+Jobs are classified as:
+
+* OK
+* WARN
+* FAIL
+* UNKNOWN
+
+Freshness is evaluated from observed runs rather than cron configuration.
+
+---
+
+# Project Layout
+
+```
+engine/
+  wrap.sh
+  log.sh
+  log-capture.sh
+  log-format.sh
+  log-sink.sh
+  lib/
+    commit.sh
+    datetime.sh
+    periods.sh
+
+jobs/
+  leaf-template.sh
+  script-status-report.sh
+  generate-test-note.sh
+
+  helpers/
+    sync-latest-logs-to-vault.sh
+```
+
+Most users will start by copying `jobs/leaf-template.sh` and scheduling the resulting job with cron.
+
+---
+
+# Design Goals
+
+nre prioritizes:
+
+* deterministic execution
+* observable automation
+* POSIX portability
+* minimal dependencies
+* clear separation between data and diagnostics
+
+The runtime intentionally avoids plugins, background daemons, and hidden state in order to keep behavior predictable.
+
+---
+
+# Documentation
+
+For the full behavioral specification of the runtime, see:
+
+```
+docs/CONTRACT.md
+```
+
+---
+
+# Platform
+
+Designed for Unix environments with:
+
+* POSIX `sh`
+* cron
+* standard core utilities

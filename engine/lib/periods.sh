@@ -241,6 +241,17 @@ pr_month_tag() {
 
 pr_month_tag_current() { pr_month_tag; }
 
+pr_month_tag_parts() {
+  pr_need "month tag" "${1:-}" || return $?
+  case "$1" in
+    ????-??) : ;;
+    *) pr_die "invalid month tag (expected YYYY-MM): $1"; return 10 ;;
+  esac
+  y=${1%%-*}
+  m=${1#*-}
+  printf '%s %s\n' "$y" "$m"
+}
+
 pr__add_months() {
   base_year=$1
   base_month=$2
