@@ -120,6 +120,7 @@ tmpfile() {
 
 DRY_RUN=0
 ALLOW_UNRESOLVED=0
+ALLOW_ZERO_EMBEDS=0
 embed_total=0
 embed_resolved=0
 embed_unresolved=0
@@ -127,16 +128,17 @@ NOTE=""
 
 usage() {
   cat <<'EOF_USAGE' >&2
-Usage: daily-note-snapshot.sh [-n|--dry-run] [--allow-unresolved] [PATH/TO/daily-note.md]
+Usage: daily-note-snapshot.sh [-n|--dry-run] [--allow-unresolved] [--allow-zero-embeds] [PATH/TO/daily-note.md]
 
 Replaces lines that are exactly an Obsidian embed: ![[...]]
 - If PATH is omitted, defaults to today's daily note in:
   "$VAULT_ROOT/Periodic Notes/Daily Notes/YYYY-MM-DD.md"
 
 Options:
-  -n, --dry-run          Write expanded note to "<note>.dryrun" (do not modify original)
-  -a, --allow-unresolved Do not fail (exit=1) if embeds are unresolved
-  -h, --help             Show this help
+  -n, --dry-run            Write expanded note to "<note>.dryrun" (do not modify original)
+  -a, --allow-unresolved   Do not fail (exit=1) if embeds are unresolved
+      --allow-zero-embeds  Do not fail (exit=1) if zero embeds are found
+  -h, --help               Show this help
 EOF_USAGE
 }
 
@@ -149,6 +151,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     -a|--allow-unresolved)
       ALLOW_UNRESOLVED=1
+      shift
+      ;;
+    --allow-zero-embeds)
+      ALLOW_ZERO_EMBEDS=1
       shift
       ;;
     -h|--help)
@@ -370,9 +376,10 @@ expand_embed() {
 
 # Only replaces lines that are exactly an embed: ![[...]]
 while IFS= read -r line; do
-  case "$line" in
+  trimmed=$(printf '%s' "$line" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  case "$trimmed" in
     '![['*']]' )
-      link=${line#'![['}
+      link=${trimmed#'![['}
       link=${link%']]'}
       expand_embed "$link" "$line" >>"$TMP"
       ;;
@@ -383,6 +390,18 @@ while IFS= read -r line; do
 done <"$NOTE"
 
 log_info "embeds processed: $embed_total (resolved: $embed_resolved, unresolved: $embed_unresolved)"
+
+if [ "$embed_total" -eq 0 ]; then
+  if [ "$ALLOW_ZERO_EMBEDS" -eq 1 ]; then
+    log_warn "zero embeds found in note; leaving note unchanged: $NOTE"
+    rm -f "$TMP"
+    exit 0
+  fi
+
+  log_error "zero embeds found in note; refusing to report success: $NOTE"
+  rm -f "$TMP"
+  exit 1
+fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
   mv "$TMP" "$TEST_NOTE"
