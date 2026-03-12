@@ -1,9 +1,0 @@
-# logs
-logs/
-
-# macOS/Linux junk
-.DS_Store
-*.swp
-
-# credentials (don't commit these)
-config/*.env
