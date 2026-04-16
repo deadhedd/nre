@@ -1,0 +1,3 @@
+# Global ShellCheck policy for this repo.
+# Disable warnings that are intentional for this architecture
+disable=SC2317,SC2003,SC2046,SC2086,SC2016
