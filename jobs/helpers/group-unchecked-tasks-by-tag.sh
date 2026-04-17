@@ -1,5 +1,5 @@
 #!/bin/sh
-# jobs/group-unchecked-tasks-by-tag.sh
+# jobs/helpers/group-unchecked-tasks-by-tag.sh
 # Group unchecked tasks by tag from the combined task list.
 #
 # Leaf job (wrapper required). Emits grouped markdown to stdout only.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# /home/obsidian/obsidian-note-tools/env.sh
+# env.sh
 
 ###############################################################################
 # Core paths

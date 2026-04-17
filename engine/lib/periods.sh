@@ -1,5 +1,5 @@
 #!/bin/sh
-# utils/lib/periods.sh
+# engine/lib/periods.sh
 # Author: deadhedd
 # License: MIT
 # shellcheck shell=sh
