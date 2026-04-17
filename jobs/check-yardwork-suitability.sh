@@ -62,12 +62,13 @@ LON=-121.9857
 TEMP_CAP_F=70           # "Too hot" at or above this temp
 WORK_START_HOUR=8       # 08:00 local
 PRE_START_HOUR=7        # 07:00 local
-DEW_SPREAD_F=2          # Dew likely if (temp - dew point) <= this at 07:00 or 08:00
+PREV_EVENING_START_HOUR=18  # Also consider yesterday evening moisture retention
+DEW_SPREAD_F=4          # Dew likely if (temp - dew point) <= this at 07:00 or 08:00
 
 # Rain/dampness tunables (inches)
 RAIN_HOURLY_IN=0.01     # "It's raining" if hourly precip >= this (1/100")
-OVERNIGHT_SUM_IN=0.03   # Ground likely damp if precip sum from 00:00..PRE_START_HOUR >= this
-OVERNIGHT_MAX_IN=0.02   # Or if any single hour overnight meets/exceeds this
+DAMP_WINDOW_SUM_IN=0.03 # Ground likely damp if precip sum across dampness window >= this
+DAMP_WINDOW_MAX_IN=0.02 # Or if any single hour in dampness window meets/exceeds this
 
 # Forecast fetch hardening
 CURL_RETRIES=3
@@ -76,7 +77,7 @@ CURL_CONNECT_TIMEOUT=10
 CURL_MAX_TIME=30
 RAIN_PROB_FLOOR=20      # Keep probability as context; used only to report/confirm
 
-API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hourly=temperature_2m,dew_point_2m,precipitation,precipitation_probability&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=America/Los_Angeles"
+API_URL="https://api.open-meteo.com/v1/forecast?latitude=$LAT&longitude=$LON&hourly=temperature_2m,dew_point_2m,precipitation,precipitation_probability&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=America/Los_Angeles&past_days=1"
 
 ###############################################################################
 # Fetch forecast data
@@ -191,28 +192,41 @@ if ! dew_likely=$(
   exit 1
 fi
 
-# dampness: look at precip *before* PRE_START_HOUR to estimate wet ground at start
+# dampness: look at yesterday evening + early this morning to estimate wet ground
 if ! damp=$(
   printf '%s' "$data" | jq --arg today "$today" \
+    --argjson prev_start "$PREV_EVENING_START_HOUR" \
     --argjson end "$PRE_START_HOUR" \
-    --argjson sum_thr "$OVERNIGHT_SUM_IN" \
-    --argjson max_thr "$OVERNIGHT_MAX_IN" '
+    --argjson sum_thr "$DAMP_WINDOW_SUM_IN" \
+    --argjson max_thr "$DAMP_WINDOW_MAX_IN" '
     def h($ts): ($ts[11:13] | tonumber);
+    (.hourly.time[0][0:10]) as $yday
     def rows:
       [ range(0; (.hourly.time|length)) as $i
         | .hourly.time[$i] as $ts
-        | select($ts | startswith($today + "T"))
         | (h($ts)) as $hh
-        | select($hh < $end)
+        | select(
+            (
+              ($ts | startswith($yday + "T"))
+              and ($hh >= $prev_start)
+            )
+            or
+            (
+              ($ts | startswith($today + "T"))
+              and ($hh < $end)
+            )
+          )
         | {hour:$hh,
+           ts:$ts,
            q:(.hourly.precipitation[$i] // 0),
            p:(.hourly.precipitation_probability[$i] // 0)}
       ];
     (rows) as $r
-    | ($r | map(.q) | add) as $sum
+    | (($r | map(.q) | add) // 0) as $sum
     | ($r | map(.q) | max // 0) as $max
     | {sum_in:$sum,
        max_in:$max,
+       row_count:($r | length),
        damp_likely:(($sum >= $sum_thr) or ($max >= $max_thr))}
   '
 ); then
@@ -301,7 +315,7 @@ fi
 # ---------------------------------------------------------------------------
 # Decision audit logging
 # ---------------------------------------------------------------------------
-log_info "Thresholds: TEMP_CAP_F=$TEMP_CAP_F DEW_SPREAD_F=$DEW_SPREAD_F WORK_START_HOUR=$WORK_START_HOUR PRE_START_HOUR=$PRE_START_HOUR"
+log_info "Thresholds: TEMP_CAP_F=$TEMP_CAP_F DEW_SPREAD_F=$DEW_SPREAD_F WORK_START_HOUR=$WORK_START_HOUR PRE_START_HOUR=$PRE_START_HOUR PREV_EVENING_START_HOUR=$PREV_EVENING_START_HOUR"
 log_info "Computed dew_likely=$dew_likely"
 
 if [ "$rain_risk" != "null" ]; then
@@ -310,7 +324,7 @@ else
   log_info "Computed rain_risk: none"
 fi
 
-log_info "Computed dampness: damp_likely=$damp_likely overnight_sum=${overnight_sum}in overnight_max=${overnight_max}in (sum_thr=${OVERNIGHT_SUM_IN}in max_thr=${OVERNIGHT_MAX_IN}in)"
+log_info "Computed dampness: damp_likely=$damp_likely window_sum=${overnight_sum}in window_max=${overnight_max}in (window=yesterday@${PREV_EVENING_START_HOUR}:00..today@${PRE_START_HOUR}:00 sum_thr=${DAMP_WINDOW_SUM_IN}in max_thr=${DAMP_WINDOW_MAX_IN}in)"
 
 if [ "$heat_time" != "null" ]; then
   log_info "Computed heat_time: hour=$heat_hour (>=${TEMP_CAP_F}F)"
