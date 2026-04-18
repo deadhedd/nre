@@ -1,321 +1,296 @@
-# nre — Note Runtime Engine
+# 🧠 nre — Note Runtime Engine
 
-A small runtime for automated note generation using cron and POSIX shell scripts.
+A contract-driven automation engine for managing and generating structured knowledge inside an Obsidian vault.
 
-**Run automated note-generation jobs with deterministic logs, clean output, and built-in health reporting.**
+This project is a **POSIX shell–based execution framework** designed to make automation:
 
-nre is a small POSIX shell runtime for cron-driven Markdown workflows.
-
-It standardizes how jobs run, how they log, how results are committed, and how job health is reported — all without requiring plugins, background services, or proprietary tooling.
-
-Originally built for Obsidian vault automation, but usable for any Markdown-based workflow.
-
----
-
-# What nre Gives You
-
-Many note automation workflows rely on editor plugins, templates, or small scripts. nre provides the infrastructure needed to run note-generation jobs reliably outside the editor using cron and POSIX shell scripts.
-
-### Deterministic job logging
-
-Every run produces a structured log file and updates a `<job>-latest.log` pointer.
-
-You always know:
-
-* when the job ran
-* what it did
-* whether it succeeded
+* deterministic
+* observable
+* composable
+* and resilient to common failure modes
 
 ---
 
-### Clean stdout (no log pollution)
+## 🚀 What This Is
 
-Leaf scripts follow a simple rule:
+A **wrapper-managed job execution framework** that provides:
 
-```
-stdout = data
-stderr = diagnostics
-```
+* deterministic, reproducible execution across environments
+* strict separation of data and diagnostics (stdout vs stderr)
+* centralized, structured logging
+* explicit artifact tracking and commit orchestration
+* cadence-aware job monitoring and staleness detection
 
-This allows scripts to safely participate in pipelines or redirection without log messages contaminating the output.
-
----
-
-### A single execution wrapper
-
-Every job runs through the same wrapper:
-
-```
-cron
-  ↓
-engine/wrap.sh
-  ↓
-job script
-```
-
-The wrapper takes care of:
-
-* environment normalization
-* structured logging
-* stderr capture
-* exit code propagation
-* optional commit orchestration
-
-This lets job scripts stay small and focused.
+Conceptually, this is a **lightweight CI-style execution system for shell-based automation**.
 
 ---
 
-### Automatic Markdown status dashboard
+## 🔑 Key Capabilities
 
-nre includes a reporting job that reads logs and generates a Markdown dashboard.
+### ⚙️ Execution Engine
 
-The report shows:
+* All jobs execute through a central wrapper (`engine/wrap.sh`)
+* The wrapper manages:
 
-* last run time
-* success or failure
-* warning counts
-* freshness relative to declared cadence
+  * environment normalization (cron-safe execution)
+  * execution lifecycle and error handling
+  * logging integration
+  * artifact commit behavior
 
-The dashboard can be embedded directly inside your notes.
-
-The report can be generated periodically via cron, or invoked at the end of jobs for more-or-less real-time updates.
-
----
-
-### Optional Git auto-commit
-
-Jobs can declare which artifacts should be committed.
-
-After a job finishes, the wrapper runs the commit helper automatically.
-
-This means you get:
-
-* consistent commits
-* no Git logic inside job scripts
-* explicit artifact staging
+This eliminates reliance on implicit shell state and reduces non-deterministic failures.
 
 ---
 
-### Included leaf job template
+### 📜 Output Discipline (Hard Guarantees)
 
-nre includes a ready-to-use template for creating new jobs that already follows the runtime contract.
+* `stdout` is reserved for **primary data output only**
+* `stderr` is reserved for **diagnostics and logs**
 
----
+This guarantees:
 
-# Quick Start (60 seconds)
-
-Create a new job from the template:
-
-```sh
-cp jobs/leaf-template.sh jobs/my-job.sh
-chmod +x jobs/my-job.sh
-```
-
-Add it to cron:
-
-```sh
-0 5 * * * /bin/sh /path/to/repo/jobs/my-job.sh
-```
-
-That’s it.
-
-The runtime will automatically:
-
-* create structured logs
-* update `<job>-latest.log`
-* optionally commit artifacts
-* include the job in the status dashboard
+* safe composition in pipelines
+* machine-readable outputs without filtering
+* predictable behavior across automation layers
 
 ---
 
-# Writing New Jobs
+### 🪵 Centralized Logging & Observability
 
-nre includes a template for creating new jobs:
+* Single logging authority (`engine/log.sh`)
+* Per-run logs with timestamped entries and level-based filtering (DEBUG / INFO / WARN / ERROR)
+* Stable pointer to latest execution (`*-latest.log`)
+* Bootstrap logging for degraded or early-failure scenarios
 
-```
-jobs/leaf-template.sh
-```
+Designed for:
 
-The template demonstrates the standard job structure, including:
-
-* wrapper re-execution
-* structured diagnostic logging
-* cadence declaration
-* correct stdout/stderr discipline
-* artifact declaration for commits
-
-To create a new job:
-
-```sh
-cp jobs/leaf-template.sh jobs/my-new-job.sh
-```
-
-Then implement your job logic inside the template.
-
-The wrapper handles logging, environment setup, and commit orchestration automatically.
+* reliable postmortem debugging
+* consistent log structure across all jobs
+* observability independent of job success
 
 ---
 
-# Example
+### 📦 Artifact Tracking & Commit Orchestration
 
-Minimal job:
+* Jobs explicitly declare outputs via `COMMIT_LIST_FILE`
+* Wrapper handles commit behavior:
 
-```sh
-#!/bin/sh
-set -eu
+  * required commit mode
+  * best-effort commit mode
+  * disabled mode
 
-# re-exec via wrapper
-if [ "${JOB_WRAP_ACTIVE:-0}" != "1" ]; then
-  exec /path/to/engine/wrap.sh "$0" "$@"
-fi
+This enforces:
 
-printf '%s\n' "INFO: cadence=daily" >&2
-
-printf '# Daily Note\n'
-```
-
-Cron:
-
-```
-0 5 * * * /bin/sh jobs/generate-daily-note.sh
-```
-
-Result:
-
-* structured log written
-* `<job>-latest.log` updated
-
-If the job registers artifacts for commit, the wrapper can also run the commit helper automatically (depending on `COMMIT_MODE`).
+* deterministic outputs
+* traceable side effects
+* separation between job logic and persistence
 
 ---
 
-# Core Concepts
+### ⏱️ Cadence & Freshness Monitoring
 
-### Jobs
+* Each job declares its expected run frequency
+* Status reporting evaluates:
 
-A **job** is a shell script that generates or updates notes.
+  * freshness (has it run recently enough?)
+  * staleness
+  * missing executions
 
-Jobs:
-
-* emit diagnostics to stderr
-* optionally emit data to stdout
-* declare cadence for freshness evaluation
-
----
-
-### Wrapper
-
-`engine/wrap.sh` is responsible for executing jobs and managing runtime behavior.
-
-It:
-
-* initializes logging
-* captures job stderr
-* preserves stdout
-* runs commit orchestration
-* writes structured run metadata
+This enables **health monitoring without centralized scheduling logic**.
 
 ---
 
-### Logs
+## 🔒 Core Design Guarantees
 
-Each run produces:
+This system enforces strict execution contracts to eliminate common failure modes in shell automation.
 
-```
-logs/<bucket>/<job>-<timestamp>.log
-```
+### Strict stdout/stderr separation
 
-and updates:
+* Prevents data corruption in pipelines
+* Ensures outputs remain machine-consumable
 
-```
-<job>-latest.log
-```
+### Wrapper-managed execution lifecycle
 
-Logs use plain ASCII and include timestamps for every entry.
+* All jobs run in a controlled environment
+* Enforces consistent behavior across all scripts
 
----
+### Centralized logging ownership
 
-### Reporting
+* Logging is handled exclusively by the logging subsystem
+* Jobs never manage log files directly
 
-`script-status-report.sh` scans the latest logs and produces a Markdown report.
+### Deterministic execution model
 
-You can keep the dashboard up to date in two ways:
+* No reliance on interactive shell configuration
+* Predictable behavior under cron and automation
 
-• schedule `jobs/script-status-report.sh` in cron
-• run it at the end of other jobs for near real-time updates
+### Explicit artifact declaration
 
-Example invocation:
+* All outputs must be declared
+* Prevents hidden side effects and implicit state
 
-```sh
-/bin/sh "$repo_root/jobs/script-status-report.sh"
-```
-
-Jobs are classified as:
-
-* OK
-* WARN
-* FAIL
-* UNKNOWN
-
-Freshness is evaluated from observed runs rather than cron configuration.
+Full specification (engine contracts, execution model, logging guarantees):
+[https://github.com/deadhedd/nre-private/blob/master/docs/CONTRACT.md](https://github.com/deadhedd/nre-private/blob/master/docs/CONTRACT.md)
 
 ---
 
-# Project Layout
+## 🧩 Example Jobs
 
-```
-engine/
-  wrap.sh
-  log.sh
-  log-capture.sh
-  log-format.sh
-  log-sink.sh
-  lib/
-    commit.sh
-    datetime.sh
-    periods.sh
+Representative jobs running under this framework:
 
-jobs/
-  leaf-template.sh
-  script-status-report.sh
-  generate-test-note.sh
+* Weather-based yardwork suitability analysis
+  → [https://github.com/deadhedd/nre-private/blob/master/jobs/check-yardwork-suitability.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/check-yardwork-suitability.sh)
 
-  helpers/
-    sync-latest-logs-to-vault.sh
-```
+* Sleep data processing and summarization
+  → [https://github.com/deadhedd/nre-private/blob/master/jobs/sleep-summary.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/sleep-summary.sh)
 
-Most users will start by copying `jobs/leaf-template.sh` and scheduling the resulting job with cron.
+* Periodic note archiving and retention enforcement
+  → [https://github.com/deadhedd/nre-private/blob/master/jobs/archive-periodic-notes.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/archive-periodic-notes.sh)
 
----
+* Self-updating automation system via Git
+  → [https://github.com/deadhedd/nre-private/blob/master/jobs/pull-nre-private.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/pull-nre-private.sh)
 
-# Design Goals
+* Snapshotting dynamic Obsidian embeds into static content
+  → [https://github.com/deadhedd/nre-private/blob/master/jobs/daily-note-snapshot.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/daily-note-snapshot.sh)
 
-nre prioritizes:
+Each job:
 
-* deterministic execution
-* observable automation
-* POSIX portability
-* minimal dependencies
-* clear separation between data and diagnostics
-
-The runtime intentionally avoids plugins, background daemons, and hidden state in order to keep behavior predictable.
+* runs under wrapper control
+* produces deterministic outputs
+* integrates with centralized logging and reporting
 
 ---
 
-# Documentation
+## 🧪 Testing & Reliability
 
-For the full behavioral specification of the runtime, see:
+The system includes regression tests for core execution guarantees:
 
-```
-docs/CONTRACT.md
-```
+* wrapper boundary enforcement
+* stdout/stderr contract compliance
+* degraded-mode behavior
+* commit orchestration
+
+Example test suite:
+[https://github.com/deadhedd/nre-private/tree/master/engine/tests](https://github.com/deadhedd/nre-private/tree/master/engine/tests)
 
 ---
 
-# Platform
+## 🧱 System Architecture
 
-Designed for Unix environments with:
+```
+Leaf Script (job)
+        ↓
+engine/wrap.sh (execution + enforcement)
+        ↓
+engine/log.sh (centralized logging)
+        ↓
+engine/lib/commit.sh (artifact tracking)
+        ↓
+jobs/script-status-report.sh (system health + status)
+```
 
-* POSIX `sh`
-* cron
-* standard core utilities
+Design goals:
+
+* predictable behavior under failure
+* strong observability guarantees
+* minimal operational complexity
+
+---
+
+## 📁 Environment Model
+
+Configuration is centralized via environment variables:
+
+[https://github.com/deadhedd/nre-private/blob/master/env.sh](https://github.com/deadhedd/nre-private/blob/master/env.sh)
+
+Key properties:
+
+* cron-safe execution environment
+* no reliance on interactive shell state
+* vault-relative path resolution
+
+---
+
+## 📄 Additional Documentation
+
+* Environment variable inventory
+  [https://github.com/deadhedd/nre-private/blob/master/docs/environment-variable-inventory.md](https://github.com/deadhedd/nre-private/blob/master/docs/environment-variable-inventory.md)
+
+* Date and period logic reference
+  [https://github.com/deadhedd/nre-private/blob/master/docs/date-logic-inventory.md](https://github.com/deadhedd/nre-private/blob/master/docs/date-logic-inventory.md)
+
+---
+
+## 🧠 Why This Exists
+
+Shell-based automation frequently fails due to:
+
+* mixed output streams (data + logs)
+* inconsistent or missing logging
+* reliance on implicit environment state
+* silent or ambiguous failures
+
+This system addresses those issues through:
+
+* strict execution contracts
+* centralized control via a wrapper
+* observability-first design
+
+---
+
+## 📖 Deep Dive
+
+For detailed design rationale and system philosophy:
+
+👉 [https://deadhedd.com/](https://deadhedd.com/)
+
+Covers:
+
+* architectural decisions
+* tradeoffs and constraints
+* contract-driven design approach
+* real-world lessons from building the system
+
+---
+
+## 📚 Full Contracts & Specification
+
+Authoritative system contracts:
+
+[https://github.com/deadhedd/nre-private/blob/master/docs/CONTRACT.md](https://github.com/deadhedd/nre-private/blob/master/docs/CONTRACT.md)
+
+---
+
+## 🛠️ Tech Stack
+
+* POSIX shell (`/bin/sh`)
+* Git (artifact tracking and persistence)
+* Cron (scheduling)
+* jq (data processing)
+* Obsidian (knowledge layer)
+
+---
+
+## 🎯 What This Demonstrates
+
+This project demonstrates:
+
+* systems design and architecture
+* CI/CD-style execution modeling
+* logging and observability patterns
+* contract-driven development
+* Linux / Unix automation
+* reliability-focused scripting
+
+---
+
+## ⚠️ Status
+
+Actively developed.
+
+Core contracts are stabilizing and treated as authoritative.
+
+---
+
+## 👤 Author
+
+deadhedd
