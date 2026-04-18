@@ -197,11 +197,9 @@ if ! damp=$(
   printf '%s' "$data" | jq --arg today "$today" \
     --argjson prev_start "$PREV_EVENING_START_HOUR" \
     --argjson end "$PRE_START_HOUR" \
-    --argjson sum_thr "$DAMP_WINDOW_SUM_IN" \
     --argjson max_thr "$DAMP_WINDOW_MAX_IN" '
     def h($ts): ($ts[11:13] | tonumber);
-    (.hourly.time[0][0:10]) as $yday
-    def rows:
+    def rows($yday; $today; $prev_start; $end):
       [ range(0; (.hourly.time|length)) as $i
         | .hourly.time[$i] as $ts
         | (h($ts)) as $hh
@@ -221,6 +219,9 @@ if ! damp=$(
            q:(.hourly.precipitation[$i] // 0),
            p:(.hourly.precipitation_probability[$i] // 0)}
       ];
+    (.hourly.time[0][0:10]) as $yday
+    def rows:
+      rows($yday; $today; $prev_start; $end);
     (rows) as $r
     | (($r | map(.q) | add) // 0) as $sum
     | ($r | map(.q) | max // 0) as $max
