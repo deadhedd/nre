@@ -197,38 +197,33 @@ if ! damp=$(
   printf '%s' "$data" | jq --arg today "$today" \
     --argjson prev_start "$PREV_EVENING_START_HOUR" \
     --argjson end "$PRE_START_HOUR" \
+    --argjson sum_thr "$DAMP_WINDOW_SUM_IN" \
     --argjson max_thr "$DAMP_WINDOW_MAX_IN" '
     def h($ts): ($ts[11:13] | tonumber);
-    def rows($yday; $today; $prev_start; $end):
-      [ range(0; (.hourly.time|length)) as $i
+    (.hourly.time[0][0:10]) as $yday
+    | [ range(0; (.hourly.time|length)) as $i
         | .hourly.time[$i] as $ts
         | (h($ts)) as $hh
         | select(
-            (
-              ($ts | startswith($yday + "T"))
-              and ($hh >= $prev_start)
-            )
+            (($ts | startswith($yday + "T")) and ($hh >= $prev_start))
             or
-            (
-              ($ts | startswith($today + "T"))
-              and ($hh < $end)
-            )
+            (($ts | startswith($today + "T")) and ($hh < $end))
           )
-        | {hour:$hh,
-           ts:$ts,
-           q:(.hourly.precipitation[$i] // 0),
-           p:(.hourly.precipitation_probability[$i] // 0)}
-      ];
-    (.hourly.time[0][0:10]) as $yday
-    def rows:
-      rows($yday; $today; $prev_start; $end);
-    (rows) as $r
+        | {
+            hour: $hh,
+            ts: $ts,
+            q: (.hourly.precipitation[$i] // 0),
+            p: (.hourly.precipitation_probability[$i] // 0)
+          }
+      ] as $r
     | (($r | map(.q) | add) // 0) as $sum
-    | ($r | map(.q) | max // 0) as $max
-    | {sum_in:$sum,
-       max_in:$max,
-       row_count:($r | length),
-       damp_likely:(($sum >= $sum_thr) or ($max >= $max_thr))}
+    | (($r | map(.q) | max) // 0) as $max
+    | {
+        sum_in: $sum,
+        max_in: $max,
+        row_count: ($r | length),
+        damp_likely: (($sum >= $sum_thr) or ($max >= $max_thr))
+      }
   '
 ); then
   log_error "Failed to parse forecast data for dampness risk"
