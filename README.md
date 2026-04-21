@@ -129,7 +129,7 @@ This system enforces strict execution contracts to eliminate common failure mode
 * Prevents hidden side effects and implicit state
 
 Full specification (engine contracts, execution model, logging guarantees):
-[https://github.com/deadhedd/nre-private/blob/master/docs/CONTRACT.md](https://github.com/deadhedd/nre-private/blob/master/docs/CONTRACT.md)
+[https://github.com/deadhedd/nre/blob/master/docs/CONTRACT.md](https://github.com/deadhedd/nre/blob/master/docs/CONTRACT.md)
 
 ---
 
@@ -138,19 +138,19 @@ Full specification (engine contracts, execution model, logging guarantees):
 Representative jobs running under this framework:
 
 * Weather-based yardwork suitability analysis
-  → [https://github.com/deadhedd/nre-private/blob/master/jobs/check-yardwork-suitability.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/check-yardwork-suitability.sh)
+  → [https://github.com/deadhedd/nre/blob/master/jobs/check-yardwork-suitability.sh](https://github.com/deadhedd/nre/blob/master/jobs/check-yardwork-suitability.sh)
 
 * Sleep data processing and summarization
-  → [https://github.com/deadhedd/nre-private/blob/master/jobs/sleep-summary.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/sleep-summary.sh)
+  → [https://github.com/deadhedd/nre/blob/master/jobs/sleep-summary.sh](https://github.com/deadhedd/nre/blob/master/jobs/sleep-summary.sh)
 
 * Periodic note archiving and retention enforcement
-  → [https://github.com/deadhedd/nre-private/blob/master/jobs/archive-periodic-notes.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/archive-periodic-notes.sh)
+  → [https://github.com/deadhedd/nre/blob/master/jobs/archive-periodic-notes.sh](https://github.com/deadhedd/nre/blob/master/jobs/archive-periodic-notes.sh)
 
 * Self-updating automation system via Git
-  → [https://github.com/deadhedd/nre-private/blob/master/jobs/pull-nre-private.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/pull-nre-private.sh)
+  → [https://github.com/deadhedd/nre/blob/master/jobs/pull-nre.sh](https://github.com/deadhedd/nre/blob/master/jobs/pull-nre.sh)
 
 * Snapshotting dynamic Obsidian embeds into static content
-  → [https://github.com/deadhedd/nre-private/blob/master/jobs/daily-note-snapshot.sh](https://github.com/deadhedd/nre-private/blob/master/jobs/daily-note-snapshot.sh)
+  → [https://github.com/deadhedd/nre/blob/master/jobs/daily-note-snapshot.sh](https://github.com/deadhedd/nre/blob/master/jobs/daily-note-snapshot.sh)
 
 Each job:
 
@@ -170,7 +170,7 @@ The system includes regression tests for core execution guarantees:
 * commit orchestration
 
 Example test suite:
-[https://github.com/deadhedd/nre-private/tree/master/engine/tests](https://github.com/deadhedd/nre-private/tree/master/engine/tests)
+[https://github.com/deadhedd/nre/tree/master/engine/tests](https://github.com/deadhedd/nre/tree/master/engine/tests)
 
 ---
 
@@ -200,7 +200,7 @@ Design goals:
 
 Configuration is centralized via environment variables:
 
-[https://github.com/deadhedd/nre-private/blob/master/env.sh](https://github.com/deadhedd/nre-private/blob/master/env.sh)
+[https://github.com/deadhedd/nre/blob/master/env.sh](https://github.com/deadhedd/nre/blob/master/env.sh)
 
 Key properties:
 
@@ -213,10 +213,10 @@ Key properties:
 ## 📄 Additional Documentation
 
 * Environment variable inventory
-  [https://github.com/deadhedd/nre-private/blob/master/docs/environment-variable-inventory.md](https://github.com/deadhedd/nre-private/blob/master/docs/environment-variable-inventory.md)
+  [https://github.com/deadhedd/nre/blob/master/docs/environment-variable-inventory.md](https://github.com/deadhedd/nre/blob/master/docs/environment-variable-inventory.md)
 
 * Date and period logic reference
-  [https://github.com/deadhedd/nre-private/blob/master/docs/date-logic-inventory.md](https://github.com/deadhedd/nre-private/blob/master/docs/date-logic-inventory.md)
+  [https://github.com/deadhedd/nre/blob/master/docs/date-logic-inventory.md](https://github.com/deadhedd/nre/blob/master/docs/date-logic-inventory.md)
 
 ---
 
@@ -256,7 +256,7 @@ Covers:
 
 Authoritative system contracts:
 
-[https://github.com/deadhedd/nre-private/blob/master/docs/CONTRACT.md](https://github.com/deadhedd/nre-private/blob/master/docs/CONTRACT.md)
+[https://github.com/deadhedd/nre/blob/master/docs/CONTRACT.md](https://github.com/deadhedd/nre/blob/master/docs/CONTRACT.md)
 
 ---
 
