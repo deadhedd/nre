@@ -258,6 +258,11 @@ log_sink_init() {
 
     _ls_generate_log_file_path || return $?
 
+    if ! ( set -C; : >"$LOG_FILE" ) 2>/dev/null; then
+        _ls_fail "per-run log filename collision or cannot create log file: $LOG_FILE"
+        return 10
+    fi
+
     # Ensure fd 3 is free before opening (POSIX-safe)
     exec 3>&- 2>/dev/null || :
 

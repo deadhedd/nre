@@ -479,6 +479,7 @@ fi
 _li_rc=0
 _li_out=""
 _li_err=""
+_li_forced_degraded=0
 
 if [ "$TMP_OK" -eq 1 ]; then
   _li_out="$TMPDIR/jobwrap.log_init.out.${JOB_NAME}.$$"
@@ -494,12 +495,14 @@ if [ "$TMP_OK" -eq 1 ]; then
     _li_rc=$?
   else
     LOG_DEGRADED=1
+    _li_forced_degraded=1
     _wrap_warn "cannot create log_init containment files; running log_init with stdout discarded (degraded)"
     log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}" >/dev/null 2>/dev/null
     _li_rc=$?
   fi
 else
   LOG_DEGRADED=1
+  _li_forced_degraded=1
   _wrap_warn "TMPDIR unusable; running log_init with stdout discarded (degraded)"
   log_init "$JOB_NAME" "${LOG_MIN_LEVEL:-INFO}" >/dev/null 2>/dev/null
   _li_rc=$?
@@ -519,6 +522,7 @@ fi
 
 if [ -n "${_li_out:-}" ] && [ -s "$_li_out" ]; then
   LOG_DEGRADED=1
+  _li_forced_degraded=1
   _wrap_warn "contract violation contained: log_init wrote to stdout (degrading)"
   if [ -n "${WRAP_BOOT_LOG:-}" ]; then
     {
@@ -534,7 +538,9 @@ rm -f "$_li_out" "$_li_err" 2>/dev/null || :
 
 case "$_li_rc" in
   0)
-    LOG_DEGRADED=0
+    if [ "$_li_forced_degraded" -eq 0 ]; then
+      LOG_DEGRADED=0
+    fi
     ;;
   10)
     LOG_DEGRADED=1

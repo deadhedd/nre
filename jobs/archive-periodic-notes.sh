@@ -348,6 +348,20 @@ ymd_before() {
   }'
 }
 
+iso_week_start_date() {
+  _year=$1
+  _week=$2
+
+  _year_num=$(to_decimal "$_year") || return 1
+  _week_num=$(to_decimal "$_week") || return 1
+
+  _jan4=$(printf '%04d-01-04\n' "$_year_num")
+  _jan4_wday=$(pr_weekday_index_for_date "$_jan4") || return 1
+  _week1_start=$(dt_date_shift_days "$_jan4" "-$_jan4_wday") || return 1
+  _offset=$(( (_week_num - 1) * 7 ))
+  dt_date_shift_days "$_week1_start" "$_offset"
+}
+
 move_note() {
   _src=$1
   _type=$2
@@ -438,31 +452,31 @@ if [ -d "$subnotes_dir" ]; then
 fi
 
 ###############################################################################
-# Weekly baseline: current ISO week as a stable comparable index
+# Weekly baseline: current ISO week start date
 ###############################################################################
 
 current_week_tag=$(pr_week_tag "$today" 2>/dev/null || true)
+current_week_start=
 case "$current_week_tag" in
   [0-9][0-9][0-9][0-9]-W[0-9][0-9])
     current_year=${current_week_tag%-W*}
-    if ! current_year_num=$(to_decimal "$current_year"); then
-      log_warn "could not coerce current ISO week year to decimal: $current_year"
-      current_week_idx=
-      current_week=
-    else
-      current_week=${current_week_tag#*-W}
-      if ! current_week_num=$(to_decimal "$current_week"); then
-        log_warn "could not coerce current ISO week number to decimal: $current_week"
-        current_week_idx=
-      else
-        current_week_idx=$(( (current_year_num * 53) + current_week_num ))
-      fi
+    current_week=${current_week_tag#*-W}
+    if ! current_week_start=$(iso_week_start_date "$current_year" "$current_week"); then
+      log_warn "could not derive current ISO week start date: $current_week_tag"
+      current_week_start=
     fi
     ;;
   *)
-    current_week_idx=
+    current_week_start=
     ;;
 esac
+
+weekly_keep_days=$(( ARCHIVE_KEEP_WEEKLY_WEEKS * 7 ))
+if [ -n "$current_week_start" ]; then
+  weekly_cutoff_start=$(dt_date_shift_days "$current_week_start" "-$weekly_keep_days") || weekly_cutoff_start=
+else
+  weekly_cutoff_start=
+fi
 
 ###############################################################################
 # Weekly notes: YYYY-WNN.md
@@ -492,28 +506,25 @@ if [ -d "$weekly_dir" ]; then
         ;;
     esac
 
-    if [ -z "$current_week_idx" ]; then
+    if [ -z "$weekly_cutoff_start" ]; then
       log_warn "could not derive current ISO week; weekly archiving skipped for: $src"
       continue
     fi
 
-    year_num=$(to_decimal "$year") || {
-      log_warn "skipping weekly note with non-decimal year: $src"
+    note_week_start=$(iso_week_start_date "$year" "$week") || {
+      log_warn "skipping weekly note with invalid ISO week: $src"
       continue
     }
-    week_num=$(to_decimal "$week") || {
-      log_warn "skipping weekly note with non-decimal week: $src"
-      continue
-    }
-    note_week_idx=$(( (year_num * 53) + week_num ))
-    diff=$(( current_week_idx - note_week_idx ))
 
-    if [ "$diff" -le "$ARCHIVE_KEEP_WEEKLY_WEEKS" ]; then
+    if [ "$(pr_week_tag "$note_week_start" 2>/dev/null || true)" != "$stem" ]; then
+      log_warn "skipping weekly note with invalid ISO week: $src"
       continue
     fi
 
-    printf '%s\n' "$src" >>"$removed_file"
-    move_note "$src" "Weekly Notes" "$year" >>"$moved_file"
+    if ymd_before "$note_week_start" "$weekly_cutoff_start"; then
+      printf '%s\n' "$src" >>"$removed_file"
+      move_note "$src" "Weekly Notes" "$year" >>"$moved_file"
+    fi
   done
 fi
 

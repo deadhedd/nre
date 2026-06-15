@@ -171,7 +171,7 @@ skipped_unreadable=0
 list_file=$(mktemp "${TMPDIR:-/tmp}/sync-latest-logs.list.XXXXXX") || die "mktemp failed"
 trap 'rm -f "$list_file"' EXIT INT TERM HUP
 
-find "$log_root" -name '*-latest.log' 2>/dev/null >"$list_file" || true
+find "$log_root" -name '*-latest.log' 2>/dev/null | LC_ALL=C sort >"$list_file" || true
 
 run_iso=$(dt_now_local_iso 2>/dev/null || true)
 [ -n "$run_iso" ] || run_iso="(unknown)"
@@ -203,16 +203,16 @@ while IFS= read -r link || [ -n "$link" ]; do
 
   mkdir -p "${dest%/*}" || { failed=$((failed + 1)); continue; }
 
-  if write_atomic_file "$dest" <<EOF
+  if {
+    cat <<EOF
 # Latest Log: ${rel##*/}
 
 - Source: $link
 - Captured: $run_iso
 
-\`\`\`
-$(cat "$link" 2>/dev/null || true)
-\`\`\`
 EOF
+    sed 's/^/    /' "$link" 2>/dev/null || true
+  } | write_atomic_file "$dest"
   then
     written=$((written + 1))
     if [ "$emit_written" -eq 1 ]; then

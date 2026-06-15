@@ -182,17 +182,34 @@ commit__git() {
   if commit__debug_enabled; then
     # Show the effective git invocation at a high level (stderr only).
     # Keep it simple—avoid fancy quoting logic.
-    commit__dbg "git: doas -u $GIT_USER_RESOLVED $GIT_BIN_RESOLVED --git-dir=$BARE_REPO --work-tree=$work_root $*"
+    commit__dbg "git: GIT_INDEX_FILE=${COMMIT_GIT_INDEX_FILE:-<unset>} doas -u $GIT_USER_RESOLVED $GIT_BIN_RESOLVED --git-dir=$BARE_REPO --work-tree=$work_root $*"
   fi
 
+  GIT_INDEX_FILE=$COMMIT_GIT_INDEX_FILE \
   doas -u "$GIT_USER_RESOLVED" "$GIT_BIN_RESOLVED" \
     --git-dir="$BARE_REPO" \
     --work-tree="$work_root" \
     "$@"
 }
 
+# Isolate each commit attempt from the bare repo's default index so stale staged
+# paths cannot leak. OpenBSD doas resets environment by default; deployment must
+# permit GIT_INDEX_FILE for the git command, e.g. setenv { GIT_INDEX_FILE }.
+# COMMIT_INDEX_DIR should be a git-owned directory inside the bare repository.
+COMMIT_INDEX_DIR=${COMMIT_INDEX_DIR:-$BARE_REPO/tmp}
+COMMIT_GIT_INDEX_FILE=$COMMIT_INDEX_DIR/commit-index.${JOB_NAME:-job}.$$
+export COMMIT_GIT_INDEX_FILE
+
 commit__git rev-parse --git-dir >/dev/null 2>&1 \
   || commit__fail "bare repository not accessible at $BARE_REPO"
+
+commit_effective_index=$(commit__git rev-parse --git-path index 2>/dev/null) \
+  || commit__fail "failed to verify isolated git index path"
+[ "$commit_effective_index" = "$COMMIT_GIT_INDEX_FILE" ] \
+  || commit__fail "GIT_INDEX_FILE not preserved through doas (check doas setenv for GIT_INDEX_FILE)"
+
+commit__git read-tree HEAD >/dev/null 2>&1 \
+  || commit__fail "failed to initialize isolated git index (check COMMIT_INDEX_DIR ownership)"
 
 # ---------- stage explicit inputs only (support deletions) ----------
 
