@@ -268,6 +268,13 @@ Authoritative system contracts:
 * jq (data processing)
 * Obsidian (knowledge layer)
 
+For target-host deployment requirements, including OpenBSD `doas.conf` and
+commit-index requirements, see:
+
+```
+docs/deployment.md
+```
+
 ---
 
 ## 🎯 What This Demonstrates
