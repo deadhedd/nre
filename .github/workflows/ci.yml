@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify POSIX shell syntax
+        run: |
+          find engine jobs -type f -name '*.sh' -print0 | xargs -0 -n1 sh -n
+          sh -n env.sh
+      - name: ShellCheck
+        run: |
+          find engine jobs -type f -name '*.sh' -print0 | xargs -0 shellcheck
+          shellcheck env.sh
+
+  logging-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test logging subsystem
+        run: sh engine/tests/test-log-system.sh
+
+  wrapper-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test wrapper subsystem
+        run: sh engine/tests/test-job-wrap.sh

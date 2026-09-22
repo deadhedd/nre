@@ -5,7 +5,7 @@
 # shellcheck shell=sh
 #
 # Purpose:
-# - Smoke/regression tests for engine/job-wrap.sh
+# - Smoke/regression tests for engine/wrap.sh
 # - Focus: wrapper boundary guarantees (stdout sacred), stderr capture/routing,
 #   degraded-mode behavior, and commit helper orchestration.
 #
@@ -13,7 +13,7 @@
 #   sh test-job-wrap.sh [--wrap PATH] [--lib-dir DIR]
 #
 # Defaults assume:
-#   ./engine/job-wrap.sh
+#   ./engine/wrap.sh
 #   ./engine/log.sh + helpers in ./engine/
 #
 # Notes:
@@ -23,7 +23,7 @@
 
 set -u
 
-WRAP_PATH="./engine/job-wrap.sh"
+WRAP_PATH="./engine/wrap.sh"
 LIB_DIR="./engine"
 
 while [ $# -gt 0 ]; do
@@ -64,7 +64,7 @@ need_file "$LIB_DIR/log.sh"
 need_file "$LIB_DIR/log-format.sh"
 need_file "$LIB_DIR/log-sink.sh"
 need_file "$LIB_DIR/log-capture.sh"
-need_file "$LIB_DIR/commit.sh"
+need_file "$LIB_DIR/lib/commit.sh"
 
 # --------------------------------------------------------------------------
 # POSIX temp sandbox (no mktemp)
@@ -89,7 +89,7 @@ _sandbox_bin="$_sandbox/bin"
 _sandbox_lib="$_sandbox/lib"
 _sandbox_logs="$_sandbox/logs"
 _sandbox_tmp="$_sandbox/tmp"
-mkdir -p "$_sandbox_bin" "$_sandbox_lib" "$_sandbox_logs" "$_sandbox_tmp" || exit 2
+mkdir -p "$_sandbox_bin" "$_sandbox_lib" "$_sandbox/engine" "$_sandbox_logs" "$_sandbox_tmp" || exit 2
 
 cleanup() {
   # Optional: preserve sandbox for post-mortem inspection.
@@ -148,18 +148,30 @@ SHIM
 
 # --------------------------------------------------------------------------
 # Copy wrapper + libs into sandbox
-# Layout expected by job-wrap.sh:
-# - WRAP_DIR is dirname($0); REPO_ROOT is WRAP_DIR/..
-# - default LOG_LIB_DIR is WRAP_DIR, but we allow overrides.
+#
+# The current wrapper expects logger modules alongside itself, helper modules
+# under LOG_LIB_DIR, and an executable REPO_ROOT/engine/wrap.sh sentinel.
+# Keep the historical sandbox/bin/job-wrap.sh test entry point as a launcher
+# so the regression cases below do not depend on the repository layout.
 # --------------------------------------------------------------------------
-cp "$WRAP_PATH"              "$_sandbox_bin/job-wrap.sh" || exit 2
+cp "$WRAP_PATH"              "$_sandbox_lib/job-wrap.sh" || exit 2
+cp "$WRAP_PATH"              "$_sandbox/engine/wrap.sh" || exit 2
 cp "$LIB_DIR/log.sh"         "$_sandbox_lib/log.sh" || exit 2
 cp "$LIB_DIR/log-format.sh"  "$_sandbox_lib/log-format.sh" || exit 2
 cp "$LIB_DIR/log-sink.sh"    "$_sandbox_lib/log-sink.sh" || exit 2
 cp "$LIB_DIR/log-capture.sh" "$_sandbox_lib/log-capture.sh" || exit 2
-cp "$LIB_DIR/commit.sh"      "$_sandbox_lib/commit.sh" || exit 2
+cp "$LIB_DIR/lib/commit.sh"  "$_sandbox_lib/commit.sh" || exit 2
 
-chmod 755 "$_sandbox_bin/job-wrap.sh" "$_sandbox_lib/commit.sh" 2>/dev/null || :
+cat >"$_sandbox_bin/job-wrap.sh" <<'LAUNCHER'
+#!/bin/sh
+exec "$(dirname "$0")/../lib/job-wrap.sh" "$@"
+LAUNCHER
+
+chmod 755 \
+  "$_sandbox_bin/job-wrap.sh" \
+  "$_sandbox_lib/job-wrap.sh" \
+  "$_sandbox/engine/wrap.sh" \
+  "$_sandbox_lib/commit.sh" 2>/dev/null || :
 
 # --------------------------------------------------------------------------
 # Tiny TAP-like runner
@@ -265,7 +277,8 @@ run_wrap() {
   LOG_MIN_LEVEL="INFO"
   LOG_LIB_DIR="$_sandbox_lib"
   TMPDIR="$_sandbox_tmp"
-  export LOG_ROOT LOG_BUCKET LOG_KEEP_COUNT LOG_MIN_LEVEL LOG_LIB_DIR TMPDIR
+  COMMIT_MODE="off"
+  export LOG_ROOT LOG_BUCKET LOG_KEEP_COUNT LOG_MIN_LEVEL LOG_LIB_DIR TMPDIR COMMIT_MODE
 
   run_jobwrap "$_sandbox/bin/job-wrap.sh" "$@" >"$WRAP_OUT" 2>"$WRAP_ERR"
   WRAP_RC=$?
@@ -313,7 +326,7 @@ assert_eq "$(cat "$out" 2>/dev/null || :)" "STDOUT: hello" "happy path preserves
 assert_empty_file "$err" "happy path keeps boundary stderr quiet"
 
 _job="leaf_ok"
-_latest="$_sandbox_logs/other/${_job}/${_job}-latest.log"
+_latest="$_sandbox_logs/other/${_job}-latest.log"
 assert_exists "$_latest" "happy path updates latest log symlink (or file)"
 assert_nonempty_file "$_latest" "happy path latest log has content"
 
@@ -326,9 +339,9 @@ for _f in "$_boot_dir"/"${_job}"-bootstrap-*.log; do
   fi
 done
 if [ -n "$_boot_any" ]; then
-  ok "happy path wrote a bootstrap log file"
+  not_ok "healthy path removes an empty bootstrap log"
 else
-  not_ok "happy path wrote a bootstrap log file (missing under $_boot_dir)"
+  ok "healthy path removes an empty bootstrap log"
 fi
 
 # --------------------------------------------------------------------------
@@ -605,7 +618,7 @@ assert_eq "$(cat "$out" 2>/dev/null || :)" "STDOUT: ok" "log_init stderr capture
 assert_nonempty_file "$err" "log_init stderr capture test emits degraded warning"
 
 _boot_dir="$_sandbox_logs/_bootstrap"
-_boot_hit=$(rg -n "BOOTSTRAP DEBUG: log_init stderr \(rc=10\)|init-check: bad log sink" "$_boot_dir" 2>/dev/null || true)
+_boot_hit=$(grep -R -E "BOOTSTRAP DEBUG: log_init stderr \(rc=10\)|init-check: bad log sink" "$_boot_dir" 2>/dev/null | head -n 1 || true)
 if [ -n "$_boot_hit" ]; then
   ok "bootstrap log preserves log_init stderr diagnostics on init failure"
 else
@@ -794,7 +807,7 @@ rc=$?
 
 assert_eq "$rc" "0" "empty commit list does not fail the job"
 assert_eq "$(cat "$_out" 2>/dev/null || :)" "STDOUT: ok" "empty commit list preserves stdout"
-assert_empty_file "$_err" "empty commit list keeps boundary stderr quiet"
+assert_nonempty_file "$_err" "empty required commit list emits a warning"
 
 # --------------------------------------------------------------------------
 # ADDED TEST 17: commit list comment/blank filtering + commit rc=3 treated as success
@@ -889,7 +902,7 @@ assert_eq "$(cat "$out" 2>/dev/null || :)" "STDOUT: ok" "leaf stderr capture-to-
 assert_empty_file "$err" "leaf stderr capture-to-log keeps boundary stderr quiet"
 
 _job="leaf_capture_to_log"
-_latest="$_sandbox_logs/other/${_job}/${_job}-latest.log"
+_latest="$_sandbox_logs/other/${_job}-latest.log"
 assert_exists "$_latest" "capture-to-log updates latest log"
 assert_contains_file "$_latest" "leaf-cap-1" "per-run log contains captured leaf stderr (line 1)"
 assert_contains_file "$_latest" "leaf-cap-2" "per-run log contains captured leaf stderr (line 2)"
@@ -911,7 +924,7 @@ assert_eq "$(cat "$out" 2>/dev/null || :)" "STDOUT: ok" "UNDEF leaf line preserv
 assert_empty_file "$err" "UNDEF leaf line keeps boundary stderr quiet"
 
 _job="leaf_undef_line"
-_latest="$_sandbox_logs/other/${_job}/${_job}-latest.log"
+_latest="$_sandbox_logs/other/${_job}-latest.log"
 assert_exists "$_latest" "UNDEF case updates latest log"
 assert_contains_file "$_latest" "this line has no prefix" "per-run log contains UNDEF leaf line content"
 
@@ -933,7 +946,7 @@ assert_empty_file "$_out" "missing leaf emits nothing on stdout"
 assert_empty_file "$_err" "missing leaf keeps boundary stderr quiet when capture works"
 
 _job="no_such_leaf_$$"
-_latest="$_sandbox_logs/other/${_job}/${_job}-latest.log"
+_latest="$_sandbox_logs/other/${_job}-latest.log"
 if [ -f "$_latest" ]; then
   ok "missing leaf produced a latest log artifact"
 else
@@ -941,7 +954,7 @@ else
 fi
 
 # --------------------------------------------------------------------------
-# ADDED TEST 22: non-executable leaf script => rc=126 propagated; boundary stays quiet
+# ADDED TEST 22: readable non-executable .sh leaf runs through sh
 # --------------------------------------------------------------------------
 _nonexec="$_sandbox/bin/nonexec_$$.sh"
 cat >"$_nonexec" <<'EOF'
@@ -960,12 +973,12 @@ LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="I
   run_jobwrap "$_sandbox/bin/job-wrap.sh" "$_nonexec" >"$_out" 2>"$_err"
 rc=$?
 
-assert_eq "$rc" "126" "non-executable leaf returns 126 and is propagated"
-assert_empty_file "$_out" "non-executable leaf emits nothing on stdout"
-assert_empty_file "$_err" "non-executable leaf keeps boundary stderr quiet when capture works"
+assert_eq "$rc" "0" "readable non-executable .sh leaf runs successfully"
+assert_eq "$(cat "$_out" 2>/dev/null || :)" "STDOUT: should-not-run" "readable non-executable .sh leaf stdout is preserved"
+assert_empty_file "$_err" "readable non-executable .sh leaf stderr is captured when logging is healthy"
 
 _job="nonexec_$$"
-_latest="$_sandbox_logs/other/${_job}/${_job}-latest.log"
+_latest="$_sandbox_logs/other/${_job}-latest.log"
 if [ -f "$_latest" ]; then
   ok "non-executable leaf produced a latest log artifact"
 else
@@ -1035,7 +1048,7 @@ rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
 mv "$_sandbox_lib/log.real4.sh" "$_sandbox_lib/log.sh" || exit 2
 
 # --------------------------------------------------------------------------
-# ADDED TEST 25: commit helper failure overrides leaf rc with 123 even in best-effort mode
+# ADDED TEST 25: best-effort commit helper failure warns but preserves leaf rc
 # --------------------------------------------------------------------------
 mv "$_sandbox_lib/commit.sh" "$_sandbox_lib/commit.real4.sh" || exit 2
 cat >"$_sandbox_lib/commit.sh" <<'COMMIT_FAIL'
@@ -1059,7 +1072,7 @@ LOG_ROOT="$_sandbox_logs" LOG_BUCKET="other" LOG_KEEP_COUNT="0" LOG_MIN_LEVEL="I
   sh "$_sandbox/bin/job-wrap.sh" "$_leaf" >"$_out" 2>"$_err"
 rc=$?
 
-assert_eq "$rc" "123" "commit failure in best-effort overrides exit with 123"
+assert_eq "$rc" "0" "best-effort commit failure preserves leaf exit"
 assert_eq "$(cat "$_out" 2>/dev/null || :)" "STDOUT: ok" "commit failure (best-effort) still preserves leaf stdout"
 assert_nonempty_file "$_err" "commit failure (best-effort) emits boundary error"
 
