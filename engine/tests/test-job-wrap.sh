@@ -5,7 +5,7 @@
 # shellcheck shell=sh
 #
 # Purpose:
-# - Smoke/regression tests for engine/job-wrap.sh
+# - Smoke/regression tests for engine/wrap.sh
 # - Focus: wrapper boundary guarantees (stdout sacred), stderr capture/routing,
 #   degraded-mode behavior, and commit helper orchestration.
 #
@@ -13,7 +13,7 @@
 #   sh test-job-wrap.sh [--wrap PATH] [--lib-dir DIR]
 #
 # Defaults assume:
-#   ./engine/job-wrap.sh
+#   ./engine/wrap.sh
 #   ./engine/log.sh + helpers in ./engine/
 #
 # Notes:
@@ -23,7 +23,7 @@
 
 set -u
 
-WRAP_PATH="./engine/job-wrap.sh"
+WRAP_PATH="./engine/wrap.sh"
 LIB_DIR="./engine"
 
 while [ $# -gt 0 ]; do
@@ -64,7 +64,7 @@ need_file "$LIB_DIR/log.sh"
 need_file "$LIB_DIR/log-format.sh"
 need_file "$LIB_DIR/log-sink.sh"
 need_file "$LIB_DIR/log-capture.sh"
-need_file "$LIB_DIR/commit.sh"
+need_file "$LIB_DIR/lib/commit.sh"
 
 # --------------------------------------------------------------------------
 # POSIX temp sandbox (no mktemp)
@@ -89,7 +89,7 @@ _sandbox_bin="$_sandbox/bin"
 _sandbox_lib="$_sandbox/lib"
 _sandbox_logs="$_sandbox/logs"
 _sandbox_tmp="$_sandbox/tmp"
-mkdir -p "$_sandbox_bin" "$_sandbox_lib" "$_sandbox_logs" "$_sandbox_tmp" || exit 2
+mkdir -p "$_sandbox_bin" "$_sandbox_lib" "$_sandbox/engine" "$_sandbox_logs" "$_sandbox_tmp" || exit 2
 
 cleanup() {
   # Optional: preserve sandbox for post-mortem inspection.
@@ -148,18 +148,30 @@ SHIM
 
 # --------------------------------------------------------------------------
 # Copy wrapper + libs into sandbox
-# Layout expected by job-wrap.sh:
-# - WRAP_DIR is dirname($0); REPO_ROOT is WRAP_DIR/..
-# - default LOG_LIB_DIR is WRAP_DIR, but we allow overrides.
+#
+# The current wrapper expects logger modules alongside itself, helper modules
+# under LOG_LIB_DIR, and an executable REPO_ROOT/engine/wrap.sh sentinel.
+# Keep the historical sandbox/bin/job-wrap.sh test entry point as a launcher
+# so the regression cases below do not depend on the repository layout.
 # --------------------------------------------------------------------------
-cp "$WRAP_PATH"              "$_sandbox_bin/job-wrap.sh" || exit 2
+cp "$WRAP_PATH"              "$_sandbox_lib/job-wrap.sh" || exit 2
+cp "$WRAP_PATH"              "$_sandbox/engine/wrap.sh" || exit 2
 cp "$LIB_DIR/log.sh"         "$_sandbox_lib/log.sh" || exit 2
 cp "$LIB_DIR/log-format.sh"  "$_sandbox_lib/log-format.sh" || exit 2
 cp "$LIB_DIR/log-sink.sh"    "$_sandbox_lib/log-sink.sh" || exit 2
 cp "$LIB_DIR/log-capture.sh" "$_sandbox_lib/log-capture.sh" || exit 2
-cp "$LIB_DIR/commit.sh"      "$_sandbox_lib/commit.sh" || exit 2
+cp "$LIB_DIR/lib/commit.sh"  "$_sandbox_lib/commit.sh" || exit 2
 
-chmod 755 "$_sandbox_bin/job-wrap.sh" "$_sandbox_lib/commit.sh" 2>/dev/null || :
+cat >"$_sandbox_bin/job-wrap.sh" <<'LAUNCHER'
+#!/bin/sh
+exec "$(dirname "$0")/../lib/job-wrap.sh" "$@"
+LAUNCHER
+
+chmod 755 \
+  "$_sandbox_bin/job-wrap.sh" \
+  "$_sandbox_lib/job-wrap.sh" \
+  "$_sandbox/engine/wrap.sh" \
+  "$_sandbox_lib/commit.sh" 2>/dev/null || :
 
 # --------------------------------------------------------------------------
 # Tiny TAP-like runner
