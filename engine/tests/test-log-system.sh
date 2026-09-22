@@ -254,6 +254,18 @@ _dt_inc() {
   _DT_N=$(( _DT_N + 1 ))
 }
 
+dt_now_local_log_ts() {
+  _n=$(cat "$DT_STUB_COUNTER_FILE" 2>/dev/null || printf '0')
+  case "$_n" in
+    ''|*[!0-9]*) _n=0 ;;
+  esac
+  _n=$(( _n + 1 ))
+  printf '%s\n' "$_n" >"$DT_STUB_COUNTER_FILE"
+  _s=$_n
+  if [ "$_s" -lt 10 ]; then _s="0$_s"; fi
+  printf '%s' "2026-01-17-0000$_s"
+}
+
 dt_now_local_iso_no_tz() {
   _dt_inc
   # YYYY-MM-DDTHH:MM:SS
@@ -271,6 +283,10 @@ dt_now_local_compact() {
   printf '%s' "20260117T0000${_s}"
 }
 SHIM
+
+DT_STUB_COUNTER_FILE="$_sandbox/datetime-counter"
+printf '0\n' >"$DT_STUB_COUNTER_FILE" || exit 2
+export DT_STUB_COUNTER_FILE
 
 # --------------------------------------------------------------------------
 # Tiny TAP-like runner
@@ -391,8 +407,9 @@ reset_facade_state
 JOB_WRAP_ACTIVE=1
 export JOB_WRAP_ACTIVE
 
+LOG_ROOT="$_sandbox_logs"
 LOG_LIB_DIR="$_sandbox_lib"
-export LOG_LIB_DIR
+export LOG_ROOT LOG_LIB_DIR
 
 # shellcheck disable=SC1090,SC1091
 . "$_sandbox_lib/log.sh" 1>&2 || {
@@ -408,7 +425,7 @@ JOB_LOG_DIR="$_sandbox_logs/$JOB"
 mkdir -p "$JOB_LOG_DIR" || exit 2
 LOG_FILE="$JOB_LOG_DIR/${JOB}-2026-01-17-000001.log"
 
-log_init "$JOB" "$LOG_FILE" INFO 1>/dev/null 2>&1
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init returns 0 on happy path"
 
@@ -424,7 +441,7 @@ assert_eq "$rc" "0" "log_close returns 0"
 
 assert_file_contains "$LOG_FILE" "[local] INFO hello" "log line contains level and message"
 # Behavior-based check: latest path resolves to current log contents (also implies it exists)
-assert_file_contains "$_sandbox_logs/${JOB}-latest.log" "[local] INFO hello" "latest symlink resolves to current log"
+assert_file_contains "$_sandbox_logs/other/${JOB}-latest.log" "[local] INFO hello" "latest symlink resolves to current log"
 
 # --------------------------------------------------------------------------
 # TEST 2: level gating
@@ -438,9 +455,10 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE2="$_sandbox_logs/${JOB}-2026-01-17-000002.log"
-log_init "$JOB" "$LOG_FILE2" WARN 1>/dev/null 2>&1
+log_init "$JOB" WARN 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init with MIN_LEVEL=WARN returns 0"
+LOG_FILE2=$LOG_FILE
 
 log_info "should_suppress" 1>/dev/null 2>&1
 rc=$?
@@ -467,9 +485,10 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE3="$_sandbox_logs/${JOB}-2026-01-17-000003.log"
-log_init "$JOB" "$LOG_FILE3" DEBUG 1>/dev/null 2>&1
+log_init "$JOB" DEBUG 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init DEBUG returns 0"
+LOG_FILE3=$LOG_FILE
 
 # Build a message that includes CR and a non-ASCII byte.
 # Insert a literal CR via printf; insert a non-ASCII byte via octal escape.
@@ -495,9 +514,10 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE4="$_sandbox_logs/${JOB}-2026-01-17-000004.log"
-log_init "$JOB" "$LOG_FILE4" INFO 1>/dev/null 2>&1
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init for capture returns 0"
+LOG_FILE4=$LOG_FILE
 
 printf 'line1\nline2\n' | log_capture INFO 1>/dev/null 2>&1
 rc=$?
@@ -533,7 +553,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 JOB2="ret"
-LOG_DIR="$_sandbox_logs/ret"
+LOG_DIR="$_sandbox_logs/other"
 mkdir -p "$LOG_DIR" || exit 2
 
 # Pre-seed 3 old logs in the same directory.
@@ -543,13 +563,14 @@ _old2="$LOG_DIR/${JOB2}-2026-01-17-000011.log"
 _old3="$LOG_DIR/${JOB2}-2026-01-17-000012.log"
 : > "$_old1"; : > "$_old2"; : > "$_old3"
 
+printf '12\n' >"$DT_STUB_COUNTER_FILE" || exit 2
 LOG_KEEP_COUNT=2
 export LOG_KEEP_COUNT
 
-_new="$LOG_DIR/${JOB2}-2026-01-17-000013.log"
-log_init "$JOB2" "$_new" INFO 1>/dev/null 2>&1
+log_init "$JOB2" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init with retention returns 0"
+_new=$LOG_FILE
 
 log_info "fresh" 1>/dev/null 2>&1
 log_close 1>/dev/null 2>&1
@@ -578,7 +599,7 @@ export LOG_LIB_DIR
 }
 
 LOG_FILE5="$_sandbox_logs/${JOB}-2026-01-17-000005.log"
-log_init "$JOB" "$LOG_FILE5" INFO 1>/dev/null 2>&1
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 when JOB_WRAP_ACTIVE is missing"
 
@@ -595,12 +616,12 @@ export LOG_LIB_DIR
 
 _bad_job="bad/job"
 _bad_log="$_sandbox_logs/bad/${_bad_job}-2026-01-17-000006.log"
-log_init "$_bad_job" "$_bad_log" INFO 1>/dev/null 2>&1
+log_init "$_bad_job" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 for invalid JOB_NAME"
 
 # --------------------------------------------------------------------------
-# TEST 8: invalid LOG_FILE basename rejected (does not match <JOB>-YYYY-MM-DD-HHMMSS.log)
+# TEST 8: invalid LOG_MIN_LEVEL rejected
 # --------------------------------------------------------------------------
 reset_facade_state
 JOB_WRAP_ACTIVE=1
@@ -611,10 +632,9 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 _bad_job2="unit"
-_bad_log2="$_sandbox_logs/${_bad_job2}-NOT_A_TIMESTAMP.log"
-log_init "$_bad_job2" "$_bad_log2" INFO 1>/dev/null 2>&1
+log_init "$_bad_job2" TRACE 1>/dev/null 2>&1
 rc=$?
-assert_eq "$rc" "11" "log_init returns 11 for invalid LOG_FILE basename"
+assert_eq "$rc" "11" "log_init returns 11 for invalid LOG_MIN_LEVEL"
 
 # --------------------------------------------------------------------------
 # TEST 9: unwritable log directory returns operational failure (nonzero; expected 10)
@@ -631,14 +651,17 @@ _ro_dir="$_sandbox_logs/ro"
 mkdir -p "$_ro_dir" || exit 2
 chmod 500 "$_ro_dir" 2>/dev/null || :
 
-_ro_log="$_ro_dir/rojob-2026-01-17-000007.log"
-log_init "rojob" "$_ro_log" INFO 1>/dev/null 2>&1
+LOG_ROOT="$_ro_dir"
+export LOG_ROOT
+log_init "rojob" INFO 1>/dev/null 2>&1
 rc=$?
 # log-sink uses rc=10 for cannot open log file / cannot update symlink
 assert_eq "$rc" "10" "log_init returns 10 when log file cannot be opened (unwritable dir)"
 
-# Restore perms for cleanup friendliness
+# Restore perms and log root for later tests.
 chmod 700 "$_ro_dir" 2>/dev/null || :
+LOG_ROOT="$_sandbox_logs"
+export LOG_ROOT
 
 # --------------------------------------------------------------------------
 # TEST 10: calling log_info before log_init should fail (children not sourced)
@@ -667,7 +690,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 LOG_FILE6="$_sandbox_logs/${JOB}-2026-01-17-000008.log"
-log_init "$JOB" "$LOG_FILE6" INFO 1>/dev/null 2>&1
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init for double-close returns 0"
 
@@ -701,7 +724,7 @@ export LOG_LIB_DIR
 . "$_lib_nodt/log.sh" 1>&2 || { echo "ERROR: failed to source log.sh (nodt)" >&2; exit 2; }
 
 LOG_FILE7="$_sandbox_logs/${JOB}-2026-01-17-000009.log"
-log_init "$JOB" "$LOG_FILE7" INFO 1>/dev/null 2>&1
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "10" "log_init returns 10 when datetime.sh cannot be sourced"
 
