@@ -8,9 +8,9 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  static-analysis:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Verify POSIX shell syntax
@@ -21,7 +21,19 @@ jobs:
         run: |
           find engine jobs -type f -name '*.sh' -print0 | xargs -0 shellcheck
           shellcheck env.sh
+
+  logging-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
       - name: Test logging subsystem
         run: sh engine/tests/test-log-system.sh
+
+  wrapper-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
       - name: Test wrapper subsystem
         run: sh engine/tests/test-job-wrap.sh
