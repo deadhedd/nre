@@ -598,7 +598,6 @@ export LOG_LIB_DIR
   exit 2
 }
 
-LOG_FILE5="$_sandbox_logs/${JOB}-2026-01-17-000005.log"
 log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 when JOB_WRAP_ACTIVE is missing"
@@ -689,7 +688,6 @@ export LOG_LIB_DIR
 # shellcheck disable=SC1090,SC1091
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
-LOG_FILE6="$_sandbox_logs/${JOB}-2026-01-17-000008.log"
 log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init for double-close returns 0"
@@ -723,7 +721,6 @@ export LOG_LIB_DIR
 # shellcheck disable=SC1090,SC1091
 . "$_lib_nodt/log.sh" 1>&2 || { echo "ERROR: failed to source log.sh (nodt)" >&2; exit 2; }
 
-LOG_FILE7="$_sandbox_logs/${JOB}-2026-01-17-000009.log"
 log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "10" "log_init returns 10 when datetime.sh cannot be sourced"
