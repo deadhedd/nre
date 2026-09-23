@@ -216,9 +216,11 @@ dbg "sandbox=$_sandbox"
 dbg "sandbox_lib=$_sandbox_lib"
 dbg "sandbox_logs=$_sandbox_logs"
 
-# Sanity: show what got copied
-dbg "ls -l sandbox_lib:"
-ls -l "$_sandbox_lib" >&2 2>/dev/null || :
+# Sanity: show what got copied when debugging is enabled.
+if [ "$LOG_TEST_DEBUG" = "1" ]; then
+  dbg "ls -l sandbox_lib:"
+  ls -l "$_sandbox_lib" >&2 2>/dev/null || :
+fi
 
 # Validate shell syntax of sandboxed log-sink.sh before we ever source it.
 if ! sh -n "$_sandbox_lib/log-sink.sh" 2>"$_sandbox/syntax.log"; then
@@ -248,27 +250,16 @@ if [ "${DT_STUB_LOADED:-0}" = "1" ]; then
 fi
 DT_STUB_LOADED=1
 
-_DT_N=${_DT_N:-0}
-
-_dt_inc() {
-  _DT_N=$(( _DT_N + 1 ))
-}
-
 dt_now_local_iso_no_tz() {
-  _dt_inc
-  # YYYY-MM-DDTHH:MM:SS
-  # Use seconds 01..99 (two digits)
-  _s=$_DT_N
-  if [ "$_s" -lt 10 ]; then _s="0$_s"; fi
-  printf '%s' "2026-01-17T00:00:${_s}"
+  printf '%s' "2026-01-17T00:00:00"
 }
 
 dt_now_local_compact() {
-  _dt_inc
-  # YYYYmmddTHHMMSS
-  _s=$_DT_N
-  if [ "$_s" -lt 10 ]; then _s="0$_s"; fi
-  printf '%s' "20260117T0000${_s}"
+  printf '%s' "20260117T000000"
+}
+
+dt_now_local_log_ts() {
+  printf '%s' "${DT_STUB_LOG_TS:-2026-01-17-000001}"
 }
 SHIM
 
@@ -377,7 +368,8 @@ assert_file_not_contains() {
 # Reset facade/library guard vars so we can re-source cleanly between tests.
 reset_facade_state() {
   for _v in LOG_FACADE_LOADED LOG_SINK_LOADED LOG_CAPTURE_LOADED _lf_loaded DT_STUB_LOADED \
-           LOG_FACADE_ACTIVE LOG_SINK_FD LOG_MIN_LEVEL _log_sink_ready
+           LOG_FACADE_ACTIVE LOG_SINK_FD LOG_MIN_LEVEL LOG_BUCKET LOG_FILE \
+           ENGINE_LIB_DIR _log_sink_ready
   do
     unset "$_v"
   done
@@ -393,6 +385,8 @@ export JOB_WRAP_ACTIVE
 
 LOG_LIB_DIR="$_sandbox_lib"
 export LOG_LIB_DIR
+LOG_ROOT="$_sandbox_logs"
+export LOG_ROOT
 
 # shellcheck disable=SC1090,SC1091
 . "$_sandbox_lib/log.sh" 1>&2 || {
@@ -404,11 +398,11 @@ export LOG_LIB_DIR
 # TEST 1: happy path init + write + close + latest link behavior
 # --------------------------------------------------------------------------
 JOB="unit"
-JOB_LOG_DIR="$_sandbox_logs/$JOB"
-mkdir -p "$JOB_LOG_DIR" || exit 2
-LOG_FILE="$JOB_LOG_DIR/${JOB}-2026-01-17-000001.log"
+LOG_FILE="$_sandbox_logs/other/${JOB}-2026-01-17-000001.log"
+DT_STUB_LOG_TS="2026-01-17-000001"
+export DT_STUB_LOG_TS
 
-log_init "$JOB" "$LOG_FILE" INFO 1>/dev/null 2>&1
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init returns 0 on happy path"
 
@@ -424,7 +418,7 @@ assert_eq "$rc" "0" "log_close returns 0"
 
 assert_file_contains "$LOG_FILE" "[local] INFO hello" "log line contains level and message"
 # Behavior-based check: latest path resolves to current log contents (also implies it exists)
-assert_file_contains "$_sandbox_logs/${JOB}-latest.log" "[local] INFO hello" "latest symlink resolves to current log"
+assert_file_contains "$_sandbox_logs/other/${JOB}-latest.log" "[local] INFO hello" "latest symlink resolves to current log"
 
 # --------------------------------------------------------------------------
 # TEST 2: level gating
@@ -437,8 +431,10 @@ export LOG_LIB_DIR
 # shellcheck disable=SC1090,SC1091
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
-LOG_FILE2="$_sandbox_logs/${JOB}-2026-01-17-000002.log"
-log_init "$JOB" "$LOG_FILE2" WARN 1>/dev/null 2>&1
+LOG_FILE2="$_sandbox_logs/other/${JOB}-2026-01-17-000002.log"
+DT_STUB_LOG_TS="2026-01-17-000002"
+export DT_STUB_LOG_TS
+log_init "$JOB" WARN 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init with MIN_LEVEL=WARN returns 0"
 
@@ -466,8 +462,10 @@ export LOG_LIB_DIR
 # shellcheck disable=SC1090,SC1091
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
-LOG_FILE3="$_sandbox_logs/${JOB}-2026-01-17-000003.log"
-log_init "$JOB" "$LOG_FILE3" DEBUG 1>/dev/null 2>&1
+LOG_FILE3="$_sandbox_logs/other/${JOB}-2026-01-17-000003.log"
+DT_STUB_LOG_TS="2026-01-17-000003"
+export DT_STUB_LOG_TS
+log_init "$JOB" DEBUG 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init DEBUG returns 0"
 
@@ -494,8 +492,10 @@ export LOG_LIB_DIR
 # shellcheck disable=SC1090,SC1091
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
-LOG_FILE4="$_sandbox_logs/${JOB}-2026-01-17-000004.log"
-log_init "$JOB" "$LOG_FILE4" INFO 1>/dev/null 2>&1
+LOG_FILE4="$_sandbox_logs/other/${JOB}-2026-01-17-000004.log"
+DT_STUB_LOG_TS="2026-01-17-000004"
+export DT_STUB_LOG_TS
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init for capture returns 0"
 
@@ -533,7 +533,7 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 JOB2="ret"
-LOG_DIR="$_sandbox_logs/ret"
+LOG_DIR="$_sandbox_logs/other"
 mkdir -p "$LOG_DIR" || exit 2
 
 # Pre-seed 3 old logs in the same directory.
@@ -547,7 +547,9 @@ LOG_KEEP_COUNT=2
 export LOG_KEEP_COUNT
 
 _new="$LOG_DIR/${JOB2}-2026-01-17-000013.log"
-log_init "$JOB2" "$_new" INFO 1>/dev/null 2>&1
+DT_STUB_LOG_TS="2026-01-17-000013"
+export DT_STUB_LOG_TS
+log_init "$JOB2" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init with retention returns 0"
 
@@ -577,8 +579,7 @@ export LOG_LIB_DIR
   exit 2
 }
 
-LOG_FILE5="$_sandbox_logs/${JOB}-2026-01-17-000005.log"
-log_init "$JOB" "$LOG_FILE5" INFO 1>/dev/null 2>&1
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 when JOB_WRAP_ACTIVE is missing"
 
@@ -594,13 +595,12 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 _bad_job="bad/job"
-_bad_log="$_sandbox_logs/bad/${_bad_job}-2026-01-17-000006.log"
-log_init "$_bad_job" "$_bad_log" INFO 1>/dev/null 2>&1
+log_init "$_bad_job" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "11" "log_init returns 11 for invalid JOB_NAME"
 
 # --------------------------------------------------------------------------
-# TEST 8: invalid LOG_FILE basename rejected (does not match <JOB>-YYYY-MM-DD-HHMMSS.log)
+# TEST 8: invalid LOG_BUCKET rejected by facade validation
 # --------------------------------------------------------------------------
 reset_facade_state
 JOB_WRAP_ACTIVE=1
@@ -611,10 +611,11 @@ export LOG_LIB_DIR
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
 _bad_job2="unit"
-_bad_log2="$_sandbox_logs/${_bad_job2}-NOT_A_TIMESTAMP.log"
-log_init "$_bad_job2" "$_bad_log2" INFO 1>/dev/null 2>&1
+LOG_BUCKET="bad/bucket"
+export LOG_BUCKET
+log_init "$_bad_job2" INFO 1>/dev/null 2>&1
 rc=$?
-assert_eq "$rc" "11" "log_init returns 11 for invalid LOG_FILE basename"
+assert_eq "$rc" "11" "log_init returns 11 for invalid LOG_BUCKET"
 
 # --------------------------------------------------------------------------
 # TEST 9: unwritable log directory returns operational failure (nonzero; expected 10)
@@ -631,14 +632,19 @@ _ro_dir="$_sandbox_logs/ro"
 mkdir -p "$_ro_dir" || exit 2
 chmod 500 "$_ro_dir" 2>/dev/null || :
 
-_ro_log="$_ro_dir/rojob-2026-01-17-000007.log"
-log_init "rojob" "$_ro_log" INFO 1>/dev/null 2>&1
+LOG_ROOT="$_ro_dir"
+export LOG_ROOT
+DT_STUB_LOG_TS="2026-01-17-000007"
+export DT_STUB_LOG_TS
+log_init "rojob" INFO 1>/dev/null 2>&1
 rc=$?
 # log-sink uses rc=10 for cannot open log file / cannot update symlink
 assert_eq "$rc" "10" "log_init returns 10 when log file cannot be opened (unwritable dir)"
 
 # Restore perms for cleanup friendliness
 chmod 700 "$_ro_dir" 2>/dev/null || :
+LOG_ROOT="$_sandbox_logs"
+export LOG_ROOT
 
 # --------------------------------------------------------------------------
 # TEST 10: calling log_info before log_init should fail (children not sourced)
@@ -666,8 +672,9 @@ export LOG_LIB_DIR
 # shellcheck disable=SC1090,SC1091
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
-LOG_FILE6="$_sandbox_logs/${JOB}-2026-01-17-000008.log"
-log_init "$JOB" "$LOG_FILE6" INFO 1>/dev/null 2>&1
+DT_STUB_LOG_TS="2026-01-17-000008"
+export DT_STUB_LOG_TS
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "0" "log_init for double-close returns 0"
 
@@ -700,8 +707,9 @@ export LOG_LIB_DIR
 # shellcheck disable=SC1090,SC1091
 . "$_lib_nodt/log.sh" 1>&2 || { echo "ERROR: failed to source log.sh (nodt)" >&2; exit 2; }
 
-LOG_FILE7="$_sandbox_logs/${JOB}-2026-01-17-000009.log"
-log_init "$JOB" "$LOG_FILE7" INFO 1>/dev/null 2>&1
+DT_STUB_LOG_TS="2026-01-17-000009"
+export DT_STUB_LOG_TS
+log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
 assert_eq "$rc" "10" "log_init returns 10 when datetime.sh cannot be sourced"
 

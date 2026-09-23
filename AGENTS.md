@@ -19,6 +19,10 @@ Order of authority (highest → lowest):
 
 If this file conflicts with the contract, **this file is wrong**.
 
+## Build approach
+
+Tracer Bullet (complete one release boundary from its source definition through local validation and automation).
+
 ---
 
 ## Mandatory Contract References

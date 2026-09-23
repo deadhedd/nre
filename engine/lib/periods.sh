@@ -224,7 +224,7 @@ pr_month_tag() {
       ????-??-??)
         if parts=$(pr__date_parts_strict "$1"); then
           set -- $parts
-          printf '%04d-%02d\n' "$1" "$2"
+          printf '%s-%s\n' "$1" "$2"
           return 0
         fi
         return 1
@@ -235,7 +235,7 @@ pr_month_tag() {
     esac
   else
     set -- $(dt_date_parts "$(dt_today_local)") || return $?
-    printf '%04d-%02d\n' "$1" "$2"
+    printf '%s-%s\n' "$1" "$2"
   fi
 }
 

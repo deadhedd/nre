@@ -198,9 +198,9 @@ Design goals:
 
 ## 📁 Environment Model
 
-Configuration is centralized via environment variables:
+Configuration is centralized via environment variables. Start with the public example:
 
-[https://github.com/deadhedd/nre/blob/master/env.sh](https://github.com/deadhedd/nre/blob/master/env.sh)
+[https://github.com/deadhedd/nre/blob/master/env.example.sh](https://github.com/deadhedd/nre/blob/master/env.example.sh)
 
 Key properties:
 
@@ -268,11 +268,10 @@ Authoritative system contracts:
 * jq (data processing)
 * Obsidian (knowledge layer)
 
-For target-host deployment requirements, including OpenBSD `doas.conf` and
-commit-index requirements, see:
+For general public deployment requirements, see:
 
 ```
-docs/deployment.md
+docs/deployment-public.md
 ```
 
 ---
