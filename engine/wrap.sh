@@ -673,8 +673,8 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
     else
       log_capture UNDEF <"$_tmp" >/dev/null 2>/dev/null
     fi
-    _wrap_debug "capture-forward: END"
     _lc_rc=$?
+    _wrap_debug "capture-forward: END"
 
     if [ "$_lc_rc" -ne 0 ]; then
       LOG_DEGRADED=1

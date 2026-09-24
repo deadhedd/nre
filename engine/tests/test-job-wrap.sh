@@ -21,8 +21,7 @@
 # - POSIX sh, ASCII-only.
 # - Creates a temp sandbox and copies wrapper + libs into it.
 # - Provides deterministic datetime.sh stub (same shape as test-log-system.sh).
-# - The separate log_capture failure replay path remains outside this gate because
-#   the current wrapper loses that helper status. It needs a separate runtime fix.
+# - The deterministic log_capture failure replay path is covered below.
 
 set -u
 
@@ -1005,7 +1004,67 @@ rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
 mv "$_sandbox_lib/log.real4.sh" "$_sandbox_lib/log.sh" || exit 2
 
 # --------------------------------------------------------------------------
-# ADDED TEST 25: best-effort commit helper failure does not override leaf rc
+# ADDED TEST 25: log_capture failure preserves helper and leaf status ownership
+# --------------------------------------------------------------------------
+mv "$_sandbox_lib/log.sh" "$_sandbox_lib/log.real.capturefail.sh" || exit 2
+
+cat >"$_sandbox_lib/log.sh" <<'LOG_CAPTURE_FAIL'
+#!/bin/sh
+# log.sh (test double): healthy init, failed capture with diagnostics
+
+(return 0 2>/dev/null) || { echo "ERROR: log.sh must be sourced" >&2; exit 2; }
+
+log_init() { return 0; }
+log_capture() {
+  cat >/dev/null
+  printf '%s\n' 'capture-check: forced failure' >&2
+  return 55
+}
+
+log_debug() { :; }
+log_info()  { :; }
+log_warn()  { :; }
+log_error() { :; }
+LOG_CAPTURE_FAIL
+
+_leaf=$(make_leaf leaf_capture_forward_failure '
+printf "%s\\n" "STDOUT: capture-failure"
+printf "%s\\n" "STDERR: capture-failure" >&2
+exit 37
+')
+
+run_wrap "$_leaf"
+rc=$WRAP_RC; out=$WRAP_OUT; err=$WRAP_ERR
+
+assert_eq "$rc" "37" "log_capture failure preserves leaf exit status"
+
+_expected="$_sandbox/expected.capture-failure.stdout"
+printf '%s\n' 'STDOUT: capture-failure' >"$_expected"
+if cmp -s "$out" "$_expected"; then
+  ok "log_capture failure preserves stdout byte for byte"
+else
+  not_ok "log_capture failure preserves stdout byte for byte"
+fi
+
+assert_not_contains_file "$out" "STDERR: capture-failure" "log_capture failure keeps leaf stderr out of stdout"
+assert_contains_file "$err" "log_capture failed; centralized logging degraded" "log_capture failure emits degraded warning"
+assert_contains_file "$err" "STDERR: capture-failure" "log_capture failure replays captured leaf stderr"
+
+_boot_dir="$_sandbox_logs/_bootstrap"
+_boot_hit=$(find "$_boot_dir" -type f -exec grep -l "log_capture exit=55" {} \; 2>/dev/null | head -n 1)
+if [ -n "$_boot_hit" ] && \
+   grep -F "capture-check: forced failure" "$_boot_hit" >/dev/null 2>&1 && \
+   grep -F "STDERR: capture-failure" "$_boot_hit" >/dev/null 2>&1; then
+  ok "log_capture failure preserves helper diagnostics and replay evidence in bootstrap"
+else
+  not_ok "log_capture failure preserves helper diagnostics and replay evidence in bootstrap"
+fi
+
+rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
+mv "$_sandbox_lib/log.real.capturefail.sh" "$_sandbox_lib/log.sh" || exit 2
+
+# --------------------------------------------------------------------------
+# ADDED TEST 26: best-effort commit helper failure does not override leaf rc
 # --------------------------------------------------------------------------
 mv "$_sandbox_commit_lib/commit.sh" "$_sandbox_commit_lib/commit.real4.sh" || exit 2
 cat >"$_sandbox_commit_lib/commit.sh" <<'COMMIT_FAIL'
