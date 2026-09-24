@@ -618,7 +618,7 @@ rc=$?
 assert_eq "$rc" "11" "log_init returns 11 for invalid LOG_BUCKET"
 
 # --------------------------------------------------------------------------
-# TEST 9: unwritable log directory returns operational failure (nonzero; expected 10)
+# TEST 9: regular-file log path component returns operational failure (expected 10)
 # --------------------------------------------------------------------------
 reset_facade_state
 JOB_WRAP_ACTIVE=1
@@ -628,21 +628,18 @@ export LOG_LIB_DIR
 # shellcheck disable=SC1090,SC1091
 . "$_sandbox_lib/log.sh" 1>&2 || { echo "ERROR: failed to re-source log.sh" >&2; exit 2; }
 
-_ro_dir="$_sandbox_logs/ro"
-mkdir -p "$_ro_dir" || exit 2
-chmod 500 "$_ro_dir" 2>/dev/null || :
+_blocked="$_sandbox_logs/not-a-directory"
+: >"$_blocked" || exit 2
 
-LOG_ROOT="$_ro_dir"
+LOG_ROOT="$_blocked/logs"
 export LOG_ROOT
 DT_STUB_LOG_TS="2026-01-17-000007"
 export DT_STUB_LOG_TS
 log_init "rojob" INFO 1>/dev/null 2>&1
 rc=$?
-# log-sink uses rc=10 for cannot open log file / cannot update symlink
-assert_eq "$rc" "10" "log_init returns 10 when log file cannot be opened (unwritable dir)"
+# log-sink uses rc=10 when it cannot create the required log directory.
+assert_eq "$rc" "10" "log_init returns 10 when log path has a regular-file parent"
 
-# Restore perms for cleanup friendliness
-chmod 700 "$_ro_dir" 2>/dev/null || :
 LOG_ROOT="$_sandbox_logs"
 export LOG_ROOT
 
@@ -687,7 +684,7 @@ rc=$?
 assert_eq "$rc" "0" "second log_close returns 0"
 
 # --------------------------------------------------------------------------
-# TEST 12: missing datetime.sh in LOG_LIB_DIR causes operational failure (rc=10)
+# TEST 12: missing datetime primitives cause operational failure (rc=10)
 # --------------------------------------------------------------------------
 reset_facade_state
 JOB_WRAP_ACTIVE=1
@@ -699,7 +696,11 @@ cp "$_sandbox_lib/log.sh" "$_lib_nodt/log.sh" || exit 2
 cp "$_sandbox_lib/log-format.sh" "$_lib_nodt/log-format.sh" || exit 2
 cp "$_sandbox_lib/log-sink.sh" "$_lib_nodt/log-sink.sh" || exit 2
 cp "$_sandbox_lib/log-capture.sh" "$_lib_nodt/log-capture.sh" || exit 2
-# Intentionally omit datetime.sh
+# A sourceable dependency whose required primitive fails avoids the
+# nonportable shell exit caused by a dot command whose file is absent.
+cat >"$_lib_nodt/datetime.sh" <<'BROKEN_DT'
+dt_now_local_log_ts() { return 1; }
+BROKEN_DT
 
 LOG_LIB_DIR="$_lib_nodt"
 export LOG_LIB_DIR
@@ -711,7 +712,7 @@ DT_STUB_LOG_TS="2026-01-17-000009"
 export DT_STUB_LOG_TS
 log_init "$JOB" INFO 1>/dev/null 2>&1
 rc=$?
-assert_eq "$rc" "10" "log_init returns 10 when datetime.sh cannot be sourced"
+assert_eq "$rc" "10" "log_init returns 10 when a datetime primitive fails"
 
 # Summary
 if [ "$_fail" -eq 0 ]; then
