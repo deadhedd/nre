@@ -613,6 +613,13 @@ _wrap_debug "commit-setup: COMMIT_MODE=$COMMIT_MODE COMMIT_MESSAGE=$COMMIT_MESSA
 # Cleanup
 ###############################################################################
 
+_cleanup_lc_err() {
+  # Remove temp log_capture stderr file only after its consumers finish.
+  if [ -n "${_lc_err:-}" ]; then
+    rm -f -- "$_lc_err" 2>/dev/null || :
+  fi
+}
+
 _cleanup() {
   # Remove temp capture file.
   if [ -n "${_tmp:-}" ]; then
@@ -631,7 +638,8 @@ _cleanup() {
     rmdir -- "$_boot_dir" 2>/dev/null || :
   fi
 }
-trap _cleanup 0 1 2 15
+trap '_cleanup; _cleanup_lc_err' 0
+trap _cleanup 1 2 15
 
 ###############################################################################
 # Run leaf
@@ -693,6 +701,7 @@ if [ "$CAPTURE_MODE" = "file" ] && [ -s "$_tmp" ]; then
 
       cat "$_tmp" >&2 2>/dev/null || :
     fi
+    _cleanup_lc_err
   else
     cat "$_tmp" >&2 2>/dev/null || :
   fi

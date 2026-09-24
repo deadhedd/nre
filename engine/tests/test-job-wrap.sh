@@ -230,6 +230,17 @@ assert_not_contains_file() {
   if grep -F "$_needle" "$_p" >/dev/null 2>&1; then not_ok "$_msg (unexpected needle: $_needle)"; else ok "$_msg"; fi
 }
 
+assert_no_capture_err_files() {
+  _dir=$1
+  _msg=$2
+  _matches=$(find "$_dir" -type f -name 'jobwrap.capture.err.*' -print 2>/dev/null)
+  if [ -z "$_matches" ]; then
+    ok "$_msg"
+  else
+    not_ok "$_msg (found: $_matches)"
+  fi
+}
+
 # --------------------------------------------------------------------------
 # Helpers
 # --------------------------------------------------------------------------
@@ -341,6 +352,7 @@ if [ ! -d "$_boot_dir" ] || [ -z "$(find "$_boot_dir" -type f -print 2>/dev/null
 else
   not_ok "healthy run removes its empty bootstrap artifact"
 fi
+assert_no_capture_err_files "$_sandbox_tmp" "happy path removes temporary capture.err file"
 
 # --------------------------------------------------------------------------
 # TEST 4: TMPDIR unwritable => passthrough mode => leaf stderr reaches boundary
@@ -1059,12 +1071,77 @@ if [ -n "$_boot_hit" ] && \
 else
   not_ok "log_capture failure preserves helper diagnostics and replay evidence in bootstrap"
 fi
+assert_no_capture_err_files "$_sandbox_tmp" "log_capture failure removes temporary capture.err file"
 
 rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
 mv "$_sandbox_lib/log.real.capturefail.sh" "$_sandbox_lib/log.sh" || exit 2
 
 # --------------------------------------------------------------------------
-# ADDED TEST 26: best-effort commit helper failure does not override leaf rc
+# ADDED TEST 26: handled TERM does not remove capture diagnostics before read
+# --------------------------------------------------------------------------
+mv "$_sandbox_lib/log.sh" "$_sandbox_lib/log.real.captureterm.sh" || exit 2
+
+cat >"$_sandbox_lib/log.sh" <<'LOG_CAPTURE_TERM'
+#!/bin/sh
+# log.sh (test double): signal during the capture failure lifecycle
+
+(return 0 2>/dev/null) || { echo "ERROR: log.sh must be sourced" >&2; exit 2; }
+
+log_init() { return 0; }
+log_capture() {
+  _capture_data=$(cat)
+  case "$_capture_data" in
+    *"TERM capture leaf diagnostic"*)
+      printf '%s\n' 'review-helper-diagnostic' >&2
+      _test_term_seen=0
+      _test_term_handler() {
+        _cleanup
+        _test_term_seen=1
+      }
+      trap _test_term_handler 15
+      kill -TERM "$$"
+      while [ "$_test_term_seen" -eq 0 ]; do
+        :
+      done
+      trap _cleanup 15
+      return 55
+      ;;
+  esac
+  return 0
+}
+
+log_debug() { :; }
+log_info()  { :; }
+log_warn()  { :; }
+log_error() { :; }
+LOG_CAPTURE_TERM
+
+_leaf=$(make_leaf leaf_capture_term '
+printf "%s\\n" "STDOUT: capture-term"
+printf "%s\\n" "TERM capture leaf diagnostic" >&2
+exit 37
+')
+
+run_wrap "$_leaf"
+rc=$WRAP_RC; out=$WRAP_OUT; err=$WRAP_ERR
+
+assert_eq "$rc" "37" "handled TERM during log_capture preserves leaf exit status"
+assert_eq "$(cat "$out" 2>/dev/null || :)" "STDOUT: capture-term" "handled TERM during log_capture preserves stdout"
+
+_boot_dir="$_sandbox_logs/_bootstrap"
+_boot_hit=$(find "$_boot_dir" -type f -name 'leaf_capture_term-bootstrap-*.log' -print 2>/dev/null | head -n 1)
+if [ -n "$_boot_hit" ] && grep -F "review-helper-diagnostic" "$_boot_hit" >/dev/null 2>&1; then
+  ok "handled TERM preserves helper diagnostics until bootstrap consumes them"
+else
+  not_ok "handled TERM preserves helper diagnostics until bootstrap consumes them"
+fi
+assert_no_capture_err_files "$_sandbox_tmp" "handled TERM removes temporary capture.err after consumption"
+
+rm -f "$_sandbox_lib/log.sh" 2>/dev/null || :
+mv "$_sandbox_lib/log.real.captureterm.sh" "$_sandbox_lib/log.sh" || exit 2
+
+# --------------------------------------------------------------------------
+# ADDED TEST 27: best-effort commit helper failure does not override leaf rc
 # --------------------------------------------------------------------------
 mv "$_sandbox_commit_lib/commit.sh" "$_sandbox_commit_lib/commit.real4.sh" || exit 2
 cat >"$_sandbox_commit_lib/commit.sh" <<'COMMIT_FAIL'
