@@ -15,7 +15,7 @@ This project is a **POSIX shell–based execution framework** designed to make a
 
 A **wrapper-managed job execution framework** that provides:
 
-* deterministic, reproducible execution across environments
+* deterministic, reproducible execution for the documented shell runtime
 * strict separation of data and diagnostics (stdout vs stderr)
 * centralized, structured logging
 * explicit artifact tracking and commit orchestration
@@ -29,15 +29,15 @@ Conceptually, this is a **lightweight CI-style execution system for shell-based 
 
 ### ⚙️ Execution Engine
 
-* All jobs execute through a central wrapper (`engine/wrap.sh`)
+* Wrapper-managed jobs execute through a central wrapper (`engine/wrap.sh`)
 * The wrapper manages:
 
-  * environment normalization (cron-safe execution)
+  * wrapper context and deployment configuration
   * execution lifecycle and error handling
   * logging integration
   * artifact commit behavior
 
-This eliminates reliance on implicit shell state and reduces non-deterministic failures.
+This reduces reliance on implicit shell state and reduces non-deterministic failures.
 
 ---
 
@@ -110,8 +110,8 @@ This system enforces strict execution contracts to eliminate common failure mode
 
 ### Wrapper-managed execution lifecycle
 
-* All jobs run in a controlled environment
-* Enforces consistent behavior across all scripts
+* Wrapper-managed jobs run in a controlled environment
+* Enforces consistent behavior across wrapper-managed scripts
 
 ### Centralized logging ownership
 
@@ -204,9 +204,20 @@ Configuration is centralized via environment variables. Start with the public ex
 
 Key properties:
 
-* cron-safe execution environment
-* no reliance on interactive shell state
-* vault-relative path resolution
+* configuration for scheduled execution through the wrapper
+* no required interactive shell configuration
+* configurable vault and log paths
+
+The core engine targets POSIX `/bin/sh`. Ubuntu CI exercises its shell syntax,
+ShellCheck policy, regression suites, and public release checks. The private
+deployment is currently OpenBSD-oriented and is documented in
+the private deployment documentation. Ubuntu CI does not prove the complete
+OpenBSD deployment environment, and this project does not claim end-to-end Linux
+runtime support.
+
+When commit mode is enabled, the current commit helper uses `doas` to run Git
+as the configured Git user. The required privilege rules and isolated index
+permissions are deployment requirements, not wrapper portability guarantees.
 
 ---
 
@@ -284,7 +295,7 @@ This project demonstrates:
 * CI/CD-style execution modeling
 * logging and observability patterns
 * contract-driven development
-* Linux / Unix automation
+* POSIX shell automation with an OpenBSD-oriented private deployment
 * reliability-focused scripting
 
 ---

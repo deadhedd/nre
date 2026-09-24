@@ -4,6 +4,10 @@ This document describes the general requirements for running NRE outside the
 development repository. Deployment specific paths, users, hosts, and privilege
 rules belong to the operator and are not part of the public project.
 
+The core engine targets POSIX `/bin/sh`. Ubuntu CI exercises portable shell and
+tooling behavior, but that CI coverage does not establish complete Linux runtime
+support or reproduce the private OpenBSD deployment.
+
 ## Requirements
 
 * POSIX `/bin/sh`
@@ -18,6 +22,9 @@ file and set the vault and log paths for that installation. Keep commit mode off
 for a local installation unless Git persistence and its permissions have been
 configured deliberately.
 
-If a deployment enables commits, configure its Git work tree, repository, user,
-and privilege boundary according to the host operating system. NRE does not
-assume a particular host, user, repository path, or privilege tool.
+If a deployment enables commits, the current commit helper requires a `doas`
+privilege boundary and runs Git as the configured Git user. Configure the Git
+work tree, repository, user, `doas` permissions, and isolated index directory
+deliberately. The private deployment maintains separate OpenBSD permission
+rules. A portable privilege abstraction for other operating systems is not part
+of the current runtime contract.

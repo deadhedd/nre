@@ -1,108 +1,85 @@
 # Shell environment variable inventory
 
-This document summarizes the environment variable usage across all shell scripts in the repository, focusing on variables read from the environment (not locals or constants). It highlights whether each variable is required, optional overrides, or recognition-only, notes validation timing, and documents default behaviors.
+This inventory records environment inputs and exported context used by the
+current wrapper, logger, commit helper, reporter, and release tooling. It
+distinguishes wrapper defaults from direct helper defaults. Local shell
+variables and test fixture variables are not configuration interfaces.
 
-## Summary
-Environment variable inventory across all shell scripts (required unless noted). Defaults reflect behavior when unset.
+## Wrapper context and paths
 
-| Variable | Role / Default | Validation |
+| Variable | Current behavior | Validation or ownership |
 | --- | --- | --- |
-| JOB_WRAP_ACTIVE | Wrapper recursion guard; required for log sink. Default: unset triggers wrapper re-exec in leaf scripts. | Checked in log sink (hard exit) |
-| VAULT_PATH | Override vault root (default `/home/obsidian/vaults/Main`). | Not validated beyond existence checks in consumers |
-| PATH | Prepended with standard bins if unset. | Not validated |
-| HOME | Fallback for repo/log paths. | Not validated |
-| PULL_REPO_DIR | Optional override for repo location. | Presence checked; else defaults applied |
-| GIT_BIN | Optional override for git binary. | Verified executable before use |
-| LOG_SINK_LOADED | Guard to prevent double sourcing log sink. | Checked early |
-| LOG_KEEP_COUNT | Log rotation keep count; default 10. | Range validated (numeric) during prune |
-| LOG_TRUNCATE | If non-zero, truncates log on open; default 0. | Numeric check before truncation |
-| LOG_INTERNAL_DEBUG / LOG_INTERNAL_DEBUG_FILE | Logger internal debugging toggle and target file; defaults off/unset. | Checked when emitting debug lines |
-| JOB_NAME | Required job identifier for logging. | Required in log sink; exit if missing |
-| LOG_FILE | Required timestamped log file path. | Required in log sink; exit if missing |
-| LOG_LATEST | Optional latest symlink target; default `<dir>/<JOB_NAME>-latest.log`. | Initialized if unset |
-| LOG_ROOT | Base log directory; defaults to `${HOME}/logs`. | Not directly validated; used to derive paths |
-| LOG_INFO_STREAM / LOG_DEBUG_STREAM | Destinations for log/info streams; default stderr. | Initialized with defaults; not validated |
-| DEBUG_XTRACE | Enables xtrace when non-zero. | Checked before exporting related vars |
-| VAULT_ROOT / VAULT_LOG_DIR | Optional overrides for vault/log destinations. | Defaulted; not otherwise validated |
-| TMPDIR | Temporary file parent; default `/tmp`. | Used for mktemp; not validated |
-| LOG_DEBUG | Enables verbose sleep summary logging; default 0. | Used conditionally; not validated |
-| SLEEP_TZ | Override time zone for sleep summary; default America/Los_Angeles. | Not validated |
-| YESTERDAY_WAKE / TODAY_WAKE | Optional wake-time overrides for sleep summary. | Presence checked only |
-| VAULT_DEFAULT / DAILY_NOTE_DIR | Override vault/daily note paths in snapshot script. | Defaulted; not validated |
-| COMMIT_BARE_REPO | Optional bare repo path for commit helper; default computed. | Used directly without validation |
-| JOB_WRAP_DEBUG / JOB_WRAP_ASCII_ONLY / JOB_WRAP_DEBUG_FILE | Wrapper debug controls; defaults off/ASCII-only. | Checked when emitting debug; no hard validation |
-| JOB_WRAP_XTRACE / JOB_WRAP_XTRACE_FILE | Enable xtrace and target file; default derived from LOG_ROOT or /tmp. | Path ensured; no validation beyond non-empty |
-| JOB_WRAP_SEARCH_PATH | Optional search directories for commands. | Iterated if set; no validation |
-| JOB_WRAP_JOB_NAME | Optional override for derived job name. | Defaulted if unset |
-| JOB_WRAP_DEFAULT_WORK_TREE | Optional commit work tree override; default VAULT_PATH. | Used when set; no validation |
-| JOB_WRAP_DISABLE_COMMIT | Skip commit when non-empty. | Checked before commit execution |
-| JOB_WRAP_DEFAULT_COMMIT_MESSAGE | Optional commit message template. | Defaulted if unset |
-| JOB_WRAP_COMMIT_ON_SIGNAL / JOB_WRAP_SIG / JOB_WRAP_SHUTDOWN_DONE | Signal-handling/commit controls; defaults empty/0. | Evaluated during shutdown flow; no upfront validation |
-| LOG_RUN_TS | Optional run timestamp; default generated. | Default set early; no validation |
-| LOG_INTERNAL_LEVEL / LOG_ASCII_ONLY | Logger configuration; default INFO/1. | Defaulted and exported; not otherwise validated |
-| PAGAN_TIMINGS_COMMON_SOURCED / TZ / LAT / LON | Celestial timing parameters; defaults LA coordinates/TZ. | Sourced defaults; no validation |
-| OFFLINE | Opt-in offline mode for celestial scripts. | Checked to bypass network calls |
-| PAGAN_TIMINGS_SEASON_ROWS / PAGAN_TIMINGS_SEASON_TIP | Optional seasonal overrides; defaults to blank/guidance string. | Presence checked; no validation |
+| `JOB_WRAP_ENV_FILE` | Optional POSIX `sh` environment file. The wrapper default is `/home/obsidian/nre-private/env.sh`. The commit helper retains its standalone fallback `/home/obsidian/obsidian-note-tools/env.sh`. | Wrapper sources it when readable. A readable file that fails to source causes wrapper exit `121`. |
+| `JOB_WRAP_ACTIVE` | Wrapper recursion and logger context marker. | Wrapper exports `1`; logger components require wrapper context. |
+| `REPO_ROOT` | Absolute repository root derived from the wrapper location unless already provided. | Wrapper rejects a non absolute or structurally invalid value with exit `121`. |
+| `LOG_ROOT` | Wrapper default is `../logs` beside the repository, with `$REPO_ROOT/logs` as fallback. | Explicit values are preserved. Direct reporter helpers retain their documented `/home/obsidian/logs` fallback. |
+| `VAULT_ROOT` | Canonical wrapper vault and artifact root. | Wrapper uses `VAULT_ROOT`, then `VAULT_PATH`, then `/home/obsidian/vaults/Main`. Consumers validate only as needed for their file operations. |
+| `VAULT_PATH` | Compatibility fallback for `VAULT_ROOT`. Some older jobs also read it directly. | It is not a wrapper level alias after `VAULT_ROOT` has been chosen. |
+| `COMMIT_WORK_TREE` | Commit work tree root. Default is `VAULT_ROOT`. | Used by wrapper commit orchestration and the commit helper. The selected path must contain the explicit files being committed. |
+| `LOG_LIB_DIR` | General library directory. Default `$REPO_ROOT/engine/lib`. | Wrapper exports it for logger and commit components. |
+| `ENGINE_LIB_DIR` | Engine logger directory. Default `$REPO_ROOT/engine`. | Wrapper exports it for logger components. |
+| `COMMIT_LIB_DIR` | Commit helper directory. Default `$LOG_LIB_DIR`. | Wrapper exports it and invokes `commit.sh` from this directory. |
+| `TMPDIR` | Temporary file parent. Default `/tmp` when unset. | Wrapper and helpers use it for temporary files. Unusable temporary storage triggers the documented degradation path. |
+| `PATH` | The wrapper does not globally normalize it. | The commit helper and log mirror helper prepend `/usr/local/bin:/usr/bin:/bin`; individual jobs may set their own path. |
+| `JOB_WRAP_SEARCH_PATH` | Leaf search path. Default `$REPO_ROOT/bin:$REPO_ROOT/jobs:$REPO_ROOT/generators:$REPO_ROOT/engine:$REPO_ROOT/utils:$REPO_ROOT/scripts`. | Wrapper searches configured directories before repository and `PATH` fallbacks. |
+| `WRAP_STATUS_REPORT` | Optional status report invocation. Default `0`. | When `1`, wrapper invokes the status helper after eligible jobs. |
 
-### Variable details
+## Commit configuration
 
-#### JOB_WRAP_ACTIVE
-- Read in leaf scripts to decide whether to re-exec through `job-wrap`; defaults to unset meaning wrapper launches the script.
-- Required to be `1` when initializing the logging sink; failure exits with error.
-- Not explicitly validated elsewhere.
+| Variable | Current behavior | Validation or ownership |
+| --- | --- | --- |
+| `COMMIT_MODE` | Default `required`. `off` disables commit orchestration. Other values enable it, with helper failures treated as warnings unless the value is `required`. | Wrapper owns the policy. No policy change is implied by this inventory. |
+| `COMMIT_LIST_FILE` | Wrapper created file containing explicitly registered artifacts when commit mode is not `off` and temporary storage is available. | Exported to the leaf, filtered by the wrapper, and removed during wrapper cleanup. |
+| `COMMIT_MESSAGE` | Commit message. Default `job: ${JOB_NAME}` when empty. | Wrapper supplies it to the commit helper. |
+| `COMMIT_BARE_REPO` | Bare repository used by the commit helper. Default `/home/git/vaults/Main.git`. | Helper and Git validate availability through their normal failure paths. |
+| `COMMIT_INDEX_DIR` | Directory for the isolated commit index. Default `$COMMIT_BARE_REPO/tmp`. | The directory must be usable by the Git user reached through `doas`. |
+| `GIT_BIN` | Git executable override. Default `/usr/local/bin/git` when executable, otherwise `git`. | Commit helper requires a usable executable. |
+| `GIT_USER` | User used for Git operations. Default `git`. | Commit helper validates the name and requires the `doas` boundary. |
+| `ENGINE_DEBUG` | Commit helper diagnostic input. When enabled with `1` (the implementation also accepts `yes`, `true`, `on`, and their uppercase forms), it emits extra diagnostics. | Stderr only. It does not change stdout or exit semantics. |
+| `LOG_INTERNAL_DEBUG` | Alternate commit helper diagnostic input with the same semantics as `ENGINE_DEBUG`. | Stderr only. It does not change stdout or exit semantics. |
+| `COMMIT_GIT_INDEX_FILE` | Per attempt isolated index path selected by the commit helper. | Internal commit state. The OpenBSD deployment must preserve it across `doas`. |
 
-#### VAULT_PATH
-- Provides override for vault locations; defaults to `/home/obsidian/vaults/Main` when absent.
-- Used for commit work-tree defaulting in wrapper.
-- Not validated beyond downstream directory existence checks.
+## Logger context and controls
 
-#### PATH
-- Reset with standard locations prepended; falls back to existing `PATH` if set.
-- No validation; optional override.
+| Variable | Current behavior | Validation or ownership |
+| --- | --- | --- |
+| `JOB_NAME` | Derived job identifier used in log names and commit defaults. | Logger requires a valid non empty name. |
+| `LOG_BUCKET` | Log subdirectory selected by the wrapper or logger caller. | Used by the log sink when constructing paths. |
+| `LOG_FILE` | Generated per run log path, `${LOG_ROOT}/${LOG_BUCKET}/${JOB_NAME}-YYYY-MM-DD-HHMMSS.log`. | Sink creates and exports it after validating the logger context. It is not a required input. |
+| `LOG_MIN_LEVEL` | Minimum logger level supplied by the wrapper or caller. | Logger validates the level and returns its documented status. |
+| `LOG_KEEP_COUNT` | Retention count. The wrapper defaults it to `10`; direct sink use defaults to disabled pruning when it is unset or empty. `0` also disables pruning. | The sink accepts non negative integers; positive values keep that many recent per run logs. |
+| `JOB_WRAP_DEBUG` | Wrapper diagnostic input. When `1`, it enables DEBUG minimum level and healthy mode boundary diagnostics. | Debug output remains separate from primary stdout. |
 
-#### HOME / PULL_REPO_DIR / GIT_BIN
-- `HOME` defaulted to `/home/obsidian` to resolve repo paths; optional override.
-- `PULL_REPO_DIR` lets caller choose repo directory; if unset defaults cascade to two known paths.
-- `GIT_BIN` allows custom git executable; resolved and then checked for executability before use (required for correctness).
+The sink generates the latest log pointer internally at
+`${LOG_ROOT}/${LOG_BUCKET}/${JOB_NAME}-latest.log`; it does not consume a
+`LOG_LATEST` input. The current implementation also does not consume
+`LOG_TRUNCATE`, `LOG_INTERNAL_DEBUG_FILE`, or `JOB_WRAP_DEBUG_FILE`; these are
+not supported logger configuration variables.
 
-#### LOG_SINK_LOADED / LOG_KEEP_COUNT / LOG_TRUNCATE / LOG_INTERNAL_DEBUG / LOG_INTERNAL_DEBUG_FILE / LOG_FD / LOG_LATEST / JOB_NAME / LOG_FILE
-- Logging sink guards and knobs; defaults set on load (keep count 10, truncate 0).
-- `JOB_NAME` and `LOG_FILE` are required; absence triggers immediate exit.
-- `LOG_LATEST` defaulted to `<dir>/<JOB_NAME>-latest.log` if unset.
-- `LOG_INTERNAL_DEBUG`/`LOG_INTERNAL_DEBUG_FILE` control internal diagnostics only.
-- `LOG_FD` checked before writes; failure emits error.
+## Job specific inputs
 
-#### LOG_ROOT / LOG_INFO_STREAM / LOG_DEBUG_STREAM / DEBUG_XTRACE
-- `LOG_ROOT` default `${HOME}/logs`; used by wrapper and debug runner to locate debug outputs.
-- Stream variables default to stderr to keep logs off stdout; optional overrides.
-- `DEBUG_XTRACE` toggles xtrace export with optional file target; optional.
+These variables are used by particular jobs rather than by the wrapper contract.
+Their defaults remain job specific.
 
-#### VAULT_ROOT / VAULT_LOG_DIR / TMPDIR
-- Sync helper defaults `LOG_ROOT` and `VAULT_PATH` to derive log export locations; optional overrides.
-- `TMPDIR` used for temporary files with mktemp fallback; optional override.
+| Variable | Current behavior |
+| --- | --- |
+| `PULL_REPO_DIR` | Optional repository location override for the private pull job. |
+| `HOME` | Used as a fallback by selected legacy or private jobs. It is not a repository wide path default. |
+| `SLEEP_TZ` | Time zone override for sleep processing. Default `America/Los_Angeles`. |
+| `YESTERDAY_WAKE` and `TODAY_WAKE` | Optional wake time overrides for sleep processing. |
+| `SNAPSHOT_DATE` | Optional date override for daily note snapshotting. |
+| `PERIODIC_NOTES_DIR`, `SUBNOTES_DIR`, `DASHBOARDS_DIR`, `DATA_NOTES_DIR`, `SLEEP_DATA_DIR`, and `SERVER_LOGS_DIR` | Vault subdirectory overrides supplied by the private environment file. |
+| `ARCHIVE_KEEP_DAILY_DAYS`, `ARCHIVE_KEEP_WEEKLY_WEEKS`, `ARCHIVE_KEEP_MONTHLY_MONTHS`, `ARCHIVE_KEEP_QUARTERLY_QTRS`, and `ARCHIVE_KEEP_YEARLY_YEARS` | Archive retention settings supplied by the private environment file. |
+| `TZ`, `LAT`, `LON`, `OFFLINE`, `PAGAN_TIMINGS_SEASON_ROWS`, and `PAGAN_TIMINGS_SEASON_TIP` | Celestial timing inputs and offline behavior. |
 
-#### LOG_DEBUG / SLEEP_TZ / YESTERDAY_WAKE / TODAY_WAKE
-- Sleep summary logging controlled by `LOG_DEBUG` defaulting to 0; only alters verbosity.
-- `SLEEP_TZ` default America/Los_Angeles; influences time computations.
-- Wake-time overrides `YESTERDAY_WAKE`/`TODAY_WAKE` if provided; otherwise computed internally.
+## Release tooling inputs
 
-#### VAULT_DEFAULT / DAILY_NOTE_DIR
-- Snapshot script allows overriding vault root and daily note directory; defaults based on `VAULT_PATH`. No explicit validation beyond file operations.
+| Variable | Current behavior |
+| --- | --- |
+| `SOURCE_REF` | Git source reference for public export when no `--source-ref` argument is supplied. Default `master`. |
+| `PUBLIC_REPO_URL` | Destination URL for normal public release mode. Required for publishing, not for validation only. |
+| `PUBLIC_REPO_REF` | Destination branch. Default `master`. |
 
-#### COMMIT_BARE_REPO
-- Commit helper accepts optional bare repo path; defaults if unset. No validation aside from git command behavior.
-
-#### JOB_WRAP_DEBUG / JOB_WRAP_ASCII_ONLY / JOB_WRAP_DEBUG_FILE / JOB_WRAP_XTRACE / JOB_WRAP_XTRACE_FILE / JOB_WRAP_SEARCH_PATH / JOB_WRAP_JOB_NAME / JOB_WRAP_DEFAULT_WORK_TREE / JOB_WRAP_DISABLE_COMMIT / JOB_WRAP_DEFAULT_COMMIT_MESSAGE / JOB_WRAP_COMMIT_ON_SIGNAL / JOB_WRAP_SIG / JOB_WRAP_SHUTDOWN_DONE / LOG_RUN_TS / LOG_INTERNAL_LEVEL / LOG_ASCII_ONLY
-- Debug and execution knobs consumed inside wrapper; all optional with sensible defaults (debug off, ASCII sanitization on, commit enabled, auto log naming).
-- `JOB_WRAP_COMMIT_ON_SIGNAL` only affects post-signal commit behavior; no validation.
-- `LOG_RUN_TS`, `LOG_INTERNAL_LEVEL`, `LOG_ASCII_ONLY` default set early for logging metadata.
-
-#### PAGAN_TIMINGS_COMMON_SOURCED / TZ / LAT / LON / OFFLINE / PAGAN_TIMINGS_SEASON_ROWS / PAGAN_TIMINGS_SEASON_TIP
-- Celestial timing scripts source defaults for location/timezone; optional overrides with no validation.
-- `OFFLINE` short-circuits network fetches; required for offline behavior only.
-- Seasonal overrides allow custom rows/tips; optional.
-
-## Potential contract updates
-- Consider documenting `JOB_WRAP_ACTIVE`, `JOB_NAME`, and `LOG_FILE` as required inputs for the logging sink and wrapper lifecycle.
-- Optional operational overrides worth mentioning: `VAULT_PATH`, `LOG_ROOT`, `LOG_KEEP_COUNT`, `LOG_TRUNCATE`, `DEBUG_XTRACE`, and `JOB_WRAP_DISABLE_COMMIT`.
-- Recognition-only toggles (e.g., `LOG_INTERNAL_DEBUG`, `LOG_DEBUG`, `OFFLINE`) may be candidates for consolidation or explicit CLI flags if broad usage grows.
+The current contract leaves wrapper PATH and locale normalization, reporter
+policy, and commit mode policy as open decisions. This inventory describes the
+current behavior and does not resolve those decisions.

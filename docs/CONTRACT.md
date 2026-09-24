@@ -145,7 +145,7 @@ wrapped. Once active, they must not re-wrap themselves.
 
 The wrapper sources an optional environment file early:
 
-* path: `${JOB_WRAP_ENV_FILE:-/home/obsidian/obsidian-note-tools/env.sh}`
+* path: `${JOB_WRAP_ENV_FILE:-/home/obsidian/nre-private/env.sh}`
 * only if readable
 * must be POSIX `sh` assignments/exports
 
