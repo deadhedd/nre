@@ -239,7 +239,9 @@ run_sync_latest_logs_to_vault() {
 
   # Helper logs to stderr (captured by this job's wrapped log).
   # Helper writes list of written files to stdout; capture it for commit reg.
-  if ! "$sync_latest_logs_job" --emit-written-list >"$tmp_written" 2>/dev/null; then
+  if "$sync_latest_logs_job" --emit-written-list >"$tmp_written" 2>/dev/null; then
+    :
+  else
     rc=$?
     log_warn "sync-latest-logs helper failed (rc=$rc); continuing"
     trap - HUP INT TERM 0
